@@ -165,3 +165,7 @@ cython_debug/
 #.idea/
 
 *.swp
+
+# Data
+./Data/
+.nii.gz
