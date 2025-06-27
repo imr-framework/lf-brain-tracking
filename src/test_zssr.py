@@ -32,9 +32,9 @@ qtab_path = './Data/QTAB'
 subjects = os.listdir(qtab_path)
 viewing = False
 ds_to_process = 4
-target_resolution_fact = [1, 1, 2]
+target_resolution_fact = [1, 2, 2]
 snr_component = True
-# img = nib.load('/home/mri4all/Documents/Tools/SRR/Data/QTAB/sub-0011/ses-01/anat/sub-0011_ses-01_T2w_zssr.nii.gz').get_fdata()
+# img = nib.load('/home/ajay/Documents/lf-brain-tracking/Data/QTAB/sub-0001/ses-01/anat/sub-0001_ses-01_T2w.nii.gz').get_fdata()
 # OrthoSlicer3D(img).show()
 
 # For each subject and session in QTAB, the script will:
@@ -63,11 +63,6 @@ for subject in subjects:
                                                         target_resolution_fact= target_resolution_fact,
                                                         snr_component=False)
                         
-                          
-                        if viewing == True:
-                            print(Fore.GREEN + 'Viewing: ', subject, session + Style.RESET_ALL)
-                            OrthoSlicer3D(im_lf_sim).show()
-                        
                         
                         # 3. Pass it through the ZSSR algorithm
                         print('Passing through ZSSR')
@@ -85,4 +80,3 @@ for subject in subjects:
                             OrthoSlicer3D(im_lf_sim_zssr).show()
                     else:
                         print(Fore.RED + "Did not find file")
-

@@ -1,0 +1,10 @@
+import nibabel as nib
+from nibabel.viewers import OrthoSlicer3D
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
+
+nifti_path = "Data/IRF_3T_LFsim/59233/AFRICAN.GREEN^African^Green^Monkey_59233_MR_2024-07-19_090302_MR-Brain-WWO_T2.2D_n30__00000.nii.gz"
+img = nib.load(nifti_path)
+data = img.get_fdata()
+OrthoSlicer3D(data).show()

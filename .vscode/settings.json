@@ -1,9 +1,16 @@
 {
-    "editor.fontSize": 20,
-    "editor.minimap.sectionHeaderFontSize": 14,
-    "debug.console.fontSize": 18,
-    "scm.inputFontSize": 16,
-    "terminal.integrated.fontSize": 16,
-    "chat.editor.fontSize": 16,
-    "markdown.preview.fontSize": 16
+    "editor.fontSize": 36,
+    "editor.minimap.sectionHeaderFontSize": 32,
+    "debug.console.fontSize": 24,
+    "scm.inputFontSize": 24,
+    "terminal.integrated.fontSize": 24,
+    "chat.editor.fontSize": 24,
+    "markdown.preview.fontSize": 24,
+    "cSpell.words": [
+        "dcmread",
+        "nibabel"
+    ],
+    "editor.inlayHints.fontSize": 24,
+    "screencastMode.fontSize": 32,
+    "editor.suggestFontSize": 24
 }

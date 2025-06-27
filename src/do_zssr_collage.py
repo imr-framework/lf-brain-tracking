@@ -179,6 +179,9 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
               padding:bool = False, mask_image:bool = False, reuse_mask:bool = False,
               target_resolution_fact=[1, 1, 2]):
     
+    print(Fore.GREEN + "..................Running ZSSR on slices................................." + Style.RESET_ALL)
+    
+    print(Fore.YELLOW + f"Input image shape: {img.shape}" + Style.RESET_ALL)
     T = 0.01 *  (np.max(img))
     img[img < T] = 0
     img = img / np.max(img) # Normalize
@@ -188,6 +191,8 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
                         img.shape[2]*target_resolution_fact[2]))
 
     for slice in range(img.shape[0]):
+
+        print(Fore.GREEN + f"Running with x axis, processing slice {slice}" + Style.RESET_ALL)
         img_slice = np.squeeze(img[slice, :, :])
         input_img = np.zeros((img_slice.shape[0], img_slice.shape[1], 3))
         
@@ -199,6 +204,8 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
 
         if np.sum(input_img) > 0:
             # do first pass - x, y all slices
+            print(Fore.YELLOW + f"input_img shape: {input_img.shape}" + Style.RESET_ALL)
+            
             net = ZSSR.ZSSR(input_img = input_img, conf=recon_conf, ground_truth=None, kernels=None)
             output_img = net.run()
             high_res_im = np.squeeze(output_img[:, :, 0])
@@ -208,5 +215,25 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
             print(Fore.RED + 'No data found!')
             output_img = input_img
             print(Style.RESET_ALL)
+
+    # Run ZSSR along the y-axis as a slice
+    for col in range(img.shape[1]): # Not working properly
+        img_col_slice = np.squeeze(img[:, col, :])
+        input_col_img = np.zeros((img_col_slice.shape[0], img_col_slice.shape[1], 3))
+        input_col_img[:, :, 0] = img_col_slice
+        input_col_img[:, :, 1] = img_col_slice
+        input_col_img[:, :, 2] = img_col_slice
+        recon_conf_col = configs.Config()
+        recon_conf_col.scale_factors = [[1, target_resolution_fact[2]]]
+        if np.sum(input_col_img) > 0:
+            print(Fore.YELLOW + f"input_col_img shape: {input_col_img.shape}" + Style.RESET_ALL)
+            net_col = ZSSR.ZSSR(input_img=input_col_img, conf=recon_conf_col, ground_truth=None, kernels=None)
+            output_col_img = net_col.run()
+            high_res_col_im = np.squeeze(output_col_img[:, :, 0])
+            img_zssr[:, col, :] = high_res_col_im
+            print(Fore.YELLOW + f"Y axis slice {col} processed" + Style.RESET_ALL)
+        else:
+            print(Fore.RED + f'No data found in y-slice {col}!' + Style.RESET_ALL)
+
 
     return img_zssr
