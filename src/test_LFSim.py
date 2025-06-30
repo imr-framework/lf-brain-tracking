@@ -114,7 +114,7 @@ for subject in subjects:
     # 1. Read the dicom file        
     sessions = os.listdir(irf_3t + '/' + subject)
     for session in sessions:
-        if 'T2_n' in session:
+        if 'T2_n100' in session:
             print(Fore.GREEN + 'Processing: ', subject, session + Style.RESET_ALL)
             
             # # Example usage
