@@ -28,16 +28,16 @@ data = data_ops(nhp_base_path)
 
 
 # Only proceed if there are enough slices
-if len(data[subj][day_idx]) >= 100:
-    slice_indices = [0, 19, 39, 59, 99]
-    fig, axes = plt.subplots(1, 5, figsize=(15, 5))
-    for ax, idx in zip(axes, slice_indices):
-        img = data[subj][day_idx][idx].pixel_array
-        ax.imshow(img, cmap='gray')
-        ax.set_title(f"Slice {idx+1}")
-        ax.axis('off')
-    plt.tight_layout()
-    plt.show()
+# if len(data[subj][day_idx]) >= 100:
+#     slice_indices = [0, 19, 39, 59, 99]
+#     fig, axes = plt.subplots(1, 5, figsize=(15, 5))
+#     for ax, idx in zip(axes, slice_indices):
+#         img = data[subj][day_idx][idx].pixel_array
+#         ax.imshow(img, cmap='gray')
+#         ax.set_title(f"Slice {idx+1}")
+#         ax.axis('off')
+#     plt.tight_layout()
+#     plt.show()
 # Sample dummy data creation (shape 64x64)
 
 # nhp_26184_dates_volumes = nhp_26184.volume
