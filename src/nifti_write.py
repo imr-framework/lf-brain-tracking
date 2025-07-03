@@ -2,8 +2,7 @@ import sys
 import numpy as np
 import nibabel.nifti1 as nib
 import matplotlib.pyplot as plt
-
-
+import cv2
 
 # TODO:
 # 1. Improve masking
