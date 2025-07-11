@@ -3,22 +3,55 @@ import nibabel as nib
 from read_kea3d import kea3d
 from kea2nifti import make_nifti
 from nibabel.viewers import OrthoSlicer3D
+import os
 
-# List paths
-data_folder = './demo_data/'
-sub_folder = '3DTSE/1'
-fname_nii = 'demo.nii'
+def read_lf_data(
+    data_folder='Data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240709/34507_D_minus28',
+    output_folder='/home/ajay/Documents/lf-brain-tracking/Data/LFMRI_DATA_IRF_nifti',
+    subject="34507",
+    sub_folder='3DTSE/3',
+    file_name='20240829_day2_3DTSC_12.nii'
+):
+    try:
+        # print(f"Data folder: {data_folder}")
+        # print(f"Output folder: {output_folder}")
+        # print(f"Subject: {subject}")
+        # print(f"Sub folder: {sub_folder}")
+        # print(f"File name: {file_name}")
 
-sample_data = kea3d(data_folder=data_folder, sub_folder=sub_folder)
-kspace = sample_data.kspace_gauss_filter
-im = np.fft.fftshift(np.fft.fftn((np.fft.fftshift(kspace))))
+        subject_folder = os.path.join(output_folder, subject)
+        if not os.path.exists(subject_folder):
+            os.makedirs(subject_folder)
 
-s = OrthoSlicer3D(np.abs(im))
-s.clim =[0, 2048]
-s.cmap = 'gray'
-s.show()
+        fname_nii = os.path.join(subject_folder, '20240829_day2_3DTSC_12.nii')
+        sample_data = kea3d(data_folder=data_folder, sub_folder=sub_folder)
+        kspace = sample_data.kspace_gauss_filter
+        im = np.fft.fftshift(np.fft.fftn((np.fft.fftshift(kspace))))
+        
+        # s = OrthoSlicer3D(np.abs(im))
+        # s.clim = [0, np.abs(1.5 * np.max(np.abs(im)))]
+        # s.cmap = 'gray'
+        # s.show()
 
-# Make nifti in case of need for further inputs to other software 
-# Determine resolution from acq_par
-make_nifti(im, fname = fname_nii, mask=False, res=[sample_data.res_dim1, sample_data.res_dim2, sample_data.res_dim3], dim_info=[0, 1, 2])
+        # print(np.max(np.abs(im)))
+        # print("Min value:", np.min(np.abs(im)))
+        # print("Data type of np.abs(im):", np.abs(im).dtype)
+        # print("Shape of im:", im.shape)
+        
+        # Make nifti in case of need for further inputs to other software 
+        make_nifti(
+            im,
+            fname=fname_nii,
+            mask=False,
+            res=[sample_data.res_dim1, sample_data.res_dim2, sample_data.res_dim3],
+            dim_info=[0, 1, 2]
+        )
 
+
+        return im
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+if __name__ == "__main__":
+    im = read_lf_data()
