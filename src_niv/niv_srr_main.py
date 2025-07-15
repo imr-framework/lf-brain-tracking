@@ -15,6 +15,11 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
+from tensorflow.keras import layers, models, Input
+import ants
+import nibabel as nib
+from sklearn.feature_extraction import image
+import os
 
 # Define the path to the IRF_3T folder ( High Field Data)
 nhp_base_path = './Data/IRF_3T'
@@ -43,24 +48,24 @@ print(f"Dtype: {volume_26184.dtype}")
 print(f"Min: {np.min(volume_26184)}, Max: {np.max(volume_26184)}")
 print(f"Mean: {np.mean(volume_26184):.2f}, Std: {np.std(volume_26184):.2f}")
 
-# if day_idx in all_volumes:
-#     vol = all_volumes[day_idx]
-#     slice_indices = list(range(0, 100, 10))  # [0, 10, 20, ..., 90]
+if day_idx in all_volumes:
+    vol = all_volumes[day_idx]
+    slice_indices = list(range(0, 100, 10))  # [0, 10, 20, ..., 90]
 
-#     fig, axes = plt.subplots(2, 5, figsize=(15, 6))
-#     fig.suptitle(f"Day {day_idx} - Every 10th Slice", fontsize=16)
-#     for ax, idx in zip(axes.flat, slice_indices):
-#         if idx < vol.shape[0]:
-#             ax.imshow(vol[idx], cmap='gray')
-#             ax.set_title(f"Slice {idx}")
-#             ax.axis('off')
-#     plt.tight_layout()
-#     plt.show()
-# else:
-#     print(f"Day {day_idx} data not found.")
+    fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+    fig.suptitle(f"Day {day_idx} - Every 10th Slice", fontsize=16)
+    for ax, idx in zip(axes.flat, slice_indices):
+        if idx < vol.shape[0]:
+            ax.imshow(vol[idx], cmap='gray')
+            ax.set_title(f"Slice {idx}")
+            ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+else:
+    print(f"Day {day_idx} data not found.")
 
 # Initialize data object and load data (LFMRI_data_IRF)
-# Iterate inside each irf_folder and print subfolders containing a specific string
+
 data_folder='Data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240709/34507_D_minus28'
 output_folder='/home/ajay/Documents/lf-brain-tracking/Data/LFMRI_DATA_IRF_nifti'
 subject=subject
@@ -72,8 +77,8 @@ im = read_lf_data(data_folder, output_folder, subject, sub_folder, file_name)
 # if im is None:
 #     print("Skipping due to read error.")
 #     continue
-
-print(np.max(np.abs(im)))
+print(f"LF_MRI data processing  started .............")
+print("Max value:", np.max(np.abs(im)))
 print("Min value:", np.min(np.abs(im)))
 print("Data type of np.abs(im):", np.abs(im).dtype)
 print("Shape of im:", im.shape)
@@ -97,7 +102,243 @@ plt.tight_layout()
 plt.show()
 plt.close()
 
-# Prepare the data
+
+
+# Prepare the HF data for SRR (e.g. normalization, resizing, etc.)
+
+
+
+# --------------------------------------
+# 🧠 Utility Functions
+# --------------------------------------
+
+def normalize(img):
+    img = img.astype(np.float32)
+    return (img - np.mean(img)) / (np.std(img) + 1e-5)
+
+
+def resize_mri_volume(volume: np.ndarray, target_shape: tuple, interp_type: int = 1) -> np.ndarray:
+    """
+    Resizes a 3D MRI volume to a target shape using ANTsPy.
+
+    Parameters:
+    - volume (np.ndarray): Input 3D volume, shape (D, H, W) or (H, W, D)
+    - target_shape (tuple): Desired shape (H, W, D) or (X, Y, Z)
+    - interp_type (int): Interpolation type (0=nearest, 1=linear, 2=BSpline, etc.)
+
+    Returns:
+    - np.ndarray: Resized volume as float32
+    """
+    if volume.ndim != 3:
+        raise ValueError("Input volume must be a 3D array.")
+    
+    volume = volume.astype(np.float32)
+    ants_img = ants.from_numpy(volume)
+    resized_img = ants.resample_image(ants_img, target_shape, use_voxels=True, interp_type=interp_type)
+    return resized_img.numpy()
+
+
+# --------------------------------------
+# 📦 Load HF and LF Volumes
+# --------------------------------------
+
+# Provided variables:
+# - `volume_26184` as HF: shape (100, 512, 512), dtype float32
+# - `im` as LF: shape (64, 64, 16), dtype float64
+
+hf = volume_26184  # HF image
+lf = im            # LF image
+
+# Normalize both
+hf = normalize(hf)
+lf = normalize(lf)
+
+# Resample HF to (256, 256, 64)
+# Original MRI shape: (100, 512, 512)
+hf_resized = resize_mri_volume(volume_26184, target_shape=(64, 256, 256))  # Output shape: (256, 256, 64)
+volume = np.random.rand(64, 256, 256)  # (D, H, W)
+reordered = np.transpose(volume, (1, 2, 0))  # Now shape: (H, W, D)
+print(reordered.shape)  # (512, 512, 100)
+
+vol = reordered
+slice_indices = list(range(0, 100, 10))  # [0, 10, 20, ..., 90]
+
+fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+fig.suptitle(f"Day {day_idx} - Every 10th Slice", fontsize=16)
+for ax, idx in zip(axes.flat, slice_indices):
+    if idx < vol.shape[2]:
+        ax.imshow(vol[idx], cmap='gray')
+        ax.set_title(f"Slice {idx}")
+        ax.axis('off')
+plt.tight_layout()
+plt.show()
+
+num_slices = lf.shape[2]
+print(f"After resampling LF shape: {lf.shape}, dtype: {lf.dtype}, min: {np.min(lf)}, max: {np.max(lf)}, mean: {np.mean(lf):.2f}, std: {np.std(lf):.2f}")
+fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+# fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+axes = axes.flatten()
+
+for i in range(16):
+    if i < num_slices:
+        slice_img = np.flipud(np.abs(lf[:, :, i]).T)
+        axes[i].imshow(slice_img, cmap='gray')
+        axes[i].set_title(f'Slice {i + 1}')
+        axes[i].axis('off')
+    else:
+        axes[i].axis('off')
+
+plt.tight_layout()
+plt.show()
+plt.close()
+
+# # Reshape to [H, W, D, C]
+# lf_input = lf[..., np.newaxis]  # shape (64, 64, 16, 1)
+# hf_target = hf_resized[..., np.newaxis]  # shape (256, 256, 64, 1)
+
+# # --------------------------------------
+# # 🔧 3D Residual UNet Definition
+# # --------------------------------------
+
+# def residual_block(x, filters, kernel_size=3):
+#     shortcut = x
+#     x = layers.Conv3D(filters, kernel_size, padding='same', activation='relu')(x)
+#     x = layers.Conv3D(filters, kernel_size, padding='same')(x)
+#     x = layers.add([shortcut, x])
+#     x = layers.Activation('relu')(x)
+#     return x
+
+# def build_resunet_sr(input_shape=(64, 64, 16, 1), output_shape=(256, 256, 64, 1)):
+#     inputs = Input(shape=input_shape)
+
+#     # Encoder
+#     c1 = layers.Conv3D(32, 3, activation='relu', padding='same')(inputs)
+#     c1 = residual_block(c1, 32)
+#     p1 = layers.MaxPooling3D()(c1)
+
+#     c2 = layers.Conv3D(64, 3, activation='relu', padding='same')(p1)
+#     c2 = residual_block(c2, 64)
+#     p2 = layers.MaxPooling3D()(c2)
+
+#     # Bottleneck
+#     bn = layers.Conv3D(128, 3, activation='relu', padding='same')(p2)
+#     bn = residual_block(bn, 128)
+
+#     # Decoder with Upsampling to match (256, 256, 64)
+#     u2 = layers.UpSampling3D(size=(2, 2, 2))(bn)
+#     u2 = layers.Conv3D(64, 3, padding='same', activation='relu')(u2)
+
+#     u1 = layers.UpSampling3D(size=(2, 2, 2))(u2)
+#     u1 = layers.Conv3D(32, 3, padding='same', activation='relu')(u1)
+
+#     u0 = layers.UpSampling3D(size=(2, 2, 2))(u1)
+#     u0 = layers.Conv3D(16, 3, padding='same', activation='relu')(u0)
+
+#     out = layers.Conv3D(1, 1, activation='linear')(u0)
+
+#     model = models.Model(inputs, out)
+#     model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+#     return model
+
+# model = build_resunet_sr(input_shape=lf_input.shape, output_shape=hf_target.shape)
+
+# # --------------------------------------
+# # 🚀 Train Subject-Specific SRR Model
+# # --------------------------------------
+
+# model.fit(x=lf_input[np.newaxis, ...], y=hf_target[np.newaxis, ...], epochs=100)
+
+# # Save model
+# model.save("subject_srr_resunet_256x256x64.h5")
+
+# # --------------------------------------
+# # 🔮 Predict HF from Next Visit LF
+# # --------------------------------------
+
+# # Replace `next_lf` with next visit LF volume
+# next_lf = normalize(next_visit_lf)[..., np.newaxis]  # (64, 64, 16, 1)
+# hf_pred = model.predict(next_lf[np.newaxis, ...])[0, ..., 0]
+
+# Save predicted HF as NIfTI (optional)
+# nib.save(nib.Nifti1Image(hf_pred, affine=np.eye(4)), "predicted_hf.nii.gz")
+
+
+# # Add channel dimension
+# hf_norm = hf_norm[..., np.newaxis]
+# lf_norm = lf_norm[..., np.newaxis]
+
+# # Optional patch extraction (for large volumes)
+# hf_patches = extract_patches_3d(hf_norm, patch_shape=(32, 64, 64), max_patches=200)
+# lf_patches = extract_patches_3d(lf_norm, patch_shape=(32, 64, 64), max_patches=200)
+
+# --------------------------------------
+# 🔧 3D Residual UNet Definition
+# --------------------------------------
+
+# def residual_block(x, filters, kernel_size=3):
+#     shortcut = x
+#     x = layers.Conv3D(filters, kernel_size, padding='same', activation='relu')(x)
+#     x = layers.Conv3D(filters, kernel_size, padding='same')(x)
+#     x = layers.add([shortcut, x])
+#     x = layers.Activation('relu')(x)
+#     return x
+
+# def build_resunet(input_shape=(32, 64, 64, 1)):
+#     inputs = Input(shape=input_shape)
+
+#     # Encoder
+#     c1 = layers.Conv3D(32, 3, activation='relu', padding='same')(inputs)
+#     c1 = residual_block(c1, 32)
+#     p1 = layers.MaxPooling3D()(c1)
+
+#     c2 = layers.Conv3D(64, 3, activation='relu', padding='same')(p1)
+#     c2 = residual_block(c2, 64)
+#     p2 = layers.MaxPooling3D()(c2)
+
+#     c3 = layers.Conv3D(128, 3, activation='relu', padding='same')(p2)
+#     c3 = residual_block(c3, 128)
+
+#     # Decoder
+#     u2 = layers.UpSampling3D()(c3)
+#     concat2 = layers.concatenate([u2, c2])
+#     c4 = layers.Conv3D(64, 3, activation='relu', padding='same')(concat2)
+#     c4 = residual_block(c4, 64)
+
+#     u1 = layers.UpSampling3D()(c4)
+#     concat1 = layers.concatenate([u1, c1])
+#     c5 = layers.Conv3D(32, 3, activation='relu', padding='same')(concat1)
+#     c5 = residual_block(c5, 32)
+
+#     outputs = layers.Conv3D(1, 1, activation='linear')(c5)
+
+#     model = models.Model(inputs, outputs)
+#     model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+#     return model
+
+# model = build_resunet(input_shape=lf_patches.shape[1:])
+
+# # --------------------------------------
+# # 🚀 Train Subject-Specific Model
+# # --------------------------------------
+
+# model.fit(x=lf_patches, y=hf_patches, batch_size=4, epochs=50, validation_split=0.1)
+
+# # Save model
+# model.save("subject_srr_resunet.h5")
+
+# # --------------------------------------
+# # 🔮 Predict on Future LF Volume
+# # --------------------------------------
+
+# # Load next visit LF (replace with actual data)
+# lf_next = normalize(resample_to_target(next_visit_lf, target_shape=(512, 512, 100)))
+# lf_next = lf_next[..., np.newaxis]
+
+# # Predict directly (if memory allows)
+# hf_pred = model.predict(lf_next[np.newaxis, ...])[0, ..., 0]
+
+# # Save predicted HF as NIfTI (optional)
+# nib.save(nib.Nifti1Image(hf_pred, affine=np.eye(4)), "predicted_hf.nii.gz")
 
 # Display the data
 
