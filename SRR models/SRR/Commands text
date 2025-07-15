@@ -1,3 +1,0 @@
-# Commands text
-# niftymic docker command
-sudo docker run --rm -v "$PWD:$PWD" -w "$PWD" renbem/niftymic niftymic_reconstruct_volume --filenames axial.nii.gz  cor.nii.gz sag.nii.gz --filenames-masks axial_mask.nii.gz  cor_mask.nii.gz sag_mask.nii.gz --alpha 0.02 --outlier-rejection 0 --threshold-first 0.5 --threshold 0.7 --intensity-correction 1 --two-step-cycles 1  --isotropic-resolution 2 --output srr_1cycle_2mm_Huber.nii.gz --verbose 1 --reconstruction-type HuberL2
