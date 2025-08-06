@@ -1,7 +1,7 @@
 # Subject-Specific Super-Resolution Reconstruction (SRR) Framework
 # STEP 1: Load High Field (HF) and Low Field (LF) MRI Data [FIVE TIMEPOINTS] -- [DONE]
-
-# Read HF --> Check Voxel Sizes; # Read HF inputs resize 1,1,2 to 128,128, 32 --> PREPROCESS hf
+# Read HF;
+# Check Voxel Sizes; # Read HF inputs resize 1,1,2 to 128,128, 32 --> PREPROCESS hf
 # Read LF Images; --> # Check voxel size; # Read Low field 64,64, 16 ---> 128, 128, 32 --> Perform ZSSR
 # Perform [Normalization] --> if required
 # Perform [Brain extraction,Bias field correction, Contrast enhancement,Registration,Histogram matching ] --> if required
@@ -18,7 +18,6 @@ sys.path.insert(0, './')  # Adjust the path as necessary to import from src_niv
 sys.path.append('./data_read_code')
 from src_niv.prep_data import data_ops
 from src_niv.read_lf5_data import process_subject
-from src_niv.utils import visualize_hf_slices, visualize_lf_slices,visualize_resampled,resample_volume
 from src_niv.prep_lf import normalize, resize_mri_volume
 from demo_read_data import read_lf_data
 
@@ -55,49 +54,69 @@ data_obj = data_ops(nhp_data_path)
 
 # Retrieve dictionary of 3D volumes (day1 to day5)
 all_volumes = data_obj.data
-voxel_sizes = data_obj.voxel_sizes
+
 # Select and visualize Day 1: 10 slices spaced 10 apart
 day_idx = 1
-visualize = False
-
 volume_26184 = all_volumes[day_idx]
-voxel_sizes_26184 = voxel_sizes[day_idx]
 
-print(f'Day {day_idx} and voxel size {voxel_sizes_26184}')
+print(f"Type: {type(volume_26184)}")
+print(f"Shape: {volume_26184.shape}")
+print(f"Dtype: {volume_26184.dtype}")
+print(f"Min: {np.min(volume_26184)}, Max: {np.max(volume_26184)}")
+print(f"Mean: {np.mean(volume_26184):.2f}, Std: {np.std(volume_26184):.2f}")
 
-if visualize == True:
-    
-    print(f"Type: {type(volume_26184)}")
-    print(f"Shape: {volume_26184.shape}")
-    print(f"Dtype: {volume_26184.dtype}")
-    print(f"Min: {np.min(volume_26184)}, Max: {np.max(volume_26184)}")
-    print(f"Mean: {np.mean(volume_26184):.2f}, Std: {np.std(volume_26184):.2f}")
-    visualize_hf_slices(all_volumes,voxel_sizes, day_idx)
+if day_idx in all_volumes:
+    vol = all_volumes[day_idx]
+    slice_indices = list(range(0, 100, 10))  # [0, 10, 20, ..., 90]
 
+    fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+    fig.suptitle(f"Day {day_idx} - Every 10th Slice", fontsize=16)
+    for ax, idx in zip(axes.flat, slice_indices):
+        if idx < vol.shape[0]:
+            ax.imshow(vol[idx], cmap='gray')
+            ax.set_title(f"Slice {idx}")
+            ax.axis('off')
+    plt.tight_layout()
+    plt.show()
+else:
+    print(f"Day {day_idx} data not found.")
 
 # Initialize data object and load data (LFMRI_data_IRF)
 all_volumes_lf = process_subject(subject=subject)
 
+# data_folder = 'Data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240709/34507_D_minus28'
+# output_folder = '/home/ajay/Documents/lf-brain-tracking/Data/LFMRI_DATA_IRF_nifti'
+# subject = subject
+# sub_folder ='3DTSE/3'
+# file_name ='20240829_day2_3DTSC_12.nii'
+# name = file_name
+# im = read_lf_data(data_folder, output_folder, subject, sub_folder, file_name)
 im = all_volumes_lf[day_idx-1]
+
 print(f"LF_MRI data processing  started .............")
+print("Max value:", np.max(np.abs(im)))
+print("Min value:", np.min(np.abs(im)))
+print("Data type of np.abs(im):", np.abs(im).dtype)
+print("Shape of im:", im.shape)
 
-if visualize == True:
-    
-    print("Max value:", np.max(np.abs(im)))
-    print("Min value:", np.min(np.abs(im)))
-    print("Data type of np.abs(im):", np.abs(im).dtype)
-    print("Shape of im:", im.shape)
-    visualize_lf_slices(im)
+num_slices = im.shape[2]
+fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+# fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+axes = axes.flatten()
 
-# Resample the HF volume
+for i in range(16):
+    if i < num_slices:
+        slice_img = np.flipud(np.abs(im[:, :, i]).T)
+        axes[i].imshow(slice_img, cmap='gray')
+        axes[i].set_title(f'Slice {i + 1}')
+        axes[i].axis('off')
+    else:
+        axes[i].axis('off')
 
-# Define the new desired voxel spacing (z, y, x) in mm
-new_spacing = [2.2, 1.09, 1.09] # z=2mm, y=1mm, x=1mm
-
-resampled_volume = resample_volume(volume_26184, voxel_sizes_26184, new_spacing)
-
-if visualize == False:
-    visualize_resampled(resampled_volume)
+plt.tight_layout()
+# plt.savefig(f'Figures/{subject}/{fig_name}')
+plt.show()
+plt.close()
 
 # # Prepare the HF data for SRR (e.g. normalization, resizing, etc.)
 
