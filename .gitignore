@@ -170,3 +170,4 @@ cython_debug/
 ./Data/
 .nii.gz
 ./SRR models/SRR/
+./SRR models/
