@@ -89,12 +89,14 @@
 #                 print(f" Failed to load Day {day_idx} volume.")
 
 #         return data
-
+import sys
+sys.path.insert(0, './') 
 import os
 import glob
 import numpy as np
 import pydicom
 import matplotlib.pyplot as plt
+from src_niv.utils import dicom_info
 
 class data_ops:
     def __init__(self, folder_path):
@@ -106,6 +108,7 @@ class data_ops:
         self.data, self.voxel_sizes = self.data_read(folder_path)
 
     def read_volume_from_folder(self, folder_path):
+        
         """
         Reads and stacks DICOM slices from the folder into a 3D volume.
         Returns the volume as a NumPy array (shape: [slices, height, width]) and voxel size.
@@ -119,16 +122,23 @@ class data_ops:
         for fp in dicom_files:
             try:
                 ds = pydicom.dcmread(fp, force=True)
+                dicom_info(ds)
                 dicom_datasets.append(ds)
             except Exception as e:
                 print(f"Failed to read {fp}: {e}")
 
+        # print(dicom_datasets.shape)
         # Sort by InstanceNumber to maintain slice order
         dicom_datasets.sort(key=lambda ds: int(ds.get("InstanceNumber", 0)))
-
+        # print(dicom_datasets.shape)
         # Stack slices into a 3D numpy array
         volume = np.stack([ds.pixel_array.astype(np.float32) for ds in dicom_datasets], axis=0)
+        
+        # print(volume.shape)
+        # volume = np.transpose(volume, (1, 2, 0)) # Shape (H, W, slices)
+        # print(f"Original HF volume shape (after transpose): {volume.shape}")
 
+        # print(volume.shape)
         # --- Get voxel size ---
         try:
             # In-plane spacing [y, x] from PixelSpacing
@@ -153,6 +163,7 @@ class data_ops:
         return volume, voxel_size
 
     def data_read(self, folder_path):
+        
         """
         Reads DICOM timepoints (assumed to be 5 folders matching 'T2_n100')
         and stores volumes and voxel sizes in dictionaries.

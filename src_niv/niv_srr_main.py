@@ -18,7 +18,7 @@ sys.path.insert(0, './')  # Adjust the path as necessary to import from src_niv
 sys.path.append('./data_read_code')
 from src_niv.prep_data import data_ops
 from src_niv.read_lf5_data import process_subject
-from src_niv.utils import visualize_hf_slices, visualize_lf_slices,visualize_resampled,resample_volume
+from src_niv.utils import visualize_hf_slices, visualize_lf_slices,rotate_slices, visualize_resampled, resample_volume, visualize_planes,visualize_pair, normalize_volume
 from src_niv.prep_lf import normalize, resize_mri_volume
 from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
 from src_niv.subject_model import build_dual_encoder_unet
@@ -62,7 +62,7 @@ all_volumes = data_obj.data
 voxel_sizes = data_obj.voxel_sizes
 # Select and visualize Day 1: 10 slices spaced 10 apart
 day_idx = 1
-visualize = False
+visualize = True
 
 volume_26184 = all_volumes[day_idx]
 voxel_sizes_26184 = voxel_sizes[day_idx]
@@ -77,6 +77,7 @@ if visualize == True:
     print(f"Min: {np.min(volume_26184)}, Max: {np.max(volume_26184)}")
     print(f"Mean: {np.mean(volume_26184):.2f}, Std: {np.std(volume_26184):.2f}")
     visualize_hf_slices(all_volumes,voxel_sizes, day_idx)
+    visualize_planes(all_volumes, voxel_sizes, day_idx)
 
 # Resample the HF volume
 # Define the new desired voxel spacing (z, y, x) in mm
@@ -84,7 +85,7 @@ new_spacing = [2.2, 1.09, 1.09] # z=2mm, y=1mm, x=1mm
 
 resampled_volume = resample_volume(volume_26184, voxel_sizes_26184, new_spacing)
 
-if visualize == False:
+if visualize == True:
     visualize_resampled(resampled_volume)
 
 # Initialize data object and load data (LFMRI_data_IRF)
@@ -94,14 +95,9 @@ im = all_volumes_lf[day_idx-1]
 print(f"LF_MRI data processing  started .............")
 
 if visualize == True:
-    
-    print("Max value:", np.max(np.abs(im)))
-    print("Min value:", np.min(np.abs(im)))
-    print("Data type of np.abs(im):", np.abs(im).dtype)
-    print("Shape of im:", im.shape)
-    visualize_lf_slices(im)
+   visualize_lf_slices(im)
 
-valid_orig_volume, valid_refined_be_volume, super_resolved_volume= extract_lf_volumes(im)
+valid_orig_volume, valid_refined_be_volume, super_resolved_volume = extract_lf_volumes(im)
 
 print(super_resolved_volume.shape)
 print(resampled_volume.shape)
@@ -139,44 +135,36 @@ else:
     super_resolved_volume_float = super_resolved_volume.astype(np.float32)
     resized_zssr_volume = resize(super_resolved_volume_float, target_output_shape_spatial, anti_aliasing=True)
     print(f"Resized ZSSR volume shape: {resized_zssr_volume.shape}")
+    if visualize == True:
+        visualize_lf_slices(resized_zssr_volume)
 
     # Prepare HF input
     # volume_26184 is the original HF 3T, assumed (slices, H, W).
     # Transpose to (H, W, slices) and resize to (256, 256, 64).
     if resampled_volume.ndim == 3:
-        original_hf_volume = np.transpose(resampled_volume, (1, 2, 0)) # Shape (H, W, slices)
-        print(f"Original HF volume shape (after transpose): {original_hf_volume.shape}")
+        # original_hf_volume = np.transpose(resampled_volume, (1, 2, 0)) # Shape (H, W, slices)
+        # print(f"Original HF volume shape (after transpose): {original_hf_volume.shape}")
 
+        original_hf_volume = resampled_volume
         # Resize the original HF volume to the target shape (256, 256, 64)
         # Ensure data type is float32
         original_hf_volume_float = original_hf_volume.astype(np.float32)
-        resized_hf_input_volume = resize(original_hf_volume_float, target_output_shape_spatial, anti_aliasing=True)
-        print(f"Resized HF input volume shape: {resized_hf_input_volume.shape}")
+        # resized_hf_input_volume = resize(original_hf_volume_float, target_output_shape_spatial, anti_aliasing=True)
+        print(f"Resized HF input volume shape: {original_hf_volume_float.shape}")
 
         # Also use the resized HF volume as the target output
-        resized_hf_target_volume = resized_hf_input_volume # Same data for target
+        resized_hf_target_volume = original_hf_volume_float # Same data for target
 
         # Normalize the data (e.g., to [0, 1])
         # Normalize resized ZSSR input
-        zssr_min, zssr_max = np.min(resized_zssr_volume), np.max(resized_zssr_volume)
-        if zssr_max - zssr_min > 1e-6:
-            resized_zssr_volume_norm = (resized_zssr_volume - zssr_min) / (zssr_max - zssr_min)
-        else:
-            resized_zssr_volume_norm = np.zeros_like(resized_zssr_volume)
+        resized_zssr_volume_norm = normalize_volume(resized_zssr_volume)
+        resized_zssr_volume_norm = rotate_slices(resized_zssr_volume_norm)
 
         # Normalize resized HF input
-        hf_in_min, hf_in_max = np.min(resized_hf_input_volume), np.max(resized_hf_input_volume)
-        if hf_in_max - hf_in_min > 1e-6:
-              resized_hf_input_volume_norm = (resized_hf_input_volume - hf_in_min) / (hf_in_max - hf_in_min)
-        else:
-              resized_hf_input_volume_norm = np.zeros_like(resized_hf_input_volume)
+        resized_hf_input_volume_norm = normalize_volume(original_hf_volume_float)
 
         # Normalize HF target
-        hf_target_min, hf_target_max = np.min(resized_hf_target_volume), np.max(resized_hf_target_volume)
-        if hf_target_max - hf_target_min > 1e-6:
-              resized_hf_target_volume_norm = (resized_hf_target_volume - hf_target_min) / (hf_target_max - hf_target_min)
-        else:
-              resized_hf_target_volume_norm = np.zeros_like(resized_hf_target_volume)
+        resized_hf_target_volume_norm = normalize_volume(resized_hf_target_volume)
 
 
         # Add batch and channel dimensions
@@ -190,6 +178,9 @@ else:
         y_train = np.expand_dims(resized_hf_target_volume_norm, axis=0)   # Add batch dim
         y_train = np.expand_dims(y_train, axis=-1)             # Add channel dim (1 channel)
 
+        if visualize == True:
+            # Example: visualize slices 10, 20, 30
+            visualize_pair(x_zssr_train, y_train, slice_indices=[1,2,3,4,5,6,7,8,12,16,18,20,21,22,23,24,26,28])
 
         print(f"Prepared ZSSR training input shape: {x_zssr_train.shape}")
         print(f"Prepared HF training input shape: {x_hf_train.shape}")
@@ -305,7 +296,7 @@ else:
             print("\nDisplaying slices: Target HF vs. Predicted Dual-Encoder Output...")
 
             num_slices_to_show = 10 # Number of slices to display
-            step = max(1, predicted_volume_dual.shape[-1] // num_slices_to_show)
+            step = max(1, predicted_volume_dual.shape[0] // num_slices_to_show)
             display_indices = list(range(0, predicted_volume_dual.shape[-1], step))[:num_slices_to_show]
 
 
@@ -315,13 +306,13 @@ else:
 
                 for i, slice_idx in enumerate(display_indices):
                     # Target HF slice (using the normalized target volume)
-                    target_slice = resized_hf_target_volume_norm[:, :, slice_idx]
+                    target_slice = resized_hf_target_volume_norm[slice_idx, :, :]
                     axes[0, i].imshow(np.flipud(target_slice.T), cmap='gray')
                     axes[0, i].set_title(f'Slice {slice_idx}\nTarget HF')
                     axes[0, i].axis('off')
 
                     # Predicted SRR slice (using the predicted volume)
-                    predicted_slice = predicted_volume_dual[:, :, slice_idx]
+                    predicted_slice = predicted_volume_dual[slice_idx, :, :]
                     axes[1, i].imshow(np.flipud(predicted_slice.T), cmap='gray')
                     axes[1, i].set_title(f'Slice {slice_idx}\nPredicted SRR')
                     axes[1, i].axis('off')
@@ -376,7 +367,6 @@ else:
 # plt.tight_layout()
 # plt.show()
 # plt.close()
-
 
 
 
