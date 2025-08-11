@@ -88,53 +88,79 @@ def visualize_planes(all_volumes, voxel_sizes, day_idx):
     plt.show()
 
 
+import matplotlib.pyplot as plt
 
-def visualize_hf_slices(all_volumes,voxel_sizes, day_idx):
+import numpy as np
+import matplotlib.pyplot as plt
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def visualize_hf_slices(all_volumes, voxel_sizes=None):
+    """
+    Displays 10 equally spaced slices for each day's HF volume.
+    All days are shown in a single figure: one row per day,
+    with the day label centered above each row.
+    """
     print("inside utils ........")
-    if day_idx in all_volumes:
+    
+    day_indices = sorted(all_volumes.keys())
+    num_days = len(day_indices)
+    num_slices = 10  # slices per day
+    
+    fig, axes = plt.subplots(num_days, num_slices, figsize=(2*num_slices, 2*num_days))
+    fig.suptitle("HF MRI Volumes - 10 Sample Slices per Day", fontsize=18)
+    
+    for row, day_idx in enumerate(day_indices):
         vol = all_volumes[day_idx]
-        slice_indices = list(range(0, 100, 10))  # [0, 10, 20, ..., 90]
+        total_slices = vol.shape[0]
+        
+        slice_indices = np.linspace(0, total_slices - 1, num_slices, dtype=int)
+        
+        for col, idx in enumerate(slice_indices):
+            ax = axes[row, col] if num_days > 1 else axes[col]
+            ax.imshow(vol[idx, :, :], cmap='gray')
+            
+            if row == 0:
+                ax.set_title(f"Slice {idx}", fontsize=8)
+            
+            ax.axis('off')
+        
+        # Add day label spanning all columns in that row
+        mid_col = num_slices // 2
+        axes[row, mid_col].set_xlabel(f"Day {day_idx}", fontsize=12, labelpad=10)
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.show()
 
-        fig, axes = plt.subplots(2, 5, figsize=(15, 6))
-        fig.suptitle(f"Day {day_idx} - Every 10th Slice", fontsize=16)
-        for ax, idx in zip(axes.flat, slice_indices):
-            if idx < vol.shape[0]:
-                ax.imshow(vol[idx,:, :], cmap='gray')
-                ax.set_title(f"Slice {idx}")
-                ax.axis('off')
-        plt.tight_layout()
-        plt.show()
-    else:
-        print(f"Day {day_idx} data not found.")
 
+
+
+
+import matplotlib.pyplot as plt
 
 def visualize_resampled(resampled_volume):
-        # Check if resampled_volume exists
-    if 'resampled_volume' in locals():
+    if resampled_volume is not None:
         print(f"Displaying slices from the resampled volume (shape: {resampled_volume.shape})...")
 
-        # Get the dimensions of the resampled volume
-        depth, height, width  = resampled_volume.shape
+        depth, height, width = resampled_volume.shape
+        num_slices_to_show = min(16, depth)
 
-        # Determine the number of slices to display and the step size
-        # Let's display a maximum of 10 slices, evenly spaced
-        num_slices_to_show = min(10, depth)
         if num_slices_to_show > 0:
             step = max(1, depth // num_slices_to_show)
             slice_indices_to_show = list(range(0, depth, step))[:num_slices_to_show]
 
-            # Create a figure and axes for displaying the slices
-            fig, axes = plt.subplots(1, num_slices_to_show, figsize=(15, 4))
+            # Increase figsize so each slice is wider
+            fig_width = num_slices_to_show * 2   # 2 inches per slice
+            fig_height = 4
+            fig, axes = plt.subplots(1, num_slices_to_show, figsize=(fig_width, fig_height))
             fig.suptitle("Slices from Resampled Volume", fontsize=16)
 
-            # Handle the case of a single slice gracefully
             if num_slices_to_show == 1:
                 axes = [axes]
 
-            # Display each selected slice
             for i, slice_idx in enumerate(slice_indices_to_show):
                 ax = axes[i]
-                # Assuming the volume is (z, y, x) or (depth, height, width)
                 ax.imshow(resampled_volume[slice_idx, :, :], cmap='gray')
                 ax.set_title(f"Slice {slice_idx}")
                 ax.axis('off')
@@ -143,37 +169,76 @@ def visualize_resampled(resampled_volume):
             plt.show()
         else:
             print("Resampled volume has no slices to display.")
-
     else:
         print("Resampled volume variable not found. Please run the resampling cell first.")
 
-def visualize_lf_slices(im):
+import matplotlib.pyplot as plt
+import numpy as np
+
+def visualize_lf_slices(all_volumes_lf):
+    """
+    Displays all slices for each day's LF volume from a list.
+    One row per day in a single figure.
+    """
     print("inside utils LF........")
 
-    print("Max value:", np.max(np.abs(im)))
-    print("Min value:", np.min(np.abs(im)))
-    print("Data type of np.abs(im):", np.abs(im).dtype)
-    print("Shape of im:", im.shape)
+    num_days = len(all_volumes_lf)
 
-    num_slices = im.shape[2]
-    fig, axes = plt.subplots(2, 8, figsize=(20, 8))
-    # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
-    axes = axes.flatten()
+    # Determine max slices among all days
+    max_slices = max(im.shape[2] for im in all_volumes_lf)
 
-    for i in range(16):
-        if i < num_slices:
-            # slice_img = np.flipud(np.abs(im[:, :, i]).T)
-            slice_img = np.abs(im[:, :, i])
-            axes[i].imshow(slice_img, cmap='gray')
-            axes[i].set_title(f'Slice {i + 1}')
-            axes[i].axis('off')
-        else:
-            axes[i].axis('off')
+    fig, axes = plt.subplots(num_days, max_slices, figsize=(max_slices * 1.5, num_days * 2))
+    fig.suptitle("LF MRI Volumes - All Slices per Day", fontsize=18)
 
-    plt.tight_layout()
-    # plt.savefig(f'Figures/{subject}/{fig_name}')
+    for row, im in enumerate(all_volumes_lf):
+        num_slices = im.shape[2]
+
+        for col in range(max_slices):
+            ax = axes[row, col] if num_days > 1 else axes[col]
+
+            if col < num_slices:
+                slice_img = np.abs(im[:, :, col])
+                ax.imshow(slice_img, cmap='gray')
+            else:
+                ax.axis('off')
+
+            if row == 0:
+                ax.set_title(f"Slice {col+1}", fontsize=8)
+            if col == 0:
+                ax.set_ylabel(f"Day {row+1}", fontsize=10)
+
+            ax.axis('off')
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
-    plt.close()
+
+# def visualize_lf_slices(im):
+#     print("inside utils LF........")
+
+#     # print("Max value:", np.max(np.abs(im)))
+#     # print("Min value:", np.min(np.abs(im)))
+#     # print("Data type of np.abs(im):", np.abs(im).dtype)
+#     # print("Shape of im:", im.shape)
+
+#     num_slices = im.shape[2]
+#     fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+#     # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+#     axes = axes.flatten()
+
+#     for i in range(16):
+#         if i < num_slices:
+#             # slice_img = np.flipud(np.abs(im[:, :, i]).T)
+#             slice_img = np.abs(im[:, :, i])
+#             axes[i].imshow(slice_img, cmap='gray')
+#             axes[i].set_title(f'Slice {i + 1}')
+#             axes[i].axis('off')
+#         else:
+#             axes[i].axis('off')
+
+#     plt.tight_layout()
+#     # plt.savefig(f'Figures/{subject}/{fig_name}')
+#     plt.show()
+#     plt.close()
 
 # Voxel size reduction
 def resample_volume(volume, voxel_sizes_26184, new_spacing):
@@ -190,6 +255,43 @@ def resample_volume(volume, voxel_sizes_26184, new_spacing):
     """
     # Ensure volumes are float for interpolation
     original_spacing = [voxel_sizes_26184[0], voxel_sizes_26184[1], voxel_sizes_26184[2]]
+    print(f"Inferred original spacing for (x, y, z) volume: {original_spacing} mm")
+    volume = volume.astype(np.float64)
+
+    zoom_factors = [
+        original_spacing[0] / new_spacing[0],  # z factor
+        original_spacing[1] / new_spacing[1],  # y factor
+        original_spacing[2] / new_spacing[2],  # x factor
+    ]
+    print(f"Original volume shape: {volume.shape}")
+    print(f"Original spacing (x, y, z): {original_spacing}")
+    print(f"New spacing (x, y, z): {new_spacing}")
+    print(f"Zoom factors (x, y, z): {zoom_factors}")
+
+    # Apply zoom with linear interpolation
+    # Ensure that the axes are consistent (z, y, x) for both spacing and volume
+    # If your volume is (slices, height, width), this corresponds to (z, y, x)
+    resampled = zoom(volume, zoom=zoom_factors, order=1)  # order=1 = linear interpolation
+
+    print(f"Resampled volume shape: {resampled.shape}")
+
+    return resampled
+
+# Voxel size reduction
+def resample_volume_lf(volume, original_spacing, new_spacing):
+    """
+    Resample a 3D volume to new voxel spacing.
+
+    Parameters:
+        volume: np.ndarray (3D) - shape (z, y, x)
+        original_spacing: list or tuple of [z, y, x] spacing in mm
+        new_spacing: list or tuple of [z, y, x] desired spacing in mm
+
+    Returns:
+        Resampled volume as np.ndarray
+    """
+    # Ensure volumes are float for interpolation
+    # original_spacing = [voxel_sizes_26184[0], voxel_sizes_26184[1], voxel_sizes_26184[2]]
     print(f"Inferred original spacing for (x, y, z) volume: {original_spacing} mm")
     volume = volume.astype(np.float64)
 
@@ -243,12 +345,12 @@ def visualize_pair(x_vol, y_vol, slice_indices):
     y_vol = np.squeeze(y_vol)  # shape (X, Y, Z)
     
     num_slices = len(slice_indices)
-    fig, axes = plt.subplots(2, num_slices, figsize=(3 * num_slices, 6))
+    fig, axes = plt.subplots(2, num_slices, figsize=(3 * num_slices, 4))
     
     for i, idx in enumerate(slice_indices):
         # Row 1: X slices
         # axes[0, i].imshow(x_vol[:, :, idx], cmap='gray')
-        axes[0, i].imshow((x_vol[idx, :, :]), cmap='gray')
+        axes[0, i].imshow(np.abs(x_vol[idx,:, :]), cmap='gray')
         axes[0, i].set_title(f"X slice {idx}")
         axes[0, i].axis('off')
         

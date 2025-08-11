@@ -24,7 +24,16 @@ subject_data = {
 
 # Access using variable
 
-def process_subject(subject='26184'):
+def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_3T = [140, 140, 70]):
+    """
+    Process a specific subject's data and return the loaded dataset.
+    Args:
+        subject (str): Subject ID to process.
+        fix_wrap (bool): Whether to fix wrap-around issues.
+        wrap_around (int): Number of wrap-around slices to fix.
+    Returns:
+        lf_dataset (list): List of 3D volumes for the subject.
+    """
     
 
     sub_list = subject_data[int(subject)]
@@ -76,11 +85,38 @@ def process_subject(subject='26184'):
                         name = '&'.join([irf_folder, sf, Visit_id, t_folder, subf]) + '.nii'
                         fig_name = '&'.join([irf_folder, sf, Visit_id, t_folder, subf]) + '.png'
 
-                        im = read_lf_data(data_folder, output_folder, subject, sub_folder, name)
+                        im, im_props = read_lf_data(data_folder, output_folder, subject, sub_folder, name)
+                        
+                        if im_props is not None:
+                            fov_im = [im_props.res_dim1 * im.shape[0],  im_props.res_dim2 * im.shape[1], im_props.res_dim3 * im.shape[2]]
+                            if wrap_around > 0 and fix_wrap:
+                                # Fix wrap-around slices if needed
+                                num_wrap_slices = int(im.shape[2] / wrap_around)
+                                im = np.roll(im, -int(num_wrap_slices), axis=2)
+                                print(f"Fixed wrap-around for {subject}, {Visit_id}, {sub_folder}")
+
+                            # Check if the field of view is greater than 3T, if so, skip the number of slices to ensure FOV is constant across both fields
+                            if  fov_im[2] > fov_3T[2]:
+                                num_slices_to_skip = int((fov_im[2] - fov_3T[2]) / im_props.res_dim3)
+                                im = im[:, :, num_slices_to_skip:] # skips the lower two slices closer to the throat of the monkey - matching 3T
+                                print(f"Skipped {num_slices_to_skip} slices for {subject}, {Visit_id}, {sub_folder}")
+                            
                         print(f"Loaded data for {subject}, {Visit_id}, {sub_folder}")
                         print(sub_list[visit-1])
 
                         if sub_folder == sub_list[visit-1]:
+                            # fov_im = [im_props.res_dim1 * im.shape[0],  im_props.res_dim2 * im.shape[1], im_props.res_dim3 * im.shape[2]]
+                            # if wrap_around > 0 and fix_wrap:
+                            #     # Fix wrap-around slices if needed
+                            #     num_wrap_slices = int(im.shape[2] / wrap_around)
+                            #     im = np.roll(im, -int(num_wrap_slices), axis=2)
+                            #     print(f"Fixed wrap-around for {subject}, {Visit_id}, {sub_folder}")
+
+                            # # Check if the field of view is greater than 3T, if so, skip the number of slices to ensure FOV is constant across both fields
+                            # if fov_im[0] > fov_3T[0] or fov_im[1] > fov_3T[1] or fov_im[2] > fov_3T[2]:
+                            #     num_slices_to_skip = int((fov_im[2] - fov_3T[2]) / im_props.res_dim3)
+                            #     im = im[:, :, :num_slices_to_skip-1:]
+                            #     print(f"Skipped {num_slices_to_skip} slices for {subject}, {Visit_id}, {sub_folder}")
                             config_path = 'lf-mri.json'
                             entry = {
                                 "subject": subject,

@@ -171,3 +171,4 @@ cython_debug/
 .nii.gz
 ./SRR models/SRR/
 ./SRR models/
+./SRR models/predictions/

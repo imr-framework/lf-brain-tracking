@@ -26,7 +26,11 @@ def read_lf_data(
         fname_nii = os.path.join(subject_folder, '20240829_day2_3DTSC_12.nii')
         sample_data = kea3d(data_folder=data_folder, sub_folder=sub_folder)
         kspace = sample_data.kspace_gauss_filter
-        im = np.fft.fftshift(np.fft.fftn((np.fft.fftshift(kspace))))
+        im = np.abs(np.fft.fftshift(np.fft.fftn((np.fft.fftshift(kspace)))))
+
+        if im is None:
+            print("No data found in the specified folder.")
+            return None
         
         # s = OrthoSlicer3D(np.abs(im))
         # s.clim = [0, np.abs(1.5 * np.max(np.abs(im)))]
@@ -47,11 +51,14 @@ def read_lf_data(
             dim_info=[0, 1, 2]
         )
 
+        if im is None:
+            sample_data = []
 
-        return im
+        return im, sample_data
+
     except Exception as e:
         print(f"An error occurred: {e}")
-        return None
+        return None, None
 
 if __name__ == "__main__":
     im = read_lf_data()

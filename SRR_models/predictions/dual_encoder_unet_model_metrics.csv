@@ -1,0 +1,2 @@
+day,PSNR,SSIM,MSE,prediction_path
+2,38.432383884613884,0.9883743733897103,0.0001434701695472538,SRR_models/predictions/dual_encoder_unet_model_day2.nii.gz

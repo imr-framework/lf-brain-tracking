@@ -78,11 +78,11 @@ def extract_brain(im, scale_factor = 2):
     brain_extracted_slices = []
     scale_factor = 2 # Define your desired super-resolution scale factor (changed to 4)
 
-    num_slices = im.shape[2]
+    num_slices = im.shape[0]
     print(f"\nApplying Zero-Shot Super-Resolution to {num_slices} slices...")
 
     for i in range(num_slices):
-        slice_data = im[:, :, i]
+        slice_data = im[i, :, :]
 
         if slice_data is None or slice_data.size == 0:
             print(f"Skipping SRR for slice {i} due to empty data.")
@@ -129,7 +129,7 @@ def extract_brain(im, scale_factor = 2):
 
     return orig_slices, brain_extracted_slices, super_resolved_slices
 
-def extract_lf_volumes(im,scale_factor = 2, display = True):
+def extract_lf_volumes(im,scale_factor = 2, display = False):
     # --- Display original low-res, refined brain extracted, and super-resolved slices side-by-side ---
 
     orig_slices, brain_extracted_slices, super_resolved_slices = extract_brain(im)
@@ -192,7 +192,7 @@ def extract_lf_volumes(im,scale_factor = 2, display = True):
     if valid_orig_slices and all(s.shape == valid_orig_slices[0].shape for s in valid_orig_slices):
         try:
             # Stack the super-resolved slices along the z-axis
-            valid_orig_volume = np.stack(valid_orig_slices, axis=-1)
+            valid_orig_volume = np.stack(valid_orig_slices, axis=0)
             print(f"\nSuccessfully original Volume with shape: {valid_orig_volume.shape}")
         except Exception as e:
             print(f"Error in origial Volume: {e}")
@@ -200,7 +200,7 @@ def extract_lf_volumes(im,scale_factor = 2, display = True):
     if valid_refined_be_slices and all(s.shape == valid_refined_be_slices[0].shape for s in valid_refined_be_slices):
         try:
             # Stack the super-resolved slices along the z-axis
-            valid_refined_be_volume = np.stack(valid_refined_be_slices, axis=-1)
+            valid_refined_be_volume = np.stack(valid_refined_be_slices, axis=0)
             print(f"\nSuccessfully Brain_extracted Volume with shape: {valid_refined_be_volume.shape}")
         except Exception as e:
             print(f"Error brain extraction Volume: {e}")
@@ -208,7 +208,7 @@ def extract_lf_volumes(im,scale_factor = 2, display = True):
     if valid_sr_slices and all(s.shape == valid_sr_slices[0].shape for s in valid_sr_slices):
         try:
             # Stack the super-resolved slices along the z-axis
-            super_resolved_volume = np.stack(valid_sr_slices, axis=-1)
+            super_resolved_volume = np.stack(valid_sr_slices, axis=0)
             print(f"\nSuccessfully reconstructed Super-Resolved Volume with shape: {super_resolved_volume.shape}")
 
             # You can optionally save this volume as a NIfTI file
@@ -247,4 +247,4 @@ def extract_lf_volumes(im,scale_factor = 2, display = True):
     else:
         print("\nSkipping 3D volume reconstruction: Valid SR slices are empty or have inconsistent shapes.")
     
-    return valid_orig_volume, valid_refined_be_volume, super_resolved_volume
+    return valid_refined_be_volume
