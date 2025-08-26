@@ -34,7 +34,6 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
     Returns:
         lf_dataset (list): List of 3D volumes for the subject.
     """
-    
 
     sub_list = subject_data[int(subject)]
     

@@ -61,7 +61,6 @@ def do_contrast_enhance(im:np.ndarray=None, method:str='custom', fact:float=1.10
             im_cl = im_slice
         im_ce[:, :, slice] = im_cl
 
-
     return im_ce
 
 def do_norm_im(im_slice:np.ndarray=0):

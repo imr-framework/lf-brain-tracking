@@ -1,3 +1,11 @@
+import sys
+sys.path.insert(0, './')  # Adjust the path as necessary to import from src_niv
+sys.path.append('./data_read_code')
+from src_niv.prep_data import data_ops
+from src_niv.read_lf5_data import process_subject
+from demo_read_data import read_lf_data
+from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
+
 import os
 import nibabel as nib
 from nilearn import plotting
@@ -15,10 +23,97 @@ import nibabel as nib
 from sklearn.feature_extraction import image
 import os
 from scipy.ndimage import zoom
+print(tf.__version__)
+# import tensorflow_addons as tfa
+
+
+# Define the path to the IRF_3T folder ( High Field Data)
+nhp_base_path = './Data/IRF_3T'
+
+def load_and_preprocess_hf(subject, day_idx, visualize=True):
+    """
+    Loads and preprocesses HF MRI data for a given subject and day index.
+    Returns the normalized, resampled HF volume.
+    """
+    # Initialize data object and load data (LFMRI_data_IRF)
+    print(f"===============================\n\nInside utils load_and_preprocess_hf data processing day {day_idx} .............\n")
+    print(f"\n====================This Function loads all day data and returns specific day========")
+    subjects = os.listdir(nhp_base_path)
+    subjects = sorted(subjects)
+    print(f"Available subjects: {subjects}")
+    print(f"Selected subject: {subject}")
+
+    nhp_data_path = f'{nhp_base_path}/{subject}' #truct the full path to the DICOM folder
+
+    # Initialize data object and load data (IRF_3T)
+    data_obj = data_ops(nhp_data_path)
+
+    # Retrieve dictionary of 3D volumes (day1 to day5)
+    all_volumes = data_obj.data
+    voxel_sizes = data_obj.voxel_sizes
+    # Select and visualize Day 1: 10 slices spaced 10 apart
+
+    volume_26184 = all_volumes[day_idx]
+    voxel_sizes_26184 = voxel_sizes[day_idx]
+
+    print(f'========================HF-MRI: Day {day_idx} and voxel size {voxel_sizes_26184} ==================')
+
+    if visualize == True:
+        
+        print(f"Type: {type(volume_26184)}")
+        print(f"Shape: {volume_26184.shape}")
+        print(f"Dtype: {volume_26184.dtype}")
+        print(f"Min: {np.min(volume_26184)}, Max: {np.max(volume_26184)}")
+        print(f"Mean: {np.mean(volume_26184):.2f}, Std: {np.std(volume_26184):.2f}")
+        visualize_hf_slices(all_volumes)
+        # visualize_planes(all_volumes, voxel_sizes, day_idx)
+
+    # Resample the HF volume
+    # Define the new desired voxel spacing (z, y, x) in mm
+    new_spacing = [2, 1.09, 1.09] # z=2mm, y=1mm, x=1mm
+    resampled_volume_hf = resample_volume(volume_26184, voxel_sizes_26184, new_spacing)
+    resampled_volume_hf_norm = normalize_volume(resampled_volume_hf)
+    if visualize == True:
+        visualize_resampled(resampled_volume_hf_norm)
+    print("High-field volume shape:", resampled_volume_hf_norm.shape)
+    hf_input_volume = resampled_volume_hf_norm.astype(np.float32)
+    return hf_input_volume
+
+def load_and_preprocess_lf(subject, day_idx, visualize=True):
+    """
+    Loads and preprocesses LF MRI data for a given subject and day index.
+    Returns the normalized, resampled LF volume.
+    """
+    # Initialize data object and load data (LFMRI_data_IRF)
+    print(f"\n\n===============================Inside utils load_and_preprocess_lf data processing {day_idx} .............\n")
+    print(f"\n====================This Function loads all day data and returns specific day========")
+
+    all_volumes_lf = process_subject(subject=subject)
+    if visualize == True:
+        visualize_lf_slices(all_volumes_lf)
+
+    im = all_volumes_lf[day_idx-1]
+
+    # Define the new desired voxel spacing (z, y, x) in mm
+    orig_spacing = [2, 2, 5] # z=2mm, y=1mm, x=1mm
+    new_spacing = [1, 1, 2] # z=2mm, y=1mm, x=1mm
+
+    resampled_volume_lf = resample_volume(im, orig_spacing, new_spacing)
+    resampled_volume_lf = rotate_slices(resampled_volume_lf)
+
+    if visualize == True:
+        visualize_resampled(resampled_volume_lf)
+
+    resampled_volume_lf_be = extract_lf_volumes(resampled_volume_lf)
+    resampled_volume_lf_be_norm = normalize_volume(resampled_volume_lf_be)
+    lf_input_volume = resampled_volume_lf_be_norm.astype(np.float32)
+    print("Low-field volume shape:", lf_input_volume.shape)
+
+    return lf_input_volume
 
 def dicom_info(ds):
 
-    print("inside urils ------------------------------------------------")
+    print("\n======================================Inside utils ------------------------------------------------")
     # Shape of the pixel array (rows, columns)
     print("Pixel Array Shape:", ds.pixel_array.shape)
 
@@ -48,9 +143,8 @@ def dicom_info(ds):
         print("Instance Number:", ds.InstanceNumber)
     print("exit utils ------------------------------------------------")
 
-
 def visualize_planes(all_volumes, voxel_sizes, day_idx):
-    print("inside utils ........")
+    print("\n================================Inside utils ........")
     
     if day_idx not in all_volumes:
         print(f"Day {day_idx} data not found.")
@@ -88,13 +182,169 @@ def visualize_planes(all_volumes, voxel_sizes, day_idx):
     plt.show()
 
 
-import matplotlib.pyplot as plt
-
 import numpy as np
-import matplotlib.pyplot as plt
+import tensorflow as tf
 
-import numpy as np
-import matplotlib.pyplot as plt
+# Rotate 2D slice
+def rotate2d(img, angle_rad):
+    frac = angle_rad / (2.0 * np.pi)
+    rr = tf.keras.layers.RandomRotation(factor=(frac, frac), fill_mode="nearest")
+    img = tf.expand_dims(img, axis=0)  # add batch
+    out = rr(img)                      # (1,H,W,C)
+    return out[0]                      # (H,W,C)
+
+# Shear 2D slice using ImageProjectiveTransformV3 (no TFA)
+def shear2d(img, shear_x, shear_y):
+    X, Y, C = img.shape
+    # Shear matrix
+    transform = [1.0, shear_x, 0.0,
+                 shear_y, 1.0, 0.0,
+                 0.0,     0.0]
+    transform = tf.convert_to_tensor([transform], dtype=tf.float32)
+
+    # ImageProjectiveTransformV3 expects (N,H,W,C)
+    img = tf.expand_dims(img, axis=0)
+    out = tf.raw_ops.ImageProjectiveTransformV3(
+        images=img,
+        transforms=transform,
+        output_shape=[X, Y],
+        interpolation="BILINEAR"
+    )
+    return out[0]  # (H,W,C)
+
+
+def rotate2d(img, angle_deg):
+    """Rotate a single 2D slice."""
+    angle_rad = angle_deg * np.pi / 180
+    frac = angle_rad / (2.0 * np.pi)
+    rr = tf.keras.layers.RandomRotation(factor=(frac, frac), fill_mode="nearest")
+    img = tf.expand_dims(img, axis=0)
+    out = rr(img)
+    return out[0]
+
+def shear2d(img, shear_x=0.1, shear_y=0.1):
+    """Approximate shear with RandomTranslation."""
+    img = tf.expand_dims(img, axis=0)
+    layer = tf.keras.layers.RandomTranslation(height_factor=shear_y, width_factor=shear_x, fill_mode="nearest")
+    out = layer(img)
+    return out[0]
+
+def srr_generator(lf_vol, hf_vol, batch_size=1, patch_z=32, augment=True, extra_slices=0):
+    """
+    On-the-fly generator for 3D SRR patches with z,x,y input shape.
+    lf_vol, hf_vol: full volumes (Z, X, Y)
+    batch_size: patches per batch
+    patch_z: number of slices per patch
+    augment: apply augmentation
+    extra_slices: number of augmented slices per patch
+    """
+    Z, X, Y = lf_vol.shape
+    
+    while True:
+        batch_lf = []
+        batch_hf = []
+
+        for _ in range(batch_size):
+            # Random start along Z
+            if Z > patch_z:
+                start = np.random.randint(0, Z - patch_z + 1)
+            else:
+                start = 0
+            lf_patch = lf_vol[start:start+patch_z].copy()
+            hf_patch = hf_vol[start:start+patch_z].copy()
+
+            # Stack channels for augmentation
+            vol_stack = np.stack([lf_patch, hf_patch], axis=-1)  # shape (Z_patch, X, Y, 2)
+
+            augmented_slices = []
+
+            if augment and extra_slices > 0:
+                for _ in range(extra_slices):
+                    idx = np.random.randint(0, vol_stack.shape[0])
+                    slice_aug = vol_stack[idx].copy()
+
+                    # flips
+                    if np.random.rand() > 0.5:
+                        slice_aug = np.flip(slice_aug, axis=0)
+                    if np.random.rand() > 0.5:
+                        slice_aug = np.flip(slice_aug, axis=1)
+
+                    # rotation
+                    if np.random.rand() > 0.5:
+                        angle = np.random.uniform(-15, 15)
+                        slice_aug = rotate2d(slice_aug, angle).numpy()
+
+                    # shear
+                    if np.random.rand() > 0.5:
+                        sx = np.random.uniform(-0.2, 0.2)
+                        sy = np.random.uniform(-0.2, 0.2)
+                        slice_aug = shear2d(slice_aug, sx, sy).numpy()
+
+                    # random center crop + resize
+                    if np.random.rand() > 0.5:
+                        crop_frac = np.random.uniform(0.7, 0.95)
+                        cx, cy = int(X * crop_frac), int(Y * crop_frac)
+                        x0, y0 = (X - cx)//2, (Y - cy)//2
+                        cropped = slice_aug[x0:x0+cx, y0:y0+cy, :]
+                        slice_aug = tf.image.resize(cropped, (X, Y)).numpy()
+
+                    # intensity scaling LF only
+                    scale = 0.9 + 0.2 * np.random.rand()
+                    slice_aug[...,0] *= scale
+
+                    # gaussian noise LF only
+                    if np.random.rand() > 0.5:
+                        noise = np.random.normal(0, 0.01, size=slice_aug[...,0].shape)
+                        slice_aug[...,0] += noise
+
+                    slice_aug = slice_aug[None, ...]  # add Z dim
+                    augmented_slices.append(slice_aug)
+
+                # concatenate along Z
+                vol_stack = np.concatenate([vol_stack] + augmented_slices, axis=0)
+
+            # Randomly sample patch_z slices if Z changed
+            if vol_stack.shape[0] > patch_z:
+                idxs = np.random.choice(vol_stack.shape[0], patch_z, replace=False)
+                vol_stack = vol_stack[idxs]
+
+            # Split back
+            lf_patch_out = vol_stack[..., 0]
+            hf_patch_out = vol_stack[..., 1]
+
+            # add channel axis for Keras
+            batch_lf.append(lf_patch_out[..., np.newaxis])
+            batch_hf.append(hf_patch_out[..., np.newaxis])
+
+        yield np.stack(batch_lf, axis=0), np.stack(batch_hf, axis=0)
+
+def padding_LF(resampled_volume_lf_be_norm,resampled_volume_hf_norm, target_slices=64):
+    #If Shape of HF and LF not same then Zero padding to low field
+    # Check if the (y, x) shapes match; if not, pad LF to match HF
+    print(f"\n\n=================================Inside utils padding LF........{lf_shape[0]}, {lf_shape[1]}, {lf_shape[2]} vs HF: {hf_shape[0]}, {hf_shape[1]}, {hf_shape[2]}")
+
+    lf_shape = resampled_volume_lf_be_norm.shape
+    hf_shape = resampled_volume_hf_norm.shape
+
+    if lf_shape[1] != hf_shape[1] or lf_shape[2] != hf_shape[2]:
+        pad_y = hf_shape[1] - lf_shape[1]
+        pad_x = hf_shape[2] - lf_shape[2]
+        # Only pad if needed (if pad_y or pad_x > 0)
+        pad_before_y = pad_y // 2 if pad_y > 0 else 0
+        pad_after_y = pad_y - pad_before_y if pad_y > 0 else 0
+        pad_before_x = pad_x // 2 if pad_x > 0 else 0
+        pad_after_x = pad_x - pad_before_x if pad_x > 0 else 0
+        # Pad along (z, y, x): only y and x
+        resampled_volume_lf_be_norm = np.pad(
+            resampled_volume_lf_be_norm,
+            ((0, 0), (pad_before_y, pad_after_y), (pad_before_x, pad_after_x)),
+            mode='constant'
+        )
+        print(f"LF volume padded: new shape {resampled_volume_lf_be_norm.shape}")
+        return resampled_volume_lf_be_norm
+    else:
+        print("LF and HF volumes already have matching (y, x) shapes.")
+    
 
 def visualize_hf_slices(all_volumes, voxel_sizes=None):
     """
@@ -102,7 +352,7 @@ def visualize_hf_slices(all_volumes, voxel_sizes=None):
     All days are shown in a single figure: one row per day,
     with the day label centered above each row.
     """
-    print("inside utils ........")
+    print("\n=================================Inside utils ........")
     
     day_indices = sorted(all_volumes.keys())
     num_days = len(day_indices)
@@ -133,15 +383,10 @@ def visualize_hf_slices(all_volumes, voxel_sizes=None):
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
-
-
-
-
-import matplotlib.pyplot as plt
-
 def visualize_resampled(resampled_volume):
+    
     if resampled_volume is not None:
-        print(f"Displaying slices from the resampled volume (shape: {resampled_volume.shape})...")
+        print(f"\n==============================Displaying slices from the resampled volume (shape: {resampled_volume.shape})...")
 
         depth, height, width = resampled_volume.shape
         num_slices_to_show = min(16, depth)
@@ -172,15 +417,12 @@ def visualize_resampled(resampled_volume):
     else:
         print("Resampled volume variable not found. Please run the resampling cell first.")
 
-import matplotlib.pyplot as plt
-import numpy as np
-
 def visualize_lf_slices(all_volumes_lf):
     """
     Displays all slices for each day's LF volume from a list.
     One row per day in a single figure.
     """
-    print("inside utils LF........")
+    print("\n=======================================Inside utils LF........")
 
     num_days = len(all_volumes_lf)
 
@@ -316,12 +558,12 @@ def resample_volume_lf(volume, original_spacing, new_spacing):
 
 def normalize_volume(resized_zssr_volume):
     zssr_min, zssr_max = np.min(resized_zssr_volume), np.max(resized_zssr_volume)
-    print(f"ZSSR (resized) BEFORE norm: min={zssr_min:.6f}, max={zssr_max:.6f}")
+    print(f" BEFORE norm: min={zssr_min:.6f}, max={zssr_max:.6f}")
     if zssr_max - zssr_min > 1e-6:
         resized_zssr_volume_norm = (resized_zssr_volume - zssr_min) / (zssr_max - zssr_min)
     else:
         resized_zssr_volume_norm = np.zeros_like(resized_zssr_volume)
-    print(f"ZSSR (resized) AFTER  norm: min={np.min(resized_zssr_volume_norm):.6f}, max={np.max(resized_zssr_volume_norm):.6f}")
+    print(f" AFTER  norm: min={np.min(resized_zssr_volume_norm):.6f}, max={np.max(resized_zssr_volume_norm):.6f}")
 
     return resized_zssr_volume_norm
 
@@ -360,4 +602,45 @@ def visualize_pair(x_vol, y_vol, slice_indices):
         axes[1, i].axis('off')
     
     plt.tight_layout()
+    plt.show()
+
+def display_pred(hf_vol, lf_vol, pred_vol, day_idx=None, num_slices_to_show=15, random_seed=42):
+    """
+    Visualize true HF, LF, and predicted HF slices side by side.
+
+    Parameters:
+        hf_vol (np.ndarray): High-field (ground truth) volume, shape (Z, Y, X)
+        lf_vol (np.ndarray): Low-field input volume, shape (Z, Y, X)
+        pred_vol (np.ndarray): Predicted high-field volume, shape (Z, Y, X)
+        day_idx (int, optional): Day index for title. Default: None.
+        num_slices_to_show (int): Number of slices to display. Default: 15.
+        random_seed (int): Seed for reproducibility. Default: 42.
+    """
+    total_slices = hf_vol.shape[0]
+    num_slices_to_show = min(num_slices_to_show, total_slices)
+    np.random.seed(random_seed)
+    slice_indices = [int(i) for i in np.linspace(0, total_slices - 1, num_slices_to_show)]
+    print(f"Visualizing slices: {slice_indices}")
+
+    fig, axes = plt.subplots(3, num_slices_to_show, figsize=(2 * num_slices_to_show, 6))
+    title = f"True HF (top), LF (middle), Predicted HF (bottom) Slices"
+    if day_idx is not None:
+        title = f"Day {day_idx} - {title}"
+    fig.suptitle(title, fontsize=16)
+
+    for i, idx in enumerate(slice_indices):
+        # True HF slice (top)
+        axes[0, i].imshow(hf_vol[idx, :, :], cmap='gray')
+        axes[0, i].set_title(f"Slice {idx}")
+        axes[0, i].axis('off')
+
+        # LF slice (middle)
+        axes[1, i].imshow(lf_vol[idx, :, :], cmap='gray')
+        axes[1, i].axis('off')
+
+        # Predicted HF slice (bottom)
+        axes[2, i].imshow(pred_vol[idx, :, :], cmap='gray')
+        axes[2, i].axis('off')
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()

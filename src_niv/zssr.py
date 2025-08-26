@@ -72,7 +72,7 @@ def extract_brain(im, scale_factor = 2):
     # Assuming 'im' is your original low-field MRI volume
     # And the refined brain extraction process yields masks or extracted slices.
     # Let's re-process slices to get the refined brain-extracted data for SRR input.
-    
+    print("====================================Inside ZSSR_Extract brain ....................")
     orig_slices = []
     super_resolved_slices = []
     brain_extracted_slices = []
@@ -141,49 +141,49 @@ def extract_lf_volumes(im,scale_factor = 2, display = False):
     valid_orig_slices = [orig_slices[i] for i in valid_indices]
     valid_refined_be_slices = [brain_extracted_slices[i] for i in valid_indices]
 
+    if display:
+        if not valid_sr_slices:
+            print("No valid super-resolved slices to display.")
+        else:
+            num_valid_slices = len(valid_sr_slices)
+            cols_per_row = 6 # Display fewer triplets per row
+            # Calculate required rows for original+refined+SR triplets
+            rows = (num_valid_slices + cols_per_row - 1) // cols_per_row * 3 # Three rows per set of columns (original, refined, SR)
 
-    if not valid_sr_slices:
-        print("No valid super-resolved slices to display.")
-    else:
-        num_valid_slices = len(valid_sr_slices)
-        cols_per_row = 6 # Display fewer triplets per row
-        # Calculate required rows for original+refined+SR triplets
-        rows = (num_valid_slices + cols_per_row - 1) // cols_per_row * 3 # Three rows per set of columns (original, refined, SR)
+            fig, axes = plt.subplots(rows, cols_per_row, figsize=(3 * cols_per_row, 2 * rows))
+            axes = axes.flatten()
 
-        fig, axes = plt.subplots(rows, cols_per_row, figsize=(3 * cols_per_row, 2 * rows))
-        axes = axes.flatten()
+            for i in range(num_valid_slices):
+                original_slice = valid_orig_slices[i]
+                refined_be_slice = valid_refined_be_slices[i]
+                sr_slice = valid_sr_slices[i]
+                original_slice_index = valid_indices[i] # Get the index in the original volume
 
-        for i in range(num_valid_slices):
-            original_slice = valid_orig_slices[i]
-            refined_be_slice = valid_refined_be_slices[i]
-            sr_slice = valid_sr_slices[i]
-            original_slice_index = valid_indices[i] # Get the index in the original volume
+                # Display original normalized slice (First row for this slice index)
+                axes[3 * i].imshow(np.flipud(original_slice.T), cmap='gray')
+                axes[3 * i].set_title(f'Slice {original_slice_index} Original (Norm)')
+                axes[3 * i].axis('off')
 
-            # Display original normalized slice (First row for this slice index)
-            axes[3 * i].imshow(np.flipud(original_slice.T), cmap='gray')
-            axes[3 * i].set_title(f'Slice {original_slice_index} Original (Norm)')
-            axes[3 * i].axis('off')
+                # Display refined brain extracted slice (Second row for this slice index)
+                axes[3 * i + 1].imshow(np.flipud(refined_be_slice.T), cmap='gray')
+                axes[3 * i + 1].set_title(f'Slice {original_slice_index} Refined BE')
+                axes[3 * i + 1].axis('off')
 
-            # Display refined brain extracted slice (Second row for this slice index)
-            axes[3 * i + 1].imshow(np.flipud(refined_be_slice.T), cmap='gray')
-            axes[3 * i + 1].set_title(f'Slice {original_slice_index} Refined BE')
-            axes[3 * i + 1].axis('off')
-
-            # Display super-resolved slice (Third row for this slice index)
-            axes[3 * i + 2].imshow(np.flipud(sr_slice.T), cmap='gray')
-            axes[3 * i + 2].set_title(f'Slice {original_slice_index} SR ({scale_factor}x)')
-            axes[3 * i + 2].axis('off')
-
-
-        # Hide any unused subplots
-        for j in range(3 * num_valid_slices, len(axes)):
-            axes[j].axis('off')
+                # Display super-resolved slice (Third row for this slice index)
+                axes[3 * i + 2].imshow(np.flipud(sr_slice.T), cmap='gray')
+                axes[3 * i + 2].set_title(f'Slice {original_slice_index} SR ({scale_factor}x)')
+                axes[3 * i + 2].axis('off')
 
 
-        plt.tight_layout()
-        plt.show()
+            # Hide any unused subplots
+            for j in range(3 * num_valid_slices, len(axes)):
+                axes[j].axis('off')
 
-    print("\nFinished displaying Original (Normalized), Refined Brain Extracted, and Super-Resolved slices.")
+
+            plt.tight_layout()
+            plt.show()
+
+        print("\nFinished displaying Original (Normalized), Refined Brain Extracted, and Super-Resolved slices.")
 
     # --- Optional: Reconstruct the 3D Super-Resolved Volume ---
     # If all slices have the same super-resolved dimensions, you can stack them

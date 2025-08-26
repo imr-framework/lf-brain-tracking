@@ -22,12 +22,12 @@ print(tf.config.list_physical_devices('CPU'))  # Check if CPU is visible
 if tf.config.list_physical_devices('GPU'):
     print("CUDNN detected!")
 else:
-    print("Display the data using OrthoSlicer3D
-OrthoSlicer3D(img.dataobj).show()
-plotting.plot_anat(img, title="3D TSC Image")
+    print("Display the data using OrthoSlicer3D")
+    OrthoSlicer3D(img.dataobj).show()
+    plotting.plot_anat(img, title="3D TSC Image")
+    plt.show()
 
-plt.show()
-Note: UNo CUDNN detected!")
+# Note: UNo CUDNN detected!")
 
 from LF_sim_QTAB import low_field_simulator
 from do_zssr_collage import do_mask_image, do_ZSSR_steps, do_zssr_recon_slices
@@ -36,12 +36,7 @@ from LF_simulation_functions import read_nifti
 from colorama import Fore, Back, Style
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-Display the data using OrthoSlicer3D
-OrthoSlicer3D(img.dataobj).show()
-plotting.plot_anat(img, title="3D TSC Image")
 
-plt.show()
-Note: U
 # Define the path to the IRF_3T folder
 irf_3t = './Data/IRF_3T'
 subjects = os.listdir(irf_3t)

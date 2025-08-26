@@ -7,7 +7,7 @@ import glob
 import numpy as np
 import pydicom
 import matplotlib.pyplot as plt
-from src_niv.utils import dicom_info
+# from src_niv.utils import dicom_info
 
 class data_ops:
     def __init__(self, folder_path):
@@ -33,7 +33,9 @@ class data_ops:
         for fp in dicom_files:
             try:
                 ds = pydicom.dcmread(fp, force=True)
-                dicom_info(ds)
+
+                # dicom_info(ds) # print dicom info
+
                 dicom_datasets.append(ds)
             except Exception as e:
                 print(f"Failed to read {fp}: {e}")
