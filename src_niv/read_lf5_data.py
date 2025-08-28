@@ -19,7 +19,13 @@ subject_data = {
     26184 : ["3DTSE/5", "3DTSE/9", "3DTSE/10", "3DTSE/8", "3DTSE/10"],
     30366 : ["3DTSE/4", "3DTSE/6", "3DTSE/8", "3DTSE/2", "3DTSE/8"],
     59175 : ["3DTSE/2", "3DTSE/4", "3DTSE/1", "3DTSE/9", "3DTSE/6"],
-    34507 : ["3DTSE/4", "3DTSE/4", "3DTSE/3", "3DTSE/3", "3DTSE/13"]
+    34507 : ["3DTSE/4", "3DTSE/4", "3DTSE/3", "3DTSE/3", "3DTSE/13"],
+    35547 : ["3DTSE/7", "3DTSE/4", "3DTSE/5", "3DTSE/14", "3DTSE/5"],
+    59228 : ["3DTSE/8", "3DTSE/13", "3DTSE/12", "3DTSE/9", "3DTSE/13"],
+    59877 : ["3DTSE/1", "3DTSE/2", "3DTSE/2", "3DTSE/2", "3DTSE/8"], # Bad quality data
+    59081 : ["3DTSE/2", "3DTSE/4", "3DTSE/7", "3DTSE/6", "3DTSE/1"], # 1,2,3, 5 --
+    35528 : ["3DTSE/3", "3DTSE/2", "3DTSE/3", "3DTSE/7", "3DTSE/4"],
+    59233 : ["3DTSE/10", "3DTSE/6", "3DTSE/2", "3DTSE/10", "3DTSE/13"]
 }
 
 # Access using variable
@@ -170,7 +176,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
 
 if __name__ == "__main__":
     
-    subject = '26184'
+    subject = '34507'
     lf_dataset = process_subject(subject = subject)  # Returns list of 3D volumes (e.g., 5 timepoints)
 
     print(f"Total timepoints loaded: {len(lf_dataset)}")

@@ -318,6 +318,44 @@ def srr_generator(lf_vol, hf_vol, batch_size=1, patch_z=32, augment=True, extra_
 
         yield np.stack(batch_lf, axis=0), np.stack(batch_hf, axis=0)
 
+import numpy as np
+
+def systematic_crops_3d(volume, target_shape=(32, 64, 64), stride=(32, 64, 64)):
+    """
+    Systematically crop a 4D volume (Z, X, Y, C) into non-overlapping or overlapping patches.
+    target_shape: patch size (Z, X, Y)
+    stride: step size for cropping (Z, X, Y)
+    """
+    z, x, y, c = volume.shape
+    tz, tx, ty = target_shape
+    sz, sx, sy = stride
+    
+    assert z == tz, f"Z mismatch: got {z}, expected {tz}"
+
+    patches = []
+    for i in range(0, x - tx + 1, sx):
+        for j in range(0, y - ty + 1, sy):
+            patch = volume[:, i:i+tx, j:j+ty, :]
+            patches.append(patch)
+    return patches
+
+
+def systematic_crop_generator(base_gen, target_shape=(32,64,64), stride=(32,64,64)):
+    """
+    Wraps a base generator (like srr_generator) and produces systematic crops.
+    """
+    while True:
+        X, Y = next(base_gen)  # shapes: (B, Z, X, Y, C)
+        X_crops, Y_crops = [], []
+        
+        for i in range(X.shape[0]):  # loop over batch
+            X_patches = systematic_crops_3d(X[i], target_shape, stride)
+            Y_patches = systematic_crops_3d(Y[i], target_shape, stride)
+            X_crops.extend(X_patches)
+            Y_crops.extend(Y_patches)
+        
+        yield np.array(X_crops), np.array(Y_crops)
+
 def padding_LF(resampled_volume_lf_be_norm,resampled_volume_hf_norm, target_slices=64):
     #If Shape of HF and LF not same then Zero padding to low field
     # Check if the (y, x) shapes match; if not, pad LF to match HF

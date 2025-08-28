@@ -30,7 +30,7 @@ from sklearn.feature_extraction import image
 import os
 from skimage.transform import resize  # Required for 3D resizing
 
-subjects = ['30366', '35528', '59081', '59228'] # '59175','59233', '59877', '35547'
+subjects = ['26184'] # '59175','59233', '59877', '35547'
 # Mismatch due to high field shape 
 
 # Define the path to the IRF_3T folder (High Field Data)
@@ -44,7 +44,7 @@ augmentation = True
 
 # Training parameters
 steps_per_epoch = 100
-epochs = 100
+epochs = 75
 batch_size = 2
 
 for subject in subjects:
@@ -85,39 +85,9 @@ for subject in subjects:
     print("HF volume shape:", hf_target_volume.shape)
    
     # calling the residual_srr_unet model
-    model_type = 'residual_srr_unet1'
+    model_type = 'residual_srr_unet2'
     model_case = 'single_encoder_unet'
     model_ = residual_srr_unet
     
-    train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_, subject,
+    train_bilinear(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_, subject,
           day_idx, steps_per_epoch=steps_per_epoch, epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)
-
-    # import tensorflow as tf
-    # tf.keras.backend.clear_session()
-
-    # # calling the dense_srr_unet model
-
-    # model_type = 'build_dense_unet_3d'
-    # model_case = 'single_encoder_unet'
-    # model_ = build_dense_unet_3d
-    
-    # train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_, subject,
-    #       day_idx, steps_per_epoch=steps_per_epoch, epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)
-    
-    # import tensorflow as tf
-    # tf.keras.backend.clear_session()
-
-    # # calling the dense_srr_unet model
-    # model_type = 'build_inception_unet_3d'
-    # model_case = 'single_encoder_unet'
-    # model_ = build_inception_unet_3d
-
-    # train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_, subject,
-    #       day_idx, steps_per_epoch=steps_per_epoch, epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)
-
-    # # calling the residual_att_unet model
-    # model_type = 'residual_att_unet_3d'
-    # model_ = residual_att_unet_3d
-
-    # train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_, subject,
-    #       day_idx, steps_per_epoch=steps_per_epoch, epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)

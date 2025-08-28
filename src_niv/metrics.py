@@ -32,8 +32,8 @@ def mse(y_true, y_pred):
     return tf.reduce_mean(tf.square(y_true - y_pred))
 
 # Composite loss
-def composite_loss(y_true, y_pred, alpha=0.5, beta=0.3, gamma=0.2):
+def composite_loss(y_true, y_pred, alpha=0.8, beta=0.2, gamma=0.2):
     l_mse = mse(y_true, y_pred)
     l_ssim = 1.0 - ssim(y_true, y_pred)  # (maximize SSIM)
-    l_psnr = -psnr(y_true, y_pred)       # (maximize PSNR)
-    return alpha * l_mse + beta * l_ssim + gamma * l_psnr
+    # l_psnr = -psnr(y_true, y_pred)       # (maximize PSNR)
+    return alpha * l_mse + beta * l_ssim

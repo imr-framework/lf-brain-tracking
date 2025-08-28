@@ -36,32 +36,32 @@ def extract_largest_component(volume):
             largest_mask[:, :, i] = mask
     return volume * largest_mask
 
-def do_contrast_enhance(im:np.ndarray=None, method:str='custom', fact:float=1.10):
-    im_ce = np.zeros_like(im)
-    for slice in range(im.shape[2]):
-        im_slice = np.squeeze(im[:, :, slice])
-        if method is 'nc':
-            im_slice = 255 * do_norm_im(im_slice)
-            im_slice = im_slice.astype(np.uint8)
+# def do_contrast_enhance(im:np.ndarray=None, method:str='custom', fact:float=1.10):
+#     im_ce = np.zeros_like(im)
+#     for slice in range(im.shape[2]):
+#         im_slice = np.squeeze(im[:, :, slice])
+#         if method is 'nc':
+#             im_slice = 255 * do_norm_im(im_slice)
+#             im_slice = im_slice.astype(np.uint8)
 
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(2,2))
-            im_cl = clahe.apply(im_slice)
+#             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(2,2))
+#             im_cl = clahe.apply(im_slice)
             
-            # morphological
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2,2))
-            # Top Hat Transform
-            topHat = cv2.morphologyEx(im_slice, cv2.MORPH_TOPHAT, kernel)
-            # Black Hat Transform
-            blackHat = cv2.morphologyEx(im_slice, cv2.MORPH_BLACKHAT, kernel)
-            im_cl = im_slice + topHat - blackHat
-        else:
-            # im_slice[np.where(im_slice <1350)] = im_slice[np.where(im_slice <1350)] / fact
-            # im_slice[np.where(im_slice >1550)]  *= fact
-            im_slice[im_slice < 900] = im_slice[im_slice < 900] / fact
-            im_cl = im_slice
-        im_ce[:, :, slice] = im_cl
+#             # morphological
+#             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(2,2))
+#             # Top Hat Transform
+#             topHat = cv2.morphologyEx(im_slice, cv2.MORPH_TOPHAT, kernel)
+#             # Black Hat Transform
+#             blackHat = cv2.morphologyEx(im_slice, cv2.MORPH_BLACKHAT, kernel)
+#             im_cl = im_slice + topHat - blackHat
+#         else:
+#             # im_slice[np.where(im_slice <1350)] = im_slice[np.where(im_slice <1350)] / fact
+#             # im_slice[np.where(im_slice >1550)]  *= fact
+#             im_slice[im_slice < 900] = im_slice[im_slice < 900] / fact
+#             im_cl = im_slice
+#         im_ce[:, :, slice] = im_cl
 
-    return im_ce
+#     return im_ce
 
 def do_norm_im(im_slice:np.ndarray=0):
     max_slice = np.max(im_slice)
@@ -216,7 +216,7 @@ if __name__ == "__main__":
     data_folder = 'Data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240709/34507_D_minus28'
     output_folder = '/home/ajay/Documents/lf-brain-tracking/Data/LFMRI_DATA_IRF_nifti'
     subject = subject
-    sub_folder ='3DTSE/3'
+    sub_folder ='3DTSE/4'
     file_name ='20240829_day2_3DTSC_12.nii'
     name = file_name
     im = read_lf_data(data_folder, output_folder, subject, sub_folder, file_name)

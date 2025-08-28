@@ -61,15 +61,15 @@ import random
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-model_type = 'residual_srr_unet'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
+model_type = 'residual_srr_unet1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
 model_case = 'single_encoder_unet'
-subject = '30366'  # Example subject number, adjust as needed
+subject = '26184'  # Example subject number, adjust as needed
 day_idx = 2
 
 visualize = False
 visualize_pairs = False
 padding = False
-register2_hf = False
+register2_hf = True
 output_path = f'./Data/Results/{model_type}/{subject}'
 predictions_dir = os.path.join(output_path, 'predictions')
 os.makedirs(output_path, exist_ok=True)
@@ -174,7 +174,7 @@ def predict_and_evaluate(
     else:
         # Built-in visualization: show 15 random non-overlapping slices
         total_slices = hf_vol.shape[0]
-        num_slices_to_show = min(15, total_slices)
+        num_slices_to_show = min(20, total_slices)
         np.random.seed(42)
         slice_indices = [int(i) for i in np.linspace(0, total_slices - 1, num_slices_to_show)]
         print(f"Visualizing slices: {slice_indices}")
