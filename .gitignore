@@ -175,3 +175,5 @@ cython_debug/
 ./SRR models/
 ./SRR models/SRR/
 ./SRR models/predictions/
+./Figures/
+*.png
