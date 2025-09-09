@@ -13,7 +13,7 @@ def res_conv_block(x, filters, kernel_size=3):
     return x
 
 
-def residual_srr_unet(input_shape=(32, 128, 128, 1)):
+def residual_srr_unet(input_shape=(64, 128, 128, 1)):
     inputs = layers.Input(shape=input_shape)
 
     # ---------------- Encoder ----------------
@@ -52,7 +52,7 @@ def residual_srr_unet(input_shape=(32, 128, 128, 1)):
     return model
 
 # Example usage
-model = residual_srr_unet(input_shape=(32, 128, 128, 1))
+model = residual_srr_unet(input_shape=(64, 128, 128, 1))
 model.summary()
 
 import tensorflow as tf
@@ -270,7 +270,7 @@ def residual_att_unet_3d(input_shape=(32,128,128,1), base_filters=16, out_channe
 # -------------------------
 if __name__ == "__main__":
     # Example usage
-    model = residual_srr_unet(input_shape=(32, 128, 128, 1))
+    model = residual_srr_unet(input_shape=(64, 128, 128, 1))
     model.summary()
 
     # model = residual_att_unet_3d(input_shape=(32,128,128,1), base_filters=32, out_channels=1)

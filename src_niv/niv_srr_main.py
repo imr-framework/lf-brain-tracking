@@ -56,17 +56,19 @@ import nibabel as nib
 from sklearn.feature_extraction import image
 import os
 from skimage.transform import resize  # Required for 3D resizing
-# import logging
 
-def train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_,subject,
-           day_idx,steps_per_epoch = 50,epochs = 50,batch_size = 1,visualize_pairs = False):
+def train(lf_input_volume, hf_input_volume, hf_target_volume,
+          lf_input_volume_val,hf_input_volume_val,hf_target_volume_val,
+            model_type, model_case, model_,subject,day_idx,steps_per_epoch = 50,
+            epochs = 50,batch_size = 1,visualize_pairs = False):
     
+    print("inside Train function ........................")
     output_path = f'./Data/Results/{model_type}/{subject}'
     os.makedirs(output_path, exist_ok=True)
 
-    #save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index
-    nib.save(nib.Nifti1Image(lf_input_volume, affine=np.eye(4)), os.path.join(output_path, f'LF_input_volume_day{day_idx}.nii.gz'))
-    nib.save(nib.Nifti1Image(hf_target_volume, affine=np.eye(4)), os.path.join(output_path, f'HF_input_volume_day{day_idx}.nii.gz'))
+    # #save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index
+    # nib.save(nib.Nifti1Image(lf_input_volume, affine=np.eye(4)), os.path.join(output_path, f'LF_input_volume_day{day_idx}.nii.gz'))
+    # nib.save(nib.Nifti1Image(hf_target_volume, affine=np.eye(4)), os.path.join(output_path, f'HF_input_volume_day{day_idx}.nii.gz'))
 
     # if augmentation == True:
     #     lf_input_volume,hf_input_volume, hf_target_volume = crop_and_augment_3d(
@@ -77,13 +79,19 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_
     #     print("After augmentation HF Input shape:", hf_input_volume.shape) 
     #     print("After augmentation HF volume shape:", hf_target_volume.shape)
 
-    gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, augment=True, extra_slices=170)
-    lf_input, hf_target = next(gen)
+    # gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, augment=True, num_augmented_copies=6)
+    train_gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
+    lf_input, hf_target = next(train_gen)
     print(lf_input.shape)  # (2, 32, 128, 128, 1)
     print(hf_target.shape)  # (2, 32, 128, 128, 1)
 
-    # train_gen = systematic_crop_generator(gen, target_shape=(32,64,64), stride=(32,64,64))
-    # X_batch, Y_batch = next(train_gen)
+    valid_gen = srr_generator(lf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
+    lf_input_val, hf_target_val = next(valid_gen)
+    print(lf_input_val.shape)  # (2, 32, 128, 128, 1)
+    print(hf_target_val.shape)  # (2, 32, 128, 128, 1)
+    print("returned from generator ......................")
+    # train_gen_patch = systematic_crop_generator(train_gen, target_shape=(32,64,64), stride=(32,64,64))
+    # X_batch, Y_batch = next(train_gen_patch)
     # print("LF batch:", X_batch.shape)
     # print("HF batch:", Y_batch.shape)
     # # Expected output for batch_size=2:
@@ -99,126 +107,185 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_
     # plt.title("HF")
     # plt.show()
 
-#     # Check if required volumes exist
-#     if 'lf_input_volume' not in locals() or 'hf_target_volume' not in locals():
-#         print("\nRequired volumes (super_resolved_volume and resampled_volume) not available. Cannot proceed.")
-#     else:
+    # Check if required volumes exist
+    if 'lf_input_volume' not in locals() or 'hf_target_volume' not in locals():
+        print("\nRequired volumes (super_resolved_volume and resampled_volume) not available. Cannot proceed.")
+    else:
             
-#             # # Add batch and channel dimensions
-#             # # Input shapes for the model should be (Batch, H, W, D, C)
-#             x_zssr_train = np.expand_dims(lf_input_volume, axis=0) # Add batch dim
-#             x_zssr_train = np.expand_dims(x_zssr_train, axis=-1)           # Add channel dim (1 channel)
+            # # Add batch and channel dimensions
+            # # Input shapes for the model should be (Batch, H, W, D, C)
+            x_zssr_train = np.expand_dims(lf_input_volume, axis=0) # Add batch dim
+            x_zssr_train = np.expand_dims(x_zssr_train, axis=-1)           # Add channel dim (1 channel)
 
-#             x_hf_train = np.expand_dims(hf_input_volume, axis=0)   # Add batch dim
-#             x_hf_train = np.expand_dims(x_hf_train, axis=-1)             # Add channel dim (1 channel)
+            x_hf_train = np.expand_dims(hf_input_volume, axis=0)   # Add batch dim
+            x_hf_train = np.expand_dims(x_hf_train, axis=-1)             # Add channel dim (1 channel)
 
-#             y_train = np.expand_dims(hf_target_volume, axis=0)   # Add batch dim
-#             y_train = np.expand_dims(y_train, axis=-1)             # Add channel dim (1 channel)
+            y_train = np.expand_dims(hf_target_volume, axis=0)   # Add batch dim
+            y_train = np.expand_dims(y_train, axis=-1)             # Add channel dim (1 channel)
 
-#             if visualize_pairs == True:
-#                 # Example: visualize slices 10, 20, 30
-#                 visualize_pair(x_zssr_train, y_train, slice_indices=[1,2,3,4,5,6,7,8,12,16,18,20,21,22,23,24,26,28])
+            if visualize_pairs == True:
+                # Example: visualize slices 10, 20, 30
+                visualize_pair(x_zssr_train, y_train, slice_indices=[1,2,3,4,5,6,7,8,12,16,18,20,21,22,23,24,26,28])
 
-#             print(f"Prepared ZSSR training input shape: {x_zssr_train.shape}")
-#             print(f"Prepared HF training input shape: {x_hf_train.shape}")
-#             print(f"Prepared training target shape: {y_train.shape}")
+            print(f"Prepared ZSSR training input shape: {x_zssr_train.shape}")
+            print(f"Prepared HF training input shape: {x_hf_train.shape}")
+            print(f"Prepared training target shape: {y_train.shape}")
 
+            # Define checkpoint path
+            checkpoint_filepath_dual = os.path.join(output_path, f'{model_type}_model_checkpoint_day{day_idx}.keras')
 
-#             # --- Build and Compile the Dual-Encoder Model ---
+            # --- Load or Build Model ---
+            if os.path.exists(checkpoint_filepath_dual):
+                print("Checkpoint path available ..........")
+                # try:
+                model = load_model(
+                    checkpoint_filepath_dual,
+                    # custom_objects={
+                    #     'mse': tf.keras.losses.MeanSquaredError(),
+                    #     'mean_squared_error': tf.keras.losses.MeanSquaredError(),
+                    # },
+                    compile=False  # continue training
+                )
+                print(f"\n✅ Loaded model from checkpoint: {checkpoint_filepath_dual}")
+                # except Exception as e:
+                #     print(f"\n⚠️ Failed to load checkpoint, rebuilding model. Error: {e}")
+                #     if model_case == 'single_encoder_unet':
+                #         model = model_(input_shape=(32,128,128,1))
+                #     else:
+                #         raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
+                #     print(f"\nBuilt {model_type} model for training.")
+            else:
+                if model_case == 'single_encoder_unet':
+                    model = model_(input_shape=(32,128,128,1))
+                else:
+                    raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
+                print(f"\nBuilt {model_type} model for training.")
 
-#             # Input shapes for the model should match the shape of a single sample (H, W, D, C)
-#             if model_case == 'single_encoder_unet':
-#                 model = model_(input_shape=(32,128,128,1))
-#             else:
-#                 raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
+            # --- Add checkpoint callback ---
+            model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+                filepath=checkpoint_filepath_dual,
+                save_weights_only=False,
+                monitor='loss',
+                mode='min',
+                save_best_only=True
+            )
+
+            # --- Reduce Learning Rate on Plateau ---
+            reduce_lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
+                monitor='loss',            # monitor training loss
+                factor=0.5,                # reduce LR by half
+                patience=30,               # wait for 30 epochs with no improvement
+                verbose=1,                 # print messages when LR changes
+                mode='min',
+                min_lr=1e-6                # optional, don't reduce below this
+            )
+
+            # --- Early Stopping ---
+            early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+                monitor='loss',
+                patience=50,               # stop training if no improvement for 50 epochs
+                verbose=1,
+                mode='min',
+                restore_best_weights=True  # restore weights from the best epoch
+            )
+
+            # --- Compile ---
+            model.compile(
+                optimizer='adam',
+                loss=composite_loss,
+                metrics=[psnr, ssim, MeanSquaredError(name='mse')]
+            )
+
+            model.summary()
+            # --- Build and Compile the Dual-Encoder Model ---
+
+            # # Input shapes for the model should match the shape of a single sample (H, W, D, C)
+            # if model_case == 'single_encoder_unet':
+            #     model = model_(input_shape=(32,128,128,1))
+            # else:
+            #     raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
             
-#             print(f"\nBuilt {model_type} model for training.")
-#             # --- Compile the model ---
-#             model.compile(
-#                 optimizer='adam',
-#                 loss=composite_loss,
-#                 metrics=[psnr, ssim, MeanSquaredError(name='mse')])  # Added metrics her) # Mean Squared Error is common for regression
-#             # Mean Squared Error is common for regression
-#             model.summary()
+            # print(f"\nBuilt {model_type} model for training.")
+            # # --- Compile the model ---
+            # model.compile(
+            #     optimizer='adam',
+            #     loss=composite_loss,
+            #     metrics=[psnr, ssim, MeanSquaredError(name='mse')])  # Added metrics her) # Mean Squared Error is common for regression
+            # # Mean Squared Error is common for regression
+            # model.summary()
 
-#             # --- Train the CNN ---
-#             print("\nStarting encoder model training...")
+            # --- Train the CNN ---
+            print("\nStarting encoder model training...")
             
-#             steps_per_epoch = steps_per_epoch # Number of steps per epoch
-#             epochs = epochs # Number of training epochs
-#             batch_size = batch_size # Batch size (1 for a single volume)
+            steps_per_epoch = steps_per_epoch # Number of steps per epoch
+            epochs = epochs # Number of training epochs
+            batch_size = batch_size # Batch size (1 for a single volume)
 
-#             # Add a callback to save the model during training
-#             checkpoint_filepath_dual = os.path.join(output_path, f'{model_type}_model_checkpoint_day{day_idx}.keras')
-#             model_checkpoint_callback_dual = tf.keras.callbacks.ModelCheckpoint(
-#                 filepath=checkpoint_filepath_dual,
-#                 save_weights_only=False,
-#                 monitor='loss',
-#                 mode='min',
-#                 save_best_only=True)
 
-#             # Train the model using both inputs
-#             if model_case == 'single_encoder_unet':
-#                 history = model.fit(gen,
-#                                     steps_per_epoch=steps_per_epoch,
-#                                     epochs=epochs,
-#                                     batch_size=batch_size,
-#                                     callbacks=[model_checkpoint_callback_dual]
-#                                     # validation_data=(x_zssr_val, y_val) # Add validation data if available
-#                                     )
-#             else:
-#                 raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
+            print("training started ...............................")
+            # Train the model using both inputs
+            if model_case == 'single_encoder_unet':
+                history = model.fit(train_gen,
+                                    steps_per_epoch=steps_per_epoch,
+                                    epochs=epochs,
+                                    batch_size=batch_size,
+                                    callbacks=[model_checkpoint_callback, reduce_lr_callback, early_stopping_callback],
+                                    validation_data=valid_gen,
+                                    validation_steps=1 # Add validation data if available
+                                    )
+            else:
+                raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
             
-#             # Save final model explicitly after training
-#             final_model_path = os.path.join(output_path, f'{model_type}_model_checkpoint_final_day{day_idx}.keras')
-#             model.save(final_model_path)
-#             print(f"✅ Final model saved at: {final_model_path}")
+            # Save final model explicitly after training
+            final_model_path = os.path.join(output_path, f'{model_type}_model_checkpoint_final_day{day_idx}.keras')
+            model.save(final_model_path)
+            print(f"✅ Final model saved at: {final_model_path}")
             
-#             print("\nSingle-encoder model training finished.")
+            print("\nSingle-encoder model training finished.")
 
-#             # --- Load the Best Model from Checkpoint ---
-#             try:
-#                 best_dual_model = load_model(
-#                     checkpoint_filepath_dual,
-#                     custom_objects={
-#                         'mse': tf.keras.losses.MeanSquaredError(),
-#                         'mean_squared_error': tf.keras.losses.MeanSquaredError()
-#                     },
-#                     compile=True  # compile=True if you want to continue training
-#                 )
-#                 print(f"Best dual-encoder model loaded from: {checkpoint_filepath_dual}")
+            # --- Load the Best Model from Checkpoint ---
+            try:
+                best_dual_model = load_model(
+                    checkpoint_filepath_dual,
+                    custom_objects={
+                        'mse': tf.keras.losses.MeanSquaredError(),
+                        'mean_squared_error': tf.keras.losses.MeanSquaredError()
+                    },
+                    compile=True  # compile=True if you want to continue training
+                )
+                print(f"Best dual-encoder model loaded from: {checkpoint_filepath_dual}")
 
-#             except Exception as e_custom:
-#                 print(f"Loading with custom_objects failed: {e_custom}")
-#                 print("Trying to load without compilation...")
-#                 try:
-#                     best_dual_model = load_model(checkpoint_filepath_dual, compile=False)
-#                     print(f"Best dual-encoder model loaded for inference from: {checkpoint_filepath_dual}")
-#                 except Exception as e_fail:
-#                     raise RuntimeError(f"Failed to load model even without compilation: {e_fail}")
+            except Exception as e_custom:
+                print(f"Loading with custom_objects failed: {e_custom}")
+                print("Trying to load without compilation...")
+                try:
+                    best_dual_model = load_model(checkpoint_filepath_dual, compile=False)
+                    print(f"Best dual-encoder model loaded for inference from: {checkpoint_filepath_dual}")
+                except Exception as e_fail:
+                    raise RuntimeError(f"Failed to load model even without compilation: {e_fail}")
 
-#             # --- Predict the SRR Volume ---
-#             if model_case == 'single_encoder_unet':
-#                 # If you have the full LF volume as x_zssr_train
-#                 predicted_volume_dual = best_dual_model.predict(x_zssr_train)
-#             else:
-#                 raise ValueError("Invalid model_case. Choose from 'single_encoder_unet'.")
+            # # --- Predict the SRR Volume ---
+            # if model_case == 'single_encoder_unet':
+            #     # If you have the full LF volume as x_zssr_train
+            #     predicted_volume_dual = best_dual_model.predict(x_zssr_train)
+            # else:
+            #     raise ValueError("Invalid model_case. Choose from 'single_encoder_unet'.")
 
-#             # Remove batch and channel dimensions
-#             predicted_volume_dual = np.squeeze(predicted_volume_dual)  # shape -> (Z, X, Y)
-#             print(f"Predicted volume shape (dual-encoder): {predicted_volume_dual.shape}")
+            # # Remove batch and channel dimensions
+            # predicted_volume_dual = np.squeeze(predicted_volume_dual)  # shape -> (Z, X, Y)
+            # print(f"Predicted volume shape (dual-encoder): {predicted_volume_dual.shape}")
 
-#             # --- Save the Predicted Volume as NIfTI ---
-#             predicted_nifti = nib.Nifti1Image(predicted_volume_dual.astype(np.float32), affine=np.eye(4))
-#             predicted_nifti_path = os.path.join(output_path, f'Predicted_volume_day{day_idx}.nii.gz')
-#             nib.save(predicted_nifti, predicted_nifti_path)
-#             print(f"Predicted SRR volume saved to: {predicted_nifti_path}")
+            # # --- Save the Predicted Volume as NIfTI ---
+            # predicted_nifti = nib.Nifti1Image(predicted_volume_dual.astype(np.float32), affine=np.eye(4))
+            # predicted_nifti_path = os.path.join(output_path, f'Predicted_volume_day{day_idx}.nii.gz')
+            # nib.save(predicted_nifti, predicted_nifti_path)
+            # print(f"Predicted SRR volume saved to: {predicted_nifti_path}")
 
-#             print("\nDisplaying slices: Target HF vs. Predicted Dual-Encoder Output...")
-#             # Display a few slices from the true HF and predicted volumes for comparison
-#             if visualize_pairs == True:
-#                 display_pred(hf_target_volume,lf_input_volume, predicted_volume_dual)
-#                 print("\nProcessing complete.")
+            # print("\nDisplaying slices: Target HF vs. Predicted Dual-Encoder Output...")
+            # # Display a few slices from the true HF and predicted volumes for comparison
+            # if visualize_pairs == True:
+            #     display_pred(hf_target_volume,lf_input_volume, predicted_volume_dual)
+            #     print("\nProcessing complete.")
 
 # if __name__ == "__main__":
 #     train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_,subject,

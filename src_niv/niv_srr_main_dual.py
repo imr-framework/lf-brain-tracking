@@ -111,7 +111,6 @@ lf_input_volume, hf_target_volume = next(gen)
 print(lf_input_volume.shape)  # (2, 32, 128, 128, 1)
 print(hf_target_volume.shape)  # (2, 32, 128, 128, 1)
 
-
 # Check if required volumes exist
 if 'lf_input_volume' not in locals() or 'hf_target_volume' not in locals():
     print("\nRequired volumes (super_resolved_volume and resampled_volume) not available. Cannot proceed.")

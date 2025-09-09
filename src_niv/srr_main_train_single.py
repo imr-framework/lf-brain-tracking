@@ -31,13 +31,13 @@ import os
 from skimage.transform import resize  # Required for 3D resizing
 
 # 59228
-subjects1 = ['26184', '30366', '35528', '59081'] # '59877', '59175','59233', '59877', '35547'
-
+subjects1 = ['26184', '30366', '35528', '59081'] # 59228
+subjects1 = ['26184']
 # Mismatch due to high field shape
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-day_idx = 2
+day_idx = 1
 visualize = False
 visualize_pairs = False
 padding = False
@@ -45,30 +45,33 @@ register2_hf = True
 augmentation = True
 
 # Training parameters
-steps_per_epoch = 60
-epochs = 1500
+steps_per_epoch = 2
+epochs = 1
 batch_size = 2
-
-# Training data
 
 lf_input_volume_combined = []
 hf_input_volume_combined = []
 hf_target_volume_combined = []
 
 for subject in subjects1:
-    for day_idx in [2]:  # Assuming 0 = Day 1, 1 = Day 2
+    # for day_idx in [1, 2]:  # Assuming 0 = Day 1, 1 = Day 2
         print(f"\n=============================== Processing subject: {subject}, Day: {day_idx + 1} ===============================")
+
         # ----- Load HF data -----
         print(f"\n=============================== HF_MRI data processing started .............")
         resampled_volume_hf_norm = load_and_preprocess_hf(subject, day_idx, visualize)
+
         # ----- Load LF data -----
         print(f"\n=============================== LF_MRI data processing started .............")
         resampled_volume_lf_be_norm = load_and_preprocess_lf(subject, day_idx, visualize)
+
         print("Resampled LF volume shape:", resampled_volume_lf_be_norm.shape)
         print("Resampled HF volume shape:", resampled_volume_hf_norm.shape)
+
         # Register LF to HF
         if register2_hf:
             resampled_volume_lf_be_norm = register_to_hf(resampled_volume_lf_be_norm, resampled_volume_hf_norm)
+
         # Padding
         if padding:
             resampled_volume_lf_be_norm = padding_LF(
@@ -77,6 +80,7 @@ for subject in subjects1:
                 target_slices=64
             )
             print("After padding LF volume shape:", resampled_volume_lf_be_norm.shape)
+
         # Visualization (optional)
         if visualize_pairs:
             visualize_pair(
@@ -84,10 +88,12 @@ for subject in subjects1:
                 resampled_volume_hf_norm,
                 slice_indices=list(range(31))
             )
+
         # ----- Final Volume Preparation -----
         lf_input_volume = resampled_volume_lf_be_norm.astype(np.float32)
         hf_input_volume = resampled_volume_hf_norm.astype(np.float32)
         hf_target_volume = resampled_volume_hf_norm.astype(np.float32)
+
         # Slice selection
         lf_input_volume = lf_input_volume[0:32, :, :]
         hf_input_volume = hf_input_volume[0:32, :, :]
@@ -96,74 +102,24 @@ for subject in subjects1:
         print("LF Input shape:", lf_input_volume.shape)
         print("HF Input shape:", hf_input_volume.shape)
         print("HF volume shape:", hf_target_volume.shape)
-        # ----- Append to Combined Lists -----
-        lf_input_volume_combined.append(lf_input_volume)
-        hf_input_volume_combined.append(hf_input_volume)
-        hf_target_volume_combined.append(hf_target_volume)
 
-lf_input_volume_combined = np.stack(lf_input_volume_combined)
-hf_input_volume_combined = np.stack(hf_input_volume_combined)
-hf_target_volume_combined = np.stack(hf_target_volume_combined)
+        # # ----- Append to Combined Lists -----
+        # lf_input_volume_combined.append(lf_input_volume)
+        # hf_input_volume_combined.append(hf_input_volume)
+        # hf_target_volume_combined.append(hf_target_volume)
 
-print("LF Input shape:", lf_input_volume_combined.shape)
-print("HF Input shape:", hf_input_volume_combined.shape)
-print("HF volume shape:", hf_target_volume_combined.shape)
+        # lf_input_volume_combined = np.stack(lf_input_volume_combined)
+        # hf_input_volume_combined = np.stack(hf_input_volume_combined)
+        # hf_target_volume_combined = np.stack(hf_target_volume_combined)
 
-# Validation data
-print('-----------------------------\n\nLoading validation data .................................-----------------')
-subjects_val = ['26184']
-for subject_v in subjects_val:
-    for day_idx in [2]:  # Assuming 0 = Day 1, 1 = Day 2
-        print(f"\n=============================== Processing subject: {subject_v}, Day: {day_idx + 1} ===============================")
-        # ----- Load HF data -----
-        print(f"\n=============================== HF_MRI data processing started .............")
-        resampled_volume_hf_norm = load_and_preprocess_hf(subject_v, day_idx, visualize)
-        # ----- Load LF data -----
-        print(f"\n=============================== LF_MRI data processing started .............")
-        resampled_volume_lf_be_norm = load_and_preprocess_lf(subject_v, day_idx, visualize)
-        print("Resampled LF volume shape:", resampled_volume_lf_be_norm.shape)
-        print("Resampled HF volume shape:", resampled_volume_hf_norm.shape)
-        
-        # Register LF to HF
-        if register2_hf:
-            resampled_volume_lf_be_norm = register_to_hf(resampled_volume_lf_be_norm, resampled_volume_hf_norm)
-        
-        # Padding
-        if padding:
-            resampled_volume_lf_be_norm = padding_LF(
-                resampled_volume_lf_be_norm,
-                resampled_volume_hf_norm,
-                target_slices=64
-            )
-            print("After padding LF volume shape:", resampled_volume_lf_be_norm.shape)
-        
-        # Visualization (optional)
-        if visualize_pairs:
-            visualize_pair(
-                resampled_volume_lf_be_norm,
-                resampled_volume_hf_norm,
-                slice_indices=list(range(31))
-            )
-        
-        # ----- Final Volume Preparation -----
-        lf_input_volume_val = resampled_volume_lf_be_norm.astype(np.float32)
-        hf_input_volume_val = resampled_volume_hf_norm.astype(np.float32)
-        hf_target_volume_val = resampled_volume_hf_norm.astype(np.float32)
-        
-        # Slice selection
-        lf_input_volume_val = lf_input_volume_val[0:32, :, :]
-        hf_input_volume_val = hf_input_volume_val[0:32, :, :]
-        hf_target_volume_val = hf_target_volume_val[0:32, :, :]
-        print("LF Input shape:", lf_input_volume_val.shape)
-        print("HF Input shape:", hf_input_volume_val.shape)
-        print("HF volume shape:", hf_target_volume_val.shape)
+        # print("LF Input shape:", lf_input_volume_combined.shape)
+        # print("HF Input shape:", hf_input_volume_combined.shape)
+        # print("HF volume shape:", hf_target_volume_combined.shape)
 
-# calling the residual_srr_unet model
-model_type = 'residual_srr_unet5_subjects_2000_d1'
-model_case = 'single_encoder_unet'
-model_ = residual_srr_unet
+        # calling the residual_srr_unet model
+        model_type = 'residual_srr_unet4_subjects_500'
+        model_case = 'single_encoder_unet'
+        model_ = residual_srr_unet
 
-train(lf_input_volume_combined, hf_input_volume_combined, hf_target_volume_combined,
-      lf_input_volume_val,hf_input_volume_val,hf_target_volume_val, model_type, 
-      model_case, model_, subject,day_idx, steps_per_epoch=steps_per_epoch, 
-      epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)
+        train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_, subject,
+                day_idx, steps_per_epoch=steps_per_epoch, epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)

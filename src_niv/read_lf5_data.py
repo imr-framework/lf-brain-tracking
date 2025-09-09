@@ -12,19 +12,18 @@ import re
 from demo_read_data import read_lf_data
 import json
 
-
 # Define a dictionary mapping subject IDs to their corresponding lists
 subject_data = {
     # Predefined subfolder sequences for specific subjects
-    26184 : ["3DTSE/5", "3DTSE/9", "3DTSE/10", "3DTSE/8", "3DTSE/10"],
+    26184 : ["3DTSE/6", "3DTSE/9", "3DTSE/10", "3DTSE/8", "3DTSE/10"],
     30366 : ["3DTSE/4", "3DTSE/6", "3DTSE/8", "3DTSE/2", "3DTSE/8"],
     59175 : ["3DTSE/2", "3DTSE/4", "3DTSE/1", "3DTSE/9", "3DTSE/6"],
     34507 : ["3DTSE/4", "3DTSE/4", "3DTSE/3", "3DTSE/3", "3DTSE/13"],
     35547 : ["3DTSE/7", "3DTSE/4", "3DTSE/5", "3DTSE/14", "3DTSE/5"],
     59228 : ["3DTSE/8", "3DTSE/13", "3DTSE/12", "3DTSE/9", "3DTSE/13"],
-    59877 : ["3DTSE/1", "3DTSE/2", "3DTSE/2", "3DTSE/2", "3DTSE/8"], # Bad quality data
+    59877 : ["3DTSE/2", "3DTSE/2", "3DTSE/2", "3DTSE/2", "3DTSE/8"], # Bad quality data
     59081 : ["3DTSE/2", "3DTSE/4", "3DTSE/7", "3DTSE/6", "3DTSE/1"], # 1,2,3, 5 --
-    35528 : ["3DTSE/3", "3DTSE/2", "3DTSE/3", "3DTSE/7", "3DTSE/4"],
+    35528 : ["3DTSE/4", "3DTSE/2", "3DTSE/3", "3DTSE/7", "3DTSE/4"],
     59233 : ["3DTSE/10", "3DTSE/6", "3DTSE/2", "3DTSE/10", "3DTSE/13"]
 }
 
@@ -152,7 +151,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                         # print("Min value:", np.min(np.abs(im)))
                         # print("Data type of np.abs(im):", np.abs(im).dtype)
                         print("Shape of im:", im.shape)
-
+                        
                         # num_slices = im.shape[2]
                         # fig, axes = plt.subplots(2, 8, figsize=(20, 8))
                         # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
@@ -176,31 +175,35 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
 
 if __name__ == "__main__":
     
-    subject = '34507'
-    lf_dataset = process_subject(subject = subject)  # Returns list of 3D volumes (e.g., 5 timepoints)
+    subjects = ['34507']
 
-    print(f"Total timepoints loaded: {len(lf_dataset)}")
-    for i, volume in enumerate(lf_dataset):
-        print(f"Timepoint {i+1} shape: {volume.shape}")
+    for subject in subjects:
+        
+        # subject = '59228'
+        lf_dataset = process_subject(subject = subject)  # Returns list of 3D volumes (e.g., 5 timepoints)
 
-    # # Extract the first timepoint
-    # first_tp = lf_dataset[0]  # or lf_dataset[:1] to keep it as a list
+        print(f"Total timepoints loaded: {len(lf_dataset)}")
+        for i, volume in enumerate(lf_dataset):
+            print(f"Timepoint {i+1} shape: {volume.shape}")
 
-    # # Print shape
-    # print("Shape:", first_tp.shape)
+        # # Extract the first timepoint
+        # first_tp = lf_dataset[0]  # or lf_dataset[:1] to keep it as a list
 
-    # # Print number of slices along each dimension
-    # h, w, d = first_tp.shape
-    # print(f"Height (H): {h}, Width (W): {w}, Depth (D): {d}")
+        # # Print shape
+        # print("Shape:", first_tp.shape)
 
-    # # Or if shape is (D, H, W), change unpacking accordingly:
-    # # d, h, w = first_tp.shape
+        # # Print number of slices along each dimension
+        # h, w, d = first_tp.shape
+        # print(f"Height (H): {h}, Width (W): {w}, Depth (D): {d}")
 
-    # # Print individual slices (you can choose how many to print)
-    # print("\nExample slice (middle of volume):")
-    # middle_slice = first_tp[:, :, d // 2]  # adjust indexing based on shape
-    # print(middle_slice)
+        # # Or if shape is (D, H, W), change unpacking accordingly:
+        # # d, h, w = first_tp.shape
 
-    # # Print min and max intensity values
-    # print("\nMin intensity:", first_tp.min())
-    # print("Max intensity:", first_tp.max())
+        # # Print individual slices (you can choose how many to print)
+        # print("\nExample slice (middle of volume):")
+        # middle_slice = first_tp[:, :, d // 2]  # adjust indexing based on shape
+        # print(middle_slice)
+
+        # # Print min and max intensity values
+        # print("\nMin intensity:", first_tp.min())
+        # print("Max intensity:", first_tp.max())

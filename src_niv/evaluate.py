@@ -6,6 +6,8 @@
 #Save results to CSV
 #Visualize some slices from input LF, true HF, and predicted HF for qualitative assessment
 
+# Evaluate any just give folder of model and make folder of subject inside prediction and evaluate based on the subject given
+
 import os
 import numpy as np
 import nibabel as nib
@@ -61,32 +63,49 @@ import random
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-model_type = 'residual_srr_unet1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
+model_type = 'residual_srr_unet5_subjects_2000_d1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
 model_case = 'single_encoder_unet'
-subject = '26184'  # Example subject number, adjust as needed
-day_idx = 2
+multi_subject_train = True
+
+day_idx = 1
 
 visualize = False
 visualize_pairs = False
 padding = False
 register2_hf = True
-output_path = f'./Data/Results/{model_type}/{subject}'
-predictions_dir = os.path.join(output_path, 'predictions')
+
+subject = '59175'  # Example subject number, adjust as needed
+
+if multi_subject_train == False:
+    
+    
+    output_path = f'./Data/Results/{model_type}/{subject}'
+    predictions_dir = os.path.join(output_path, 'predictions')
+    model_name = f'{model_type}_model_checkpoint_day1.keras'
+    model_path = os.path.join(output_path, model_name)
+else:
+    subject_train = '59081'
+    
+    output_path_model = f'./Data/Results/{model_type}/{subject_train}'
+    # predictions_dir = os.path.join(output_path, 'predictions')
+    output_path = f'./Data/Results/{model_type}'
+    predictions_d = os.path.join(output_path, 'predictions')
+    predictions_dir = f'{predictions_d}/{subject}'
+    model_name = f'{model_type}_model_checkpoint_day2.keras'
+    model_path = os.path.join(output_path_model, model_name)
+
 os.makedirs(output_path, exist_ok=True)
 os.makedirs(predictions_dir, exist_ok=True)
 
-model_name = f'{model_type}_model_checkpoint_day1.keras'
-model_path = os.path.join(output_path, model_name)
-
 # Initialize data object and load data (HFMRI_data_IRF)
 print(f"\n===============================HF_MRI data processing  started .............")
-#Day1 HF data for model input
+# Day1 HF data for model input
 resampled_volume_hf_norm_D1 = load_and_preprocess_hf(subject, day_idx = 1, visualize = visualize)
 # Current day HF data for target
 resampled_volume_hf_norm = load_and_preprocess_hf(subject, day_idx, visualize)
 
-#Load and preprocess LF data
-print(f"\n===============================LF_MRI data processing  started .............")
+# Load and preprocess LF data
+print(f"\n=============================== LF_MRI data processing  started .............")
 resampled_volume_lf_be_norm = load_and_preprocess_lf(subject, day_idx, visualize)
 
 print("Resampled HF volume shape Day 1:", resampled_volume_hf_norm_D1.shape)
@@ -115,9 +134,9 @@ hf_input_volume_d1 = hf_input_volume_D1[0:32, :, :]
 lf_input_volume = lf_input_volume[0:32, :, :]
 hf_target_volume = hf_target_volume[0:32, :, :]
 
-#save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index
-nib.save(nib.Nifti1Image(lf_input_volume, affine=np.eye(4)), os.path.join(predictions_dir, f'LF_input_volume_day{day_idx}.nii.gz'))
-nib.save(nib.Nifti1Image(hf_target_volume, affine=np.eye(4)), os.path.join(predictions_dir, f'HF_input_volume_day{day_idx}.nii.gz'))
+# #save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index
+# nib.save(nib.Nifti1Image(lf_input_volume, affine=np.eye(4)), os.path.join(predictions_dir, f'LF_input_volume_day{day_idx}.nii.gz'))
+# nib.save(nib.Nifti1Image(hf_target_volume, affine=np.eye(4)), os.path.join(predictions_dir, f'HF_input_volume_day{day_idx}.nii.gz'))
 
 # --- Predict and evaluate ---  
 def predict_and_evaluate(
@@ -200,10 +219,10 @@ def predict_and_evaluate(
         plt.savefig(os.path.join(predictions_dir, f"Day{day_idx}_slices.png"))
         plt.show()
     
-        # Save predicted volume as NIfTI (identity affine here, update if needed)
-        pred_path = os.path.join(predictions_dir, f"Predicted_volume_day{day_idx}.nii.gz")
-        nib.save(nib.Nifti1Image(pred_vol.astype(np.float32), affine=np.eye(4)), pred_path)
-        print(f"Saved prediction to: {pred_path}")
+        # # Save predicted volume as NIfTI (identity affine here, update if needed)
+        # pred_path = os.path.join(predictions_dir, f"Predicted_volume_day{day_idx}.nii.gz")
+        # nib.save(nib.Nifti1Image(pred_vol.astype(np.float32), affine=np.eye(4)), pred_path)
+        # print(f"Saved prediction to: {pred_path}")
         
         # Compute metrics (make sure volumes are normalized or scaled consistently!)
         psnr_val = peak_signal_noise_ratio(hf_vol, pred_vol, data_range=hf_vol.max() - hf_vol.min())
@@ -215,7 +234,7 @@ def predict_and_evaluate(
             "PSNR": psnr_val,
             "SSIM": ssim_val,
             "MSE": mse_val,
-            "prediction_path": pred_path
+            # "prediction_path": pred_path
         })
         
         print(f"Day {day_idx} metrics: PSNR={psnr_val:.3f}, SSIM={ssim_val:.3f}, MSE={mse_val:.6f}")
