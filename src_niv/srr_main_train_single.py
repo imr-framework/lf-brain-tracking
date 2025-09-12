@@ -31,7 +31,7 @@ import os
 from skimage.transform import resize  # Required for 3D resizing
 
 # 59228
-subjects1 = ['26184', '30366', '35528', '59081'] # 59228
+subjects1 = ['26184', '30366', '35528'] # 59228
 subjects1 = ['26184']
 # Mismatch due to high field shape
 
@@ -117,9 +117,11 @@ for subject in subjects1:
         # print("HF volume shape:", hf_target_volume_combined.shape)
 
         # calling the residual_srr_unet model
-        model_type = 'residual_srr_unet4_subjects_500'
+        model_type = 'residual_srr_unet_subjects_new'
         model_case = 'single_encoder_unet'
         model_ = residual_srr_unet
 
-        train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_, subject,
-                day_idx, steps_per_epoch=steps_per_epoch, epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)
+        train(lf_input_volume, hf_input_volume, hf_target_volume, 
+              lf_input_volume, hf_input_volume, hf_target_volume,
+              model_type, model_case, model_, subject,day_idx, steps_per_epoch=steps_per_epoch,
+              epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)

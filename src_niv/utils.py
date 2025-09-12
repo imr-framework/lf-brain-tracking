@@ -188,6 +188,7 @@ import tensorflow as tf
 # --------------------------
 # 2D augmentations
 # --------------------------
+
 def rotate2d(img, angle_deg):
     angle_rad = angle_deg * np.pi / 180
     frac = angle_rad / (2.0 * np.pi)
@@ -267,8 +268,8 @@ def srr_generator(lf_vol, hf_vol, batch_size=2, patch_z=32, patch_xy=128, augmen
                         lf_slice = rotate2d(lf_slice, np.random.uniform(-15,15))
                     if np.random.rand() > 0.5:
                         lf_slice = shear2d(lf_slice, np.random.uniform(-0.1,0.1), np.random.uniform(-0.1,0.1))
-                    if np.random.rand() > 0.5:
-                        lf_slice = add_gaussian_noise(lf_slice, sigma=noise_sigma)
+                    # if np.random.rand() > 0.5:
+                    #     lf_slice = add_gaussian_noise(lf_slice, sigma=noise_sigma)
                     if np.random.rand() > 0.5:
                         lf_slice = adjust_intensity(lf_slice, factor_range=(0.85, 1.15))
 
@@ -293,165 +294,167 @@ def srr_generator(lf_vol, hf_vol, batch_size=2, patch_z=32, patch_xy=128, augmen
                 batch_lf, batch_hf = [], []
 
 
-# import numpy as np
-# import tensorflow as tf
+import numpy as np
+import tensorflow as tf
 
-# # Rotate 2D slice
-# def rotate2d(img, angle_rad):
-#     frac = angle_rad / (2.0 * np.pi)
-#     rr = tf.keras.layers.RandomRotation(factor=(frac, frac), fill_mode="nearest")
-#     img = tf.expand_dims(img, axis=0)  # add batch
-#     out = rr(img)                      # (1,H,W,C)
-#     return out[0]                      # (H,W,C)
+# Rotate 2D slice
+def rotate2d(img, angle_rad):
+    frac = angle_rad / (2.0 * np.pi)
+    rr = tf.keras.layers.RandomRotation(factor=(frac, frac), fill_mode="nearest")
+    img = tf.expand_dims(img, axis=0)  # add batch
+    out = rr(img)                      # (1,H,W,C)
+    return out[0]                      # (H,W,C)
 
-# # Shear 2D slice using ImageProjectiveTransformV3 (no TFA)
-# def shear2d(img, shear_x, shear_y):
-#     X, Y, C = img.shape
-#     # Shear matrix
-#     transform = [1.0, shear_x, 0.0,
-#                  shear_y, 1.0, 0.0,
-#                  0.0,     0.0]
-#     transform = tf.convert_to_tensor([transform], dtype=tf.float32)
+# Shear 2D slice using ImageProjectiveTransformV3 (no TFA)
+def shear2d(img, shear_x, shear_y):
+    X, Y, C = img.shape
+    # Shear matrix
+    transform = [1.0, shear_x, 0.0,
+                 shear_y, 1.0, 0.0,
+                 0.0,     0.0]
+    transform = tf.convert_to_tensor([transform], dtype=tf.float32)
 
-#     # ImageProjectiveTransformV3 expects (N,H,W,C)
-#     img = tf.expand_dims(img, axis=0)
-#     out = tf.raw_ops.ImageProjectiveTransformV3(
-#         images=img,
-#         transforms=transform,
-#         output_shape=[X, Y],
-#         interpolation="BILINEAR"
-#     )
-#     return out[0]  # (H,W,C)
+    # ImageProjectiveTransformV3 expects (N,H,W,C)
+    img = tf.expand_dims(img, axis=0)
+    out = tf.raw_ops.ImageProjectiveTransformV3(
+        images=img,
+        transforms=transform,
+        output_shape=[X, Y],
+        interpolation="BILINEAR"
+    )
+    return out[0]  # (H,W,C)
 
-# def rotate2d(img, angle_deg):
-#     """Rotate a single 2D slice."""
-#     angle_rad = angle_deg * np.pi / 180
-#     frac = angle_rad / (2.0 * np.pi)
-#     rr = tf.keras.layers.RandomRotation(factor=(frac, frac), fill_mode="nearest")
-#     img = tf.expand_dims(img, axis=0)
-#     out = rr(img)
-#     return out[0]
+def rotate2d(img, angle_deg):
+    """Rotate a single 2D slice."""
+    angle_rad = angle_deg * np.pi / 180
+    frac = angle_rad / (2.0 * np.pi)
+    rr = tf.keras.layers.RandomRotation(factor=(frac, frac), fill_mode="nearest")
+    img = tf.expand_dims(img, axis=0)
+    out = rr(img)
+    return out[0]
 
-# def shear2d(img, shear_x=0.1, shear_y=0.1):
-#     """Approximate shear with RandomTranslation."""
-#     img = tf.expand_dims(img, axis=0)
-#     layer = tf.keras.layers.RandomTranslation(height_factor=shear_y, width_factor=shear_x, fill_mode="nearest")
-#     out = layer(img)
-#     return out[0]
-# def srr_generator(lf_vol, hf_vol, batch_size=1, patch_z=32, augment=True, num_augmented_copies=1):
-#     """
-#     Generator for 3D SRR patches: original patch first, then augmented copies as separate batches.
+def shear2d(img, shear_x=0.1, shear_y=0.1):
+    """Approximate shear with RandomTranslation."""
+    img = tf.expand_dims(img, axis=0)
+    layer = tf.keras.layers.RandomTranslation(height_factor=shear_y, width_factor=shear_x, fill_mode="nearest")
+    out = layer(img)
+    return out[0]
+
+def srr_generator(lf_vol, hf_vol, batch_size=1, patch_z=32, augment=True, num_augmented_copies=1):
     
-#     Parameters
-#     ----------
-#     lf_vol, hf_vol : np.ndarray
-#         Single volume (Z,X,Y) or multiple volumes (A,Z,X,Y)
-#     batch_size : int
-#         Number of patches per batch
-#     patch_z : int
-#         Number of slices per patch
-#     augment : bool
-#         Whether to apply augmentation
-#     num_augmented_copies : int
-#         Number of augmented copies per slice
-#     """
-#     import tensorflow as tf
-#     import numpy as np
+    """
+    Generator for 3D SRR patches: original patch first, then augmented copies as separate batches.
+    
+    Parameters
+    ----------
+    lf_vol, hf_vol : np.ndarray
+        Single volume (Z,X,Y) or multiple volumes (A,Z,X,Y)
+    batch_size : int
+        Number of patches per batch
+    patch_z : int
+        Number of slices per patch
+    augment : bool
+        Whether to apply augmentation
+    num_augmented_copies : int
+        Number of augmented copies per slice
+    """
+    import tensorflow as tf
+    import numpy as np
 
-#     # Helper: translate slice using tf
-#     def translate_slice(slice_img, tx, ty):
-#         slice_tf = tf.keras.preprocessing.image.apply_affine_transform(
-#             slice_img,
-#             tx=tx,
-#             ty=ty,
-#             row_axis=0,
-#             col_axis=1,
-#             channel_axis=2,
-#             fill_mode='nearest'
-#         )
-#         return slice_tf
+    # Helper: translate slice using tf
+    def translate_slice(slice_img, tx, ty):
+        slice_tf = tf.keras.preprocessing.image.apply_affine_transform(
+            slice_img,
+            tx=tx,
+            ty=ty,
+            row_axis=0,
+            col_axis=1,
+            channel_axis=2,
+            fill_mode='nearest'
+        )
+        return slice_tf
 
-#     # Handle single vs multiple volumes
-#     if lf_vol.ndim == 3:
-#         lf_vols = [lf_vol]
-#         hf_vols = [hf_vol]
-#     elif lf_vol.ndim == 4:
-#         lf_vols = [lf_vol[i] for i in range(lf_vol.shape[0])]
-#         hf_vols = [hf_vol[i] for i in range(hf_vol.shape[0])]
-#     else:
-#         raise ValueError("lf_vol must be (Z,X,Y) or (A,Z,X,Y)")
+    # Handle single vs multiple volumes
+    if lf_vol.ndim == 3:
+        lf_vols = [lf_vol]
+        hf_vols = [hf_vol]
+    elif lf_vol.ndim == 4:
+        lf_vols = [lf_vol[i] for i in range(lf_vol.shape[0])]
+        hf_vols = [hf_vol[i] for i in range(hf_vol.shape[0])]
+    else:
+        raise ValueError("lf_vol must be (Z,X,Y) or (A,Z,X,Y)")
 
-#     N = len(lf_vols)
+    N = len(lf_vols)
 
-#     while True:
-#         volume_indices = np.random.permutation(N)
+    while True:
+        volume_indices = np.random.permutation(N)
 
-#         for idx_vol in volume_indices:
-#             lf_current = lf_vols[idx_vol]
-#             hf_current = hf_vols[idx_vol]
-#             Z, X, Y = lf_current.shape
+        for idx_vol in volume_indices:
+            lf_current = lf_vols[idx_vol]
+            hf_current = hf_vols[idx_vol]
+            Z, X, Y = lf_current.shape
 
-#             # Random start along Z
-#             start = np.random.randint(0, max(1, Z - patch_z + 1))
-#             lf_patch = lf_current[start:start+patch_z].copy()
-#             hf_patch = hf_current[start:start+patch_z].copy()
+            # Random start along Z
+            start = np.random.randint(0, max(1, Z - patch_z + 1))
+            lf_patch = lf_current[start:start+patch_z].copy()
+            hf_patch = hf_current[start:start+patch_z].copy()
 
-#             vol_stack = np.stack([lf_patch, hf_patch], axis=-1)  # (patch_z, X, Y, 2)
+            vol_stack = np.stack([lf_patch, hf_patch], axis=-1)  # (patch_z, X, Y, 2)
 
-#             # ----- Yield original patch first -----
-#             lf_patch_out = vol_stack[..., 0][..., np.newaxis]
-#             hf_patch_out = vol_stack[..., 1][..., np.newaxis]
-#             yield np.expand_dims(lf_patch_out, 0), np.expand_dims(hf_patch_out, 0)
+            # ----- Yield original patch first -----
+            lf_patch_out = vol_stack[..., 0][..., np.newaxis]
+            hf_patch_out = vol_stack[..., 1][..., np.newaxis]
+            yield np.expand_dims(lf_patch_out, 0), np.expand_dims(hf_patch_out, 0)
 
-#             # ----- Generate augmented copies as separate batches -----
-#             if augment and num_augmented_copies > 0:
-#                 for _ in range(num_augmented_copies):
-#                     augmented_slices = []
-#                     for slice_idx in range(vol_stack.shape[0]):
-#                         slice_aug = vol_stack[slice_idx].copy()
+            # ----- Generate augmented copies as separate batches -----
+            if augment and num_augmented_copies > 0:
+                for _ in range(num_augmented_copies):
+                    augmented_slices = []
+                    for slice_idx in range(vol_stack.shape[0]):
+                        slice_aug = vol_stack[slice_idx].copy()
 
-#                         # rotation
-#                         if np.random.rand() > 0.5:
-#                             slice_aug = rotate2d(slice_aug, np.random.uniform(-15, 15)).numpy()
-#                         # shear
-#                         if np.random.rand() > 0.5:
-#                             sx = np.random.uniform(-0.2, 0.2)
-#                             sy = np.random.uniform(-0.2, 0.2)
-#                             slice_aug = shear2d(slice_aug, sx, sy).numpy()
-#                         # crop + resize
-#                         if np.random.rand() > 0.5:
-#                             crop_frac = np.random.uniform(0.7, 0.95)
-#                             cx, cy = int(X*crop_frac), int(Y*crop_frac)
-#                             x0, y0 = (X - cx)//2, (Y - cy)//2
-#                             cropped = slice_aug[x0:x0+cx, y0:y0+cy, :]
-#                             slice_aug = tf.image.resize(cropped, (X, Y)).numpy()
-#                         # shifting
-#                         if np.random.rand() > 0.5:
-#                             tx = np.random.uniform(-0.1, 0.1) * X
-#                             ty = np.random.uniform(-0.1, 0.1) * Y
-#                             slice_aug = translate_slice(slice_aug, tx, ty)
-#                         # zooming
-#                         if np.random.rand() > 0.5:
-#                             zoom_factor = np.random.uniform(0.8, 1.2)
-#                             new_x, new_y = int(X*zoom_factor), int(Y*zoom_factor)
-#                             slice_resized = tf.image.resize(slice_aug, (new_x, new_y))
-#                             if zoom_factor > 1.0:
-#                                 x0, y0 = (new_x - X)//2, (new_y - Y)//2
-#                                 slice_aug = slice_resized[x0:x0+X, y0:y0+Y, :]
-#                             else:
-#                                 pad_x = (X - new_x)//2
-#                                 pad_y = (Y - new_y)//2
-#                                 slice_aug = tf.image.pad_to_bounding_box(slice_resized, pad_x, pad_y, X, Y)
-#                             slice_aug = slice_aug.numpy()
+                        # rotations
+                        if np.random.rand() > 0.5:
+                            slice_aug = rotate2d(slice_aug, np.random.uniform(-15, 15)).numpy()
+                        # shear
+                        if np.random.rand() > 0.5:
+                            sx = np.random.uniform(-0.2, 0.2)
+                            sy = np.random.uniform(-0.2, 0.2)
+                            slice_aug = shear2d(slice_aug, sx, sy).numpy()
+                        # crop + resize
+                        if np.random.rand() > 0.5:
+                            crop_frac = np.random.uniform(0.7, 0.95)
+                            cx, cy = int(X*crop_frac), int(Y*crop_frac)
+                            x0, y0 = (X - cx)//2, (Y - cy)//2
+                            cropped = slice_aug[x0:x0+cx, y0:y0+cy, :]
+                            slice_aug = tf.image.resize(cropped, (X, Y)).numpy()
+                        # shifting
+                        if np.random.rand() > 0.5:
+                            tx = np.random.uniform(-0.1, 0.1) * X
+                            ty = np.random.uniform(-0.1, 0.1) * Y
+                            slice_aug = translate_slice(slice_aug, tx, ty)
+                        # zooming
+                        if np.random.rand() > 0.5:
+                            zoom_factor = np.random.uniform(0.8, 1.2)
+                            new_x, new_y = int(X*zoom_factor), int(Y*zoom_factor)
+                            slice_resized = tf.image.resize(slice_aug, (new_x, new_y))
+                            if zoom_factor > 1.0:
+                                x0, y0 = (new_x - X)//2, (new_y - Y)//2
+                                slice_aug = slice_resized[x0:x0+X, y0:y0+Y, :]
+                            else:
+                                pad_x = (X - new_x)//2
+                                pad_y = (Y - new_y)//2
+                                slice_aug = tf.image.pad_to_bounding_box(slice_resized, pad_x, pad_y, X, Y)
+                            slice_aug = slice_aug.numpy()
 
-#                         augmented_slices.append(slice_aug[None, ...])
+                        augmented_slices.append(slice_aug[None, ...])
 
-#                     aug_patch = np.concatenate(augmented_slices, axis=0)
-#                     lf_aug_out = aug_patch[..., 0][..., np.newaxis]
-#                     hf_aug_out = aug_patch[..., 1][..., np.newaxis]
+                    aug_patch = np.concatenate(augmented_slices, axis=0)
+                    lf_aug_out = aug_patch[..., 0][..., np.newaxis]
+                    hf_aug_out = aug_patch[..., 1][..., np.newaxis]
 
-#                     # Yield augmented patch as separate batch
-#                     yield np.expand_dims(lf_aug_out, 0), np.expand_dims(hf_aug_out, 0)
+                    # Yield augmented patch as separate batch
+                    yield np.expand_dims(lf_aug_out, 0), np.expand_dims(hf_aug_out, 0)
 
 
 import numpy as np

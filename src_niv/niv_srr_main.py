@@ -25,7 +25,8 @@ sys.path.insert(0, './')  # Adjust the path as necessary to import from src_niv
 sys.path.append('./data_read_code')
 from src_niv.prep_data import data_ops
 from src_niv.read_lf5_data import process_subject
-from src_niv.utils import srr_generator,systematic_crop_generator, display_pred, load_and_preprocess_hf, load_and_preprocess_lf, visualize_hf_slices,padding_LF, visualize_lf_slices,rotate_slices, visualize_resampled, resample_volume, visualize_planes,visualize_pair, normalize_volume
+from src_niv.utils import display_pred, load_and_preprocess_hf, load_and_preprocess_lf, visualize_hf_slices,padding_LF, visualize_lf_slices,rotate_slices, visualize_resampled, resample_volume, visualize_planes,visualize_pair, normalize_volume
+from src_niv.augment import srr_generator
 from src_niv.prep_lf import normalize, resize_mri_volume
 from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
 from src_niv.models.subject_model import build_dual_encoder_unet
@@ -80,15 +81,15 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
     #     print("After augmentation HF volume shape:", hf_target_volume.shape)
 
     # gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, augment=True, num_augmented_copies=6)
-    train_gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
-    lf_input, hf_target = next(train_gen)
-    print(lf_input.shape)  # (2, 32, 128, 128, 1)
-    print(hf_target.shape)  # (2, 32, 128, 128, 1)
+    train_gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=True, extra_slices=50, noise_sigma=0.02)
+    # lf_input, hf_target = next(train_gen)
+    # print(lf_input.shape)  # (2, 32, 128, 128, 1)
+    # print(hf_target.shape)  # (2, 32, 128, 128, 1)
 
-    valid_gen = srr_generator(lf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
-    lf_input_val, hf_target_val = next(valid_gen)
-    print(lf_input_val.shape)  # (2, 32, 128, 128, 1)
-    print(hf_target_val.shape)  # (2, 32, 128, 128, 1)
+    # valid_gen = srr_generator(lf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
+    # lf_input_val, hf_target_val = next(valid_gen)
+    # print(lf_input_val.shape)  # (2, 32, 128, 128, 1)
+    # print(hf_target_val.shape)  # (2, 32, 128, 128, 1)
     print("returned from generator ......................")
     # train_gen_patch = systematic_crop_generator(train_gen, target_shape=(32,64,64), stride=(32,64,64))
     # X_batch, Y_batch = next(train_gen_patch)
@@ -172,26 +173,31 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
 
             # --- Reduce Learning Rate on Plateau ---
             reduce_lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='loss',            # monitor training loss
+                monitor='ssim',            # monitor training loss
                 factor=0.5,                # reduce LR by half
-                patience=30,               # wait for 30 epochs with no improvement
+                patience=40,               # wait for 30 epochs with no improvement
                 verbose=1,                 # print messages when LR changes
-                mode='min',
-                min_lr=1e-6                # optional, don't reduce below this
+                mode='max',
+                min_lr=1e-8                # optional, don't reduce below this
             )
 
             # --- Early Stopping ---
             early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-                monitor='loss',
-                patience=50,               # stop training if no improvement for 50 epochs
+                monitor='val_ssim',
+                patience=100,               # stop training if no improvement for 50 epochs
                 verbose=1,
-                mode='min',
+                mode='max',
                 restore_best_weights=True  # restore weights from the best epoch
             )
+            from tensorflow.keras.optimizers import Adam
+
+            # Example: Adam with custom learning rate
+            # optimizer = Adam(learning_rate=5.0000e-05)
+            optimizer = Adam(learning_rate=0.001)
 
             # --- Compile ---
             model.compile(
-                optimizer='adam',
+                optimizer=optimizer,
                 loss=composite_loss,
                 metrics=[psnr, ssim, MeanSquaredError(name='mse')]
             )
@@ -229,9 +235,9 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
                                     steps_per_epoch=steps_per_epoch,
                                     epochs=epochs,
                                     batch_size=batch_size,
-                                    callbacks=[model_checkpoint_callback, reduce_lr_callback, early_stopping_callback],
-                                    validation_data=valid_gen,
-                                    validation_steps=1 # Add validation data if available
+                                    callbacks=[model_checkpoint_callback, reduce_lr_callback],
+                                    # validation_data=valid_gen,
+                                    # validation_steps=1 # Add validation data if available
                                     )
             else:
                 raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")

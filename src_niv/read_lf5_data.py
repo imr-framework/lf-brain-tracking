@@ -175,7 +175,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
 
 if __name__ == "__main__":
     
-    subjects = ['34507']
+    subjects = ['26184']
 
     for subject in subjects:
         
