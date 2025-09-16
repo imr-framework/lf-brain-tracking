@@ -126,6 +126,220 @@ def srr_generator(lf_vol, hf_vol, batch_size=2, patch_z=32, patch_xy=128, augmen
                 yield batch_lf_out, batch_hf_out
                 batch_lf, batch_hf = [], []
 
+def srr_generator_single(lf_vol, hf_vol, batch_size=2, patch_z=32, patch_xy=128, augment=True, extra_slices=0, noise_sigma=0.02):
+    """
+    Generate 3D SRR patches for LF-MRI -> HF-MRI training.
+    Outputs:
+        batch_lf: (batch_size, Z, X, Y)
+        batch_hf: (batch_size, Z, X, Y)
+    """
+
+    print("inside _ generator ......................")
+    if lf_vol.ndim == 3:
+        lf_vols = [lf_vol]
+        hf_vols = [hf_vol]
+    elif lf_vol.ndim == 4:
+        lf_vols = [lf_vol[i] for i in range(lf_vol.shape[0])]
+        hf_vols = [hf_vol[i] for i in range(hf_vol.shape[0])]
+    else:
+        raise ValueError("lf_vol must be (Z,X,Y) or (A,Z,X,Y)")
+
+    N = len(lf_vols)
+    while True:
+        batch_lf, batch_hf = [], []
+
+        volume_indices = np.random.permutation(N)
+        for idx_vol in volume_indices:
+            lf_current = lf_vols[idx_vol]
+            hf_current = hf_vols[idx_vol]
+
+            Z, X, Y = lf_current.shape
+
+            # Random start along Z
+            start = np.random.randint(0, max(1, Z - patch_z + 1))
+            lf_patch = lf_current[start:start+patch_z].copy()
+            hf_patch = hf_current[start:start+patch_z].copy()
+
+            # Resize XY to patch_xy
+            lf_patch = tf.image.resize(lf_patch[..., np.newaxis], (patch_xy, patch_xy)).numpy()[..., 0]
+            hf_patch = tf.image.resize(hf_patch[..., np.newaxis], (patch_xy, patch_xy)).numpy()[..., 0]
+
+            # Stack LF + HF for augmentation
+            vol_stack = np.stack([lf_patch, hf_patch], axis=0)  # (2, Z, XY, XY)
+
+            # Extra augmented slices
+            if augment and extra_slices > 0:
+                augmented_slices = []
+                for _ in range(extra_slices):
+                    idx = np.random.randint(0, vol_stack.shape[1])
+                    slice_aug = vol_stack[:, idx].copy()  # (2, XY, XY)
+
+                    lf_slice, hf_slice = slice_aug[0], slice_aug[1]
+
+                    # -----------------------------
+                    # 1. Global augmentations (apply to both LF & HF)
+                    # -----------------------------
+                    if np.random.rand() > 0.5:
+                        angle = np.random.uniform(-15, 15)
+                        lf_slice = rotate2d(lf_slice, angle)
+                        hf_slice = rotate2d(hf_slice, angle)
+
+                    if np.random.rand() > 0.5:
+                        shear_x = np.random.uniform(-0.1, 0.1)
+                        shear_y = np.random.uniform(-0.1, 0.1)
+                        lf_slice = shear2d(lf_slice, shear_x, shear_y)
+                        hf_slice = shear2d(hf_slice, shear_x, shear_y)
+
+                    # -----------------------------
+                    # 2. LF-only augmentations
+                    # -----------------------------
+                    if np.random.rand() > 0.6:
+                        lf_slice = add_gaussian_noise(lf_slice, sigma=noise_sigma)
+
+                    if np.random.rand() > 0.5:
+                        lf_slice = adjust_intensity(lf_slice, factor_range=(0.85, 1.15))
+
+                    # -----------------------------
+                    # Put slices back
+                    # -----------------------------
+                    slice_aug[0], slice_aug[1] = lf_slice, hf_slice
+                    augmented_slices.append(slice_aug[:, None, ...])  # add Z dim
+
+                vol_stack = np.concatenate([vol_stack] + augmented_slices, axis=1)
+
+            # Randomly select patch_z slices if needed
+            if vol_stack.shape[1] > patch_z:
+                idxs = np.random.choice(vol_stack.shape[1], patch_z, replace=False)
+                vol_stack = vol_stack[:, idxs]
+
+            batch_lf.append(vol_stack[0])
+            batch_hf.append(vol_stack[1])
+
+            # Inside your generator, replace the yield line with:
+            if len(batch_lf) == batch_size:
+                batch_lf_out = np.stack(batch_lf, axis=0)[..., np.newaxis]  # (B, Z, X, Y, 1)
+                batch_hf_out = np.stack(batch_hf, axis=0)[..., np.newaxis]  # (B, Z, X, Y, 1)
+                yield batch_lf_out, batch_hf_out
+                batch_lf, batch_hf = [], []
+
+
+
+def srr_generator_dual(lf_vol_input, hf_vol_input, hf_vol_target,
+                       batch_size=2, patch_z=32, patch_xy=128,
+                       augment=True, extra_slices=0, noise_sigma=0.02):
+    """
+    Dual-encoder generator for LF+HF -> HF SRR network.
+
+    Args:
+        lf_vol_input: LF input volumes (train, 1st visit), shape (N,Z,X,Y) or (Z,X,Y)
+        hf_vol_input: HF input volumes (train, 1st visit), shape (N,Z,X,Y) or (Z,X,Y)
+        hf_vol_target: HF target volumes (train, 1st visit), shape (N,Z,X,Y) or (Z,X,Y)
+        batch_size: number of patches per batch
+        patch_z: number of slices per patch (depth)
+        patch_xy: XY size of patch
+        augment: whether to apply augmentation
+        extra_slices: number of augmented extra slices
+        noise_sigma: gaussian noise sigma for LF augmentation
+
+    Yields:
+        ([batch_lf, batch_hf_in], batch_hf_target)
+            batch_lf:  (B, Z, X, Y, 1)
+            batch_hf:  (B, Z, X, Y, 1)
+            batch_hf_target: (B, Z, X, Y, 1)
+    """
+
+    # Handle single or multiple volumes
+    def to_list(vol):
+        if vol.ndim == 3:
+            return [vol]
+        elif vol.ndim == 4:
+            return [vol[i] for i in range(vol.shape[0])]
+        else:
+            raise ValueError("Volume must be (Z,X,Y) or (N,Z,X,Y)")
+
+    lf_vols = to_list(lf_vol_input)
+    hf_vols_in = to_list(hf_vol_input)
+    hf_vols_tgt = to_list(hf_vol_target)
+
+    N = len(lf_vols)
+    while True:
+        batch_lf, batch_hf_in, batch_hf_tgt = [], [], []
+
+        volume_indices = np.random.permutation(N)
+        for idx_vol in volume_indices:
+            lf_current = lf_vols[idx_vol]
+            hf_current_in = hf_vols_in[idx_vol]
+            hf_current_tgt = hf_vols_tgt[idx_vol]
+
+            Z, X, Y = lf_current.shape
+
+            # Random start along Z
+            start = np.random.randint(0, max(1, Z - patch_z + 1))
+            lf_patch = lf_current[start:start+patch_z].copy()
+            hf_patch_in = hf_current_in[start:start+patch_z].copy()
+            hf_patch_tgt = hf_current_tgt[start:start+patch_z].copy()
+
+            # Resize XY to patch_xy
+            lf_patch = tf.image.resize(lf_patch[..., np.newaxis], (patch_xy, patch_xy)).numpy()[..., 0]
+            hf_patch_in = tf.image.resize(hf_patch_in[..., np.newaxis], (patch_xy, patch_xy)).numpy()[..., 0]
+            hf_patch_tgt = tf.image.resize(hf_patch_tgt[..., np.newaxis], (patch_xy, patch_xy)).numpy()[..., 0]
+
+            # Stack LF + HF-in + HF-target for augmentation
+            vol_stack = np.stack([lf_patch, hf_patch_in, hf_patch_tgt], axis=0)  # (3, Z, XY, XY)
+
+            # Augment extra slices
+            if augment and extra_slices > 0:
+                augmented_slices = []
+                for _ in range(extra_slices):
+                    idx = np.random.randint(0, vol_stack.shape[1])
+                    slice_aug = vol_stack[:, idx].copy()  # (3, XY, XY)
+
+                    lf_slice, hf_in_slice, hf_tgt_slice = slice_aug
+
+                    # --- Global augmentations (same for LF, HF-in, HF-target) ---
+                    if np.random.rand() > 0.5:
+                        angle = np.random.uniform(-15, 15)
+                        lf_slice = rotate2d(lf_slice, angle)
+                        hf_in_slice = rotate2d(hf_in_slice, angle)
+                        hf_tgt_slice = rotate2d(hf_tgt_slice, angle)
+
+                    if np.random.rand() > 0.5:
+                        shear_x = np.random.uniform(-0.1, 0.1)
+                        shear_y = np.random.uniform(-0.1, 0.1)
+                        lf_slice = shear2d(lf_slice, shear_x, shear_y)
+                        hf_in_slice = shear2d(hf_in_slice, shear_x, shear_y)
+                        hf_tgt_slice = shear2d(hf_tgt_slice, shear_x, shear_y)
+
+                    # --- LF-only augmentations ---
+                    if np.random.rand() > 0.6:
+                        lf_slice = add_gaussian_noise(lf_slice, sigma=noise_sigma)
+
+                    if np.random.rand() > 0.5:
+                        lf_slice = adjust_intensity(lf_slice, factor_range=(0.85, 1.15))
+
+                    slice_aug = np.stack([lf_slice, hf_in_slice, hf_tgt_slice], axis=0)
+                    augmented_slices.append(slice_aug[:, None, ...])  # add Z dim
+
+                vol_stack = np.concatenate([vol_stack] + augmented_slices, axis=1)
+
+            # Ensure patch_z slices
+            if vol_stack.shape[1] > patch_z:
+                idxs = np.random.choice(vol_stack.shape[1], patch_z, replace=False)
+                vol_stack = vol_stack[:, idxs]
+
+            # Collect patches
+            batch_lf.append(vol_stack[0])       # LF input
+            batch_hf_in.append(vol_stack[1])    # HF input
+            batch_hf_tgt.append(vol_stack[2])   # HF target
+
+            # Yield batch
+            if len(batch_lf) == batch_size:
+                batch_lf_out = np.stack(batch_lf, axis=0)[..., np.newaxis]        # (B, Z, X, Y, 1)
+                batch_hf_in_out = np.stack(batch_hf_in, axis=0)[..., np.newaxis]  # (B, Z, X, Y, 1)
+                batch_hf_tgt_out = np.stack(batch_hf_tgt, axis=0)[..., np.newaxis]# (B, Z, X, Y, 1)
+
+                yield [batch_lf_out, batch_hf_in_out], batch_hf_tgt_out
+                batch_lf, batch_hf_in, batch_hf_tgt = [], [], []
 
 # import numpy as np
 # import tensorflow as tf

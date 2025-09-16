@@ -12,7 +12,6 @@ def res_conv_block(x, filters, kernel_size=3):
     x = layers.Activation("relu")(x)
     return x
 
-
 def residual_srr_unet(input_shape=(64, 128, 128, 1)):
     inputs = layers.Input(shape=input_shape)
 
@@ -46,8 +45,8 @@ def residual_srr_unet(input_shape=(64, 128, 128, 1)):
     residual = layers.Conv3D(1, (1, 1, 1), activation="linear")(c6)
 
     # Add residual correction to input
-    outputs = layers.Add()([inputs, residual])  
-
+    # outputs = layers.Add()([inputs, residual])  
+    outputs = residual
     model = models.Model(inputs, outputs, name="Residual_SRR_UNet3D")
     return model
 

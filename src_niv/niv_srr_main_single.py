@@ -16,7 +16,7 @@
 # =================================
 # Can add data Augmentation and patch based training for better results;
 # Validation with last timepoint data
-# improve loss function with perceptual loss; Hybrid loss; SSIM loss
+# improve loss function with Perceptual loss; Hybrid loss; SSIM loss
 # Add attention mechanism
 # =================================
 
@@ -26,7 +26,7 @@ sys.path.append('./data_read_code')
 from src_niv.prep_data import data_ops
 from src_niv.read_lf5_data import process_subject
 from src_niv.utils import display_pred, load_and_preprocess_hf, load_and_preprocess_lf, visualize_hf_slices,padding_LF, visualize_lf_slices,rotate_slices, visualize_resampled, resample_volume, visualize_planes,visualize_pair, normalize_volume
-from src_niv.augment import srr_generator
+from src_niv.augment import srr_generator_single
 from src_niv.prep_lf import normalize, resize_mri_volume
 from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
 from src_niv.models.subject_model import build_dual_encoder_unet
@@ -58,15 +58,14 @@ from sklearn.feature_extraction import image
 import os
 from skimage.transform import resize  # Required for 3D resizing
 
-def train(lf_input_volume, hf_input_volume, hf_target_volume,
-          lf_input_volume_val,hf_input_volume_val,hf_target_volume_val,
+def train(lf_input_volume, hf_input_volume, hf_target_volume,lf_input_volume_val,hf_input_volume_val,hf_target_volume_val,
             model_type, model_case, model_,subject,day_idx,steps_per_epoch = 50,
             epochs = 50,batch_size = 1,visualize_pairs = False):
     
-    print("inside Train function ........................")
+    print("inside niv_srr_main_single.py function ........................")
     output_path = f'./Data/Results/{model_type}/{subject}'
     os.makedirs(output_path, exist_ok=True)
-
+    print(f"Output path: {output_path}")
     # #save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index
     # nib.save(nib.Nifti1Image(lf_input_volume, affine=np.eye(4)), os.path.join(output_path, f'LF_input_volume_day{day_idx}.nii.gz'))
     # nib.save(nib.Nifti1Image(hf_target_volume, affine=np.eye(4)), os.path.join(output_path, f'HF_input_volume_day{day_idx}.nii.gz'))
@@ -81,12 +80,12 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
     #     print("After augmentation HF volume shape:", hf_target_volume.shape)
 
     # gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, augment=True, num_augmented_copies=6)
-    train_gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=True, extra_slices=50, noise_sigma=0.02)
+    train_gen = srr_generator_single(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=True, extra_slices=50, noise_sigma=0.02)
     # lf_input, hf_target = next(train_gen)
     # print(lf_input.shape)  # (2, 32, 128, 128, 1)
     # print(hf_target.shape)  # (2, 32, 128, 128, 1)
 
-    # valid_gen = srr_generator(lf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
+    valid_gen = srr_generator_single(lf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
     # lf_input_val, hf_target_val = next(valid_gen)
     # print(lf_input_val.shape)  # (2, 32, 128, 128, 1)
     # print(hf_target_val.shape)  # (2, 32, 128, 128, 1)
@@ -175,7 +174,7 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
             reduce_lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
                 monitor='val_loss',            # monitor training loss
                 factor=0.5,                # reduce LR by half
-                patience=40,               # wait for 30 epochs with no improvement
+                patience=30,               # wait for 30 epochs with no improvement
                 verbose=1,                 # print messages when LR changes
                 mode='max',
                 min_lr=1e-8                # optional, don't reduce below this
@@ -235,10 +234,10 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
                                     steps_per_epoch=steps_per_epoch,
                                     epochs=epochs,
                                     batch_size=batch_size,
-                                    callbacks=[model_checkpoint_callback, reduce_lr_callback],
+                                    callbacks=[model_checkpoint_callback, reduce_lr_callback, early_stopping_callback],
+                                    validation_data=valid_gen,
+                                    validation_steps=1,
                                     verbose=1
-                                    # validation_data=valid_gen,
-                                    # validation_steps=1 # Add validation data if available
                                     )
             else:
                 raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")

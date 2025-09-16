@@ -26,7 +26,7 @@ sys.path.append('./data_read_code')
 from src_niv.prep_data import data_ops
 from src_niv.read_lf5_data import process_subject
 from src_niv.utils import display_pred, load_and_preprocess_hf, load_and_preprocess_lf, visualize_hf_slices,padding_LF, visualize_lf_slices,rotate_slices, visualize_resampled, resample_volume, visualize_planes,visualize_pair, normalize_volume
-from src_niv.augment import srr_generator
+from src_niv.augment import srr_generator_single, srr_generator_dual
 from src_niv.prep_lf import normalize, resize_mri_volume
 from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
 from src_niv.models.subject_model import build_dual_encoder_unet
@@ -56,17 +56,16 @@ import ants
 import nibabel as nib
 from sklearn.feature_extraction import image
 import os
-from skimage.transform import resize  # Required for 3D resizing
+from skimage.transform import resize  #Required for 3D resizing
 
-def train(lf_input_volume, hf_input_volume, hf_target_volume,
-          lf_input_volume_val,hf_input_volume_val,hf_target_volume_val,
+def train(lf_input_volume, hf_input_volume, hf_target_volume,lf_input_volume_val,hf_input_volume_val,hf_target_volume_val,
             model_type, model_case, model_,subject,day_idx,steps_per_epoch = 50,
             epochs = 50,batch_size = 1,visualize_pairs = False):
     
-    print("inside Train function ........................")
+    print("inside niv_srr_main_dual_encoder.py function ........................")
     output_path = f'./Data/Results/{model_type}/{subject}'
     os.makedirs(output_path, exist_ok=True)
-
+    print(f"Output path: {output_path}")
     # #save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index
     # nib.save(nib.Nifti1Image(lf_input_volume, affine=np.eye(4)), os.path.join(output_path, f'LF_input_volume_day{day_idx}.nii.gz'))
     # nib.save(nib.Nifti1Image(hf_target_volume, affine=np.eye(4)), os.path.join(output_path, f'HF_input_volume_day{day_idx}.nii.gz'))
@@ -81,12 +80,26 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
     #     print("After augmentation HF volume shape:", hf_target_volume.shape)
 
     # gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, augment=True, num_augmented_copies=6)
-    train_gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=True, extra_slices=50, noise_sigma=0.02)
-    # lf_input, hf_target = next(train_gen)
+    # train_gen = srr_generator_dual(lf_input_volume,hf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=True, extra_slices=50, noise_sigma=0.02)
+    # [lf_input,lf_input1], hf_target = next(train_gen)
     # print(lf_input.shape)  # (2, 32, 128, 128, 1)
+    # print(lf_input1.shape)  # (2, 32, 128, 128, 1)
     # print(hf_target.shape)  # (2, 32, 128, 128, 1)
+    train_gen = tf.data.Dataset.from_generator(
+    lambda: srr_generator_dual(
+        lf_input_volume, hf_input_volume, hf_target_volume,
+        batch_size=2, patch_z=32, patch_xy=128, augment=True
+    ),
+    output_signature=(
+        (
+            tf.TensorSpec(shape=(None, 32, 128, 128, 1), dtype=tf.float32),  # LF input
+            tf.TensorSpec(shape=(None, 32, 128, 128, 1), dtype=tf.float32),  # HF input
+        ),
+        tf.TensorSpec(shape=(None, 32, 128, 128, 1), dtype=tf.float32)       # HF target
+    )
+    )
 
-    # valid_gen = srr_generator(lf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
+    valid_gen = srr_generator_dual(lf_input_volume_val, hf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
     # lf_input_val, hf_target_val = next(valid_gen)
     # print(lf_input_val.shape)  # (2, 32, 128, 128, 1)
     # print(hf_target_val.shape)  # (2, 32, 128, 128, 1)
@@ -158,8 +171,13 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
             else:
                 if model_case == 'single_encoder_unet':
                     model = model_(input_shape=(32,128,128,1))
+                elif model_case == 'multi_encoder_unet':
+                    zssr_input_shape = (32, 128, 128, 1)  # Example ZSSR output shape
+                    hf_input_shape = (32, 128, 128, 1)     # Example HF input shape
+                    model = model_(zssr_input_shape, hf_input_shape)
                 else:
                     raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
+                
                 print(f"\nBuilt {model_type} model for training.")
 
             # --- Add checkpoint callback ---
@@ -175,7 +193,7 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
             reduce_lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
                 monitor='val_loss',            # monitor training loss
                 factor=0.5,                # reduce LR by half
-                patience=40,               # wait for 30 epochs with no improvement
+                patience=30,               # wait for 30 epochs with no improvement
                 verbose=1,                 # print messages when LR changes
                 mode='max',
                 min_lr=1e-8                # optional, don't reduce below this
@@ -183,12 +201,13 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
 
             # --- Early Stopping ---
             early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-                monitor='val_ssim',
-                patience=50,               # stop training if no improvement for 50 epochs
+                monitor='val_loss',
+                patience=60,               # stop training if no improvement for 50 epochs
                 verbose=1,
                 mode='max',
                 restore_best_weights=True  # restore weights from the best epoch
             )
+
             from tensorflow.keras.optimizers import Adam
 
             # Example: Adam with custom learning rate
@@ -205,20 +224,6 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
             model.summary()
             # --- Build and Compile the Dual-Encoder Model ---
 
-            # # Input shapes for the model should match the shape of a single sample (H, W, D, C)
-            # if model_case == 'single_encoder_unet':
-            #     model = model_(input_shape=(32,128,128,1))
-            # else:
-            #     raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
-            
-            # print(f"\nBuilt {model_type} model for training.")
-            # # --- Compile the model ---
-            # model.compile(
-            #     optimizer='adam',
-            #     loss=composite_loss,
-            #     metrics=[psnr, ssim, MeanSquaredError(name='mse')])  # Added metrics her) # Mean Squared Error is common for regression
-            # # Mean Squared Error is common for regression
-            # model.summary()
 
             # --- Train the CNN ---
             print("\nStarting encoder model training...")
@@ -230,15 +235,15 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
 
             print("training started ...............................")
             # Train the model using both inputs
-            if model_case == 'single_encoder_unet':
+            if model_case == 'multi_encoder_unet':
                 history = model.fit(train_gen,
                                     steps_per_epoch=steps_per_epoch,
                                     epochs=epochs,
                                     batch_size=batch_size,
                                     callbacks=[model_checkpoint_callback, reduce_lr_callback],
-                                    verbose=1
                                     # validation_data=valid_gen,
-                                    # validation_steps=1 # Add validation data if available
+                                    # validation_steps=1,
+                                    verbose=1
                                     )
             else:
                 raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")

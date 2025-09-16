@@ -6,9 +6,9 @@ from src_niv.read_lf5_data import process_subject
 from src_niv.utils import srr_generator, display_pred, load_and_preprocess_hf, load_and_preprocess_lf, visualize_hf_slices,padding_LF, visualize_lf_slices,rotate_slices, visualize_resampled, resample_volume, visualize_planes,visualize_pair, normalize_volume
 from src_niv.prep_lf import normalize, resize_mri_volume
 from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
-from src_niv.niv_srr_main import train
+from src_niv.niv_srr_main_dual_encoder import train
 from src_niv.models.ResUNet import residual_srr_unet, residual_att_unet_3d
-from src_niv.models.DenseUNet import build_dense_unet_3d
+from src_niv.models.subject_model import build_dual_encoder_unet
 from src_niv.models.Inception import build_inception_unet_3d
 from demo_read_data import read_lf_data
 from src_niv.prep_lf import register_to_hf
@@ -22,7 +22,7 @@ import tensorflow as tf
 import pydicom
 import numpy as np
 import matplotlib
-matplotlib.use('tkagg')  # or 'Qt5Agg' depending on what's installed
+matplotlib.use('Agg')  # or 'Qt5Agg' depending on what's installed
 import matplotlib.pyplot as plt
 import ants
 import nibabel as nib
@@ -30,20 +30,9 @@ from sklearn.feature_extraction import image
 import os
 from skimage.transform import resize  # Required for 3D resizing
 
-# Clear any existing TF graphs
-tf.keras.backend.clear_session()
-
-# Discard -- 34507
-#['26184', '30366', '35528', '59081','59228'] Model 5 trained on
-# 35547 -- 1st can be included for training; 59877 can be included in training IST; 59877
-# 59228 -- Test
-
-# List of observations
-# 
-
-subjects1 = ['26184', '30366', '35528', '59228'] # '59877', '59175','59233', '59877', '35547'
-
-# subjects1 = ['26184', '30366', '35528'] 
+# 59228
+subjects1 = ['26184', '30366', '35528'] # 59228
+subjects1 = ['26184']
 # Mismatch due to high field shape
 
 # Define the path to the IRF_3T folder (High Field Data)
@@ -56,31 +45,33 @@ register2_hf = True
 augmentation = True
 
 # Training parameters
-steps_per_epoch = 30
-epochs = 500
-batch_size = 2
-
-# Training data
+steps_per_epoch = 5
+epochs = 100
+batch_size = 1
 
 lf_input_volume_combined = []
 hf_input_volume_combined = []
 hf_target_volume_combined = []
 
 for subject in subjects1:
-    for day_idx in [1]:  # Assuming 0 = Day 1, 1 = Day 2
-        
-        print(f"\n=============================== Processing subject: {subject}, Day: {day_idx + 1} ===============================")
+    # for day_idx in [1, 2]:  # Assuming 0 = Day 1, 1 = Day 2
+        print(f"\n=============================== Processing subject: {subject}, Day: {day_idx} ===============================")
+
         # ----- Load HF data -----
         print(f"\n=============================== HF_MRI data processing started .............")
         resampled_volume_hf_norm = load_and_preprocess_hf(subject, day_idx, visualize)
+        day_1_norm = resampled_volume_hf_norm
         # ----- Load LF data -----
         print(f"\n=============================== LF_MRI data processing started .............")
         resampled_volume_lf_be_norm = load_and_preprocess_lf(subject, day_idx, visualize)
+
         print("Resampled LF volume shape:", resampled_volume_lf_be_norm.shape)
         print("Resampled HF volume shape:", resampled_volume_hf_norm.shape)
+
         # Register LF to HF
         if register2_hf:
             resampled_volume_lf_be_norm = register_to_hf(resampled_volume_lf_be_norm, resampled_volume_hf_norm)
+
         # Padding
         if padding:
             resampled_volume_lf_be_norm = padding_LF(
@@ -89,6 +80,7 @@ for subject in subjects1:
                 target_slices=64
             )
             print("After padding LF volume shape:", resampled_volume_lf_be_norm.shape)
+
         # Visualization (optional)
         if visualize_pairs:
             visualize_pair(
@@ -96,7 +88,7 @@ for subject in subjects1:
                 resampled_volume_hf_norm,
                 slice_indices=list(range(31))
             )
-        
+
         # ----- Final Volume Preparation -----
         lf_input_volume = resampled_volume_lf_be_norm.astype(np.float32)
         hf_input_volume = resampled_volume_hf_norm.astype(np.float32)
@@ -110,39 +102,26 @@ for subject in subjects1:
         print("LF Input shape:", lf_input_volume.shape)
         print("HF Input shape:", hf_input_volume.shape)
         print("HF volume shape:", hf_target_volume.shape)
+
+        #Validation sample of same subject second visit
+        day_idx_val = 2
+        print(f"\n=============================== Processing subject validation: {subject}, Day: {day_idx_val} ===============================")
         
-        # ----- Append to Combined Lists -----
-        lf_input_volume_combined.append(lf_input_volume)
-        hf_input_volume_combined.append(hf_input_volume)
-        hf_target_volume_combined.append(hf_target_volume)
-
-lf_input_volume_combined = np.stack(lf_input_volume_combined)
-hf_input_volume_combined = np.stack(hf_input_volume_combined)
-hf_target_volume_combined = np.stack(hf_target_volume_combined)
-
-print("LF Input shape:", lf_input_volume_combined.shape)
-print("HF Input shape:", hf_input_volume_combined.shape)
-print("HF volume shape:", hf_target_volume_combined.shape)
-
-# Validation data
-print('-----------------------------\n\nLoading validation data .................................-----------------')
-subjects_val = ['30366']
-for subject_v in subjects_val:
-    for day_idx in [2]:  # Assuming 0 = Day 1, 1 = Day 2
-        print(f"\n=============================== Processing subject: {subject_v}, Day: {day_idx + 1} ===============================")
         # ----- Load HF data -----
         print(f"\n=============================== HF_MRI data processing started .............")
-        resampled_volume_hf_norm = load_and_preprocess_hf(subject_v, day_idx, visualize)
+        resampled_volume_hf_norm = load_and_preprocess_hf(subject, day_idx_val, visualize)
+
         # ----- Load LF data -----
         print(f"\n=============================== LF_MRI data processing started .............")
-        resampled_volume_lf_be_norm = load_and_preprocess_lf(subject_v, day_idx, visualize)
+        resampled_volume_lf_be_norm = load_and_preprocess_lf(subject, day_idx_val, visualize)
+
         print("Resampled LF volume shape:", resampled_volume_lf_be_norm.shape)
         print("Resampled HF volume shape:", resampled_volume_hf_norm.shape)
-        
+
         # Register LF to HF
         if register2_hf:
             resampled_volume_lf_be_norm = register_to_hf(resampled_volume_lf_be_norm, resampled_volume_hf_norm)
-        
+
         # Padding
         if padding:
             resampled_volume_lf_be_norm = padding_LF(
@@ -151,7 +130,7 @@ for subject_v in subjects_val:
                 target_slices=64
             )
             print("After padding LF volume shape:", resampled_volume_lf_be_norm.shape)
-        
+
         # Visualization (optional)
         if visualize_pairs:
             visualize_pair(
@@ -159,26 +138,27 @@ for subject_v in subjects_val:
                 resampled_volume_hf_norm,
                 slice_indices=list(range(31))
             )
-        
+
         # ----- Final Volume Preparation -----
         lf_input_volume_val = resampled_volume_lf_be_norm.astype(np.float32)
         hf_input_volume_val = resampled_volume_hf_norm.astype(np.float32)
         hf_target_volume_val = resampled_volume_hf_norm.astype(np.float32)
-        
+
         # Slice selection
         lf_input_volume_val = lf_input_volume_val[0:32, :, :]
-        hf_input_volume_val = hf_input_volume_val[0:32, :, :]
+        hf_input_volume_val = hf_input_volume[0:32, :, :]
         hf_target_volume_val = hf_target_volume_val[0:32, :, :]
+
         print("LF Input shape:", lf_input_volume_val.shape)
         print("HF Input shape:", hf_input_volume_val.shape)
         print("HF volume shape:", hf_target_volume_val.shape)
 
-# calling the residual_srr_unet model
-model_type = 'residual_srr_unet4_subjects_500_d1'
-model_case = 'single_encoder_unet'
-model_ = residual_srr_unet
+        # calling the residual_srr_unet model
+        model_type = 'residual_srr_unet_dualencoder_demo'
+        model_case = 'multi_encoder_unet'
+        model_ = build_dual_encoder_unet
 
-train(lf_input_volume_combined, hf_input_volume_combined, hf_target_volume_combined,
-      lf_input_volume_val,hf_input_volume_val,hf_target_volume_val, model_type, 
-      model_case, model_, subject,day_idx, steps_per_epoch=steps_per_epoch, 
-      epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)
+        train(lf_input_volume, hf_input_volume, hf_target_volume, 
+              lf_input_volume_val, hf_input_volume_val, hf_target_volume_val,
+              model_type, model_case, model_, subject,day_idx, steps_per_epoch=steps_per_epoch,
+              epochs=epochs, batch_size=batch_size, visualize_pairs=visualize_pairs)
