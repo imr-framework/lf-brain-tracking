@@ -27,7 +27,7 @@ else:
     plotting.plot_anat(img, title="3D TSC Image")
     plt.show()
 
-# Note: UNo CUDNN detected!")
+# Note: Undo CUDNN detected!")
 
 from LF_sim_QTAB import low_field_simulator
 from do_zssr_collage import do_mask_image, do_ZSSR_steps, do_zssr_recon_slices
@@ -40,9 +40,9 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 # Define the path to the IRF_3T folder
 irf_3t = './Data/IRF_3T'
 subjects = os.listdir(irf_3t)
-
+subjects.sort()
 print(subjects[0:1])
-viewing = False
+viewing = True
 ds_to_process = 4
 target_resolution_fact = [1, 1, 2]
 snr_component = True
@@ -114,7 +114,7 @@ def dicom_to_nifti(dicom_dir, output_path):
     return nifti_img
 
 # For each subject and session in IRF_3T, the script will:
-for subject in subjects:
+for subject in subjects[0:1]:
     
     # 1. Read the dicom file        
     sessions = os.listdir(irf_3t + '/' + subject)

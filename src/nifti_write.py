@@ -174,5 +174,3 @@ if __name__ == '__main__':
 
       header = im_sr.header
       print(header)
-
-
