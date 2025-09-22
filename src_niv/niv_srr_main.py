@@ -173,17 +173,17 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
 
             # --- Reduce Learning Rate on Plateau ---
             reduce_lr_callback = tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss',            # monitor training loss
+                monitor='loss',            # monitor training loss
                 factor=0.5,                # reduce LR by half
                 patience=40,               # wait for 30 epochs with no improvement
                 verbose=1,                 # print messages when LR changes
-                mode='max',
-                min_lr=1e-8                # optional, don't reduce below this
+                mode='min',
+                min_lr=1e-7                # optional, don't reduce below this
             )
 
             # --- Early Stopping ---
             early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-                monitor='val_ssim',
+                monitor='ssim',
                 patience=50,               # stop training if no improvement for 50 epochs
                 verbose=1,
                 mode='max',
@@ -193,7 +193,7 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
 
             # Example: Adam with custom learning rate
             # optimizer = Adam(learning_rate=5.0000e-05)
-            optimizer = Adam(learning_rate=0.001)
+            optimizer = Adam(learning_rate=0.00001)
 
             # --- Compile ---
             model.compile(

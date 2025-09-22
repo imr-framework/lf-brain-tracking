@@ -171,6 +171,7 @@ cython_debug/
 ./Data/*
 ./Data/*/*
 ./Data/Results/*
+./Data/MW/*
 .nii.gz
 ./SRR models/
 ./SRR models/SRR/

@@ -176,7 +176,7 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,lf_input_volume_val
                 factor=0.5,                # reduce LR by half
                 patience=30,               # wait for 30 epochs with no improvement
                 verbose=1,                 # print messages when LR changes
-                mode='max',
+                mode='min',
                 min_lr=1e-8                # optional, don't reduce below this
             )
 

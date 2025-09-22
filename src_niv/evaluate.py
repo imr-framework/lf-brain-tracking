@@ -63,34 +63,33 @@ import random
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-model_type = 'residual_srr_unet_subjects_single'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
+model_type = 'residual_srr_unet_subjects_single_callbacks'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
 model_case = 'single_encoder_unet'
-multi_subject_train = True
+multi_subject_train = False
 
-day_idx = 1
+day_idx = 2
 
 visualize = False
 visualize_pairs = False
 padding = False
 register2_hf = True
 
-subject = '59233'  # Example subject number, adjust as needed 
+subject = '35528'  # Example subject number, adjust as needed 
 # '59233' visit 1 can be evaluation
+subject_train = '35528'
 
 if multi_subject_train == False:
-    subject_train = '59081'
     output_path = f'./Data/Results/{model_type}/{subject_train}'
     predictions_dir = os.path.join(output_path, 'predictions')
     model_name = f'{model_type}_model_checkpoint_day1.keras'
     model_path = os.path.join(output_path, model_name)
 else:
-    subject_train = '59081'
     output_path_model = f'./Data/Results/{model_type}/{subject_train}'
     # predictions_dir = os.path.join(output_path, 'predictions')
     output_path = f'./Data/Results/{model_type}'
     predictions_d = os.path.join(output_path, 'predictions')
     predictions_dir = f'{predictions_d}/{subject}'
-    model_name = f'{model_type}_model_checkpoint_day2.keras'
+    model_name = f'{model_type}_model_checkpoint_day1.keras'
     model_path = os.path.join(output_path_model, model_name)
 
 os.makedirs(output_path, exist_ok=True)

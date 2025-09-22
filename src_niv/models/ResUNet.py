@@ -45,8 +45,8 @@ def residual_srr_unet(input_shape=(64, 128, 128, 1)):
     residual = layers.Conv3D(1, (1, 1, 1), activation="linear")(c6)
 
     # Add residual correction to input
-    # outputs = layers.Add()([inputs, residual])  
-    outputs = residual
+    outputs = layers.Add()([inputs, residual])  
+    # outputs = residual
     model = models.Model(inputs, outputs, name="Residual_SRR_UNet3D")
     return model
 

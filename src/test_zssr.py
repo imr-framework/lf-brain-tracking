@@ -26,7 +26,6 @@ from colorama import Fore, Back, Style
 
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
-
 # Define the path to the QTAB folder
 qtab_path = './Data/QTAB'
 subjects = os.listdir(qtab_path)
@@ -63,7 +62,7 @@ for subject in subjects:
                                                         target_resolution_fact= target_resolution_fact,
                                                         snr_component=False)
                         
-                        
+                            
                         # 3. Pass it through the ZSSR algorithm
                         print('Passing through ZSSR')
                         im_lf_sim_zssr = do_zssr_recon_slices(img=im_lf_sim, fname=nifti_file, 

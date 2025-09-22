@@ -32,7 +32,7 @@ from skimage.transform import resize  # Required for 3D resizing
 
 # 59228
 subjects1 = ['26184', '30366', '35528'] # 59228
-subjects1 = ['30366']
+# subjects1 = ['30366']
 # Mismatch due to high field shape
 
 # Define the path to the IRF_3T folder (High Field Data)
@@ -45,7 +45,7 @@ register2_hf = True
 augmentation = True
 
 # Training parameters
-steps_per_epoch = 20
+steps_per_epoch = 30
 epochs = 500
 batch_size = 1
 
@@ -154,7 +154,7 @@ for subject in subjects1:
         print("HF volume shape:", hf_target_volume_val.shape)
 
         # calling the residual_srr_unet model
-        model_type = 'residual_srr_unet_subjects_single'
+        model_type = 'residual_srr_unet_subjects_single_callbacks'
         model_case = 'single_encoder_unet'
         model_ = residual_srr_unet
 
