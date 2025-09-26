@@ -44,7 +44,6 @@ import random
 # plt.tight_layout()
 # plt.show()
 
-
 import matplotlib.pyplot as plt
 
 folder_path = "Data/IRF_3T_LFsim/59233"

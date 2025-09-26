@@ -1,3 +1,5 @@
+# T1 and T2 weighted images
+
 import os
 import nibabel as nib
 import numpy as np
@@ -72,6 +74,7 @@ class PairedMRI:
                 arr = img.get_fdata()
                 resampled = self._resample(arr, voxel_size, target_spacing)
                 normed = self._normalize(resampled)
+                # voxel_size = self._get_voxel_size(normed)
                 processed[field][seq] = normed
         return processed
 
@@ -162,6 +165,101 @@ class PairedMRI:
 
         plt.tight_layout()
         plt.show()
+
+    def get_subject_image(self, subject_id: str, seq: str, modality: str = "HF", slice_index: int = None, cmap="gray", visible=True):
+        """
+        Retrieve an MRI volume from a subject for a given sequence.
+        Optionally display a single slice.
+
+        Args:
+            subject_id (str): Subject identifier.
+            seq (str): Sequence key (e.g., "T1", "T2", etc.).
+            modality (str): "HF" or "LF" (default: "HF").
+            slice_index (int): Slice index to visualize if visible=True (default: center slice).
+            cmap (str): Colormap for visualization (default: "gray").
+            visible (bool): If True, display the chosen slice.
+
+        Returns:
+            np.ndarray: The full 3D MRI volume as a NumPy array.
+        """
+        # Load subject data
+        data = self.get_subject_data(subject_id)
+        img = data[modality][seq]
+
+        # Convert to numpy
+        volume = img.get_fdata() if hasattr(img, "get_fdata") else np.array(img)
+
+        # Visualization if requested
+        if visible:
+            if slice_index is None:
+                slice_index = volume.shape[2] // 2  # default to middle slice
+
+            slice_img = volume[:, :, slice_index]
+
+            plt.figure(figsize=(6, 6))
+            plt.imshow(slice_img.T, cmap=cmap, origin="lower")
+            plt.title(f"{modality} MRI - {seq} (slice {slice_index})")
+            plt.axis("off")
+            plt.show()
+
+        return img
+
+    def compare_hf_lf_alignment(self, subject_id: str, hf_seq: str, lf_seq: str, slice_index: int = None, cmap_hf="gray", cmap_lf="hot", alpha=0.5):
+        
+        """
+        Compare HF and LF MRI alignment by showing HF, LF, and Overlay slices side-by-side.
+
+        Args:
+            subject_id (str): Subject identifier.
+            hf_seq (str): HF sequence key (e.g., "T1", "T2").
+            lf_seq (str): LF sequence key (same sequence type as HF, e.g., "T1", "T2").
+            slice_index (int): Slice index to display (default: middle slice).
+            cmap_hf (str): Colormap for HF image (default: "gray").
+            cmap_lf (str): Colormap for LF overlay (default: "hot").
+            alpha (float): Transparency for LF overlay (0=transparent, 1=opaque).
+            
+        Returns:
+            tuple: (hf_volume, lf_volume) as NumPy arrays.
+        """
+        # Load subject data
+        data = self.get_subject_data(subject_id)
+        hf_img = data["HF"][hf_seq]
+        lf_img = data["LF"][lf_seq]
+
+        # Convert to numpy
+        hf_vol = hf_img.get_fdata() if hasattr(hf_img, "get_fdata") else np.array(hf_img)
+        lf_vol = lf_img.get_fdata() if hasattr(lf_img, "get_fdata") else np.array(lf_img)
+
+        # Pick slice (default = middle slice)
+        if slice_index is None:
+            slice_index = hf_vol.shape[2] // 2
+
+        hf_slice = hf_vol[:, :, slice_index]
+        lf_slice = lf_vol[:, :, slice_index]
+
+        # Plot side-by-side
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+        # HF
+        axs[0].imshow(hf_slice.T, cmap=cmap_hf, origin="lower")
+        axs[0].set_title(f"HF - {hf_seq} (slice {slice_index})")
+        axs[0].axis("off")
+
+        # LF
+        axs[1].imshow(lf_slice.T, cmap=cmap_hf, origin="lower")
+        axs[1].set_title(f"LF - {lf_seq} (slice {slice_index})")
+        axs[1].axis("off")
+
+        # Overlay
+        axs[2].imshow(hf_slice.T, cmap=cmap_hf, origin="lower")
+        axs[2].imshow(lf_slice.T, cmap=cmap_lf, origin="lower", alpha=alpha)
+        axs[2].set_title("Overlay")
+        axs[2].axis("off")
+
+        plt.tight_layout()
+        plt.show()
+
+        return hf_vol, lf_vol
 
 
     def make_train_val_split(
@@ -299,17 +397,78 @@ class PairedMRI:
         #     plt.savefig(os.path.join(save_path, f"{subject_id}_{seq}_slice{slice_index}.png"))
         #     print(f"Saved images to {save_path}")
 
+    def show_hf_lf_difference(self, subject_id: str, hf_seq: str, lf_seq: str, slice_index: int = None, cmap="bwr"):
+        
+        """
+        Show the difference image (HF - LF) for a given subject and sequence.
+
+        Args:
+            subject_id (str): Subject identifier.
+            hf_seq (str): HF sequence key (e.g., "T1", "T2").
+            lf_seq (str): LF sequence key (same sequence type as HF).
+            slice_index (int): Slice index to display (default: middle slice).
+            cmap (str): Colormap for difference visualization (default: "bwr" -> blue=negative, red=positive).
+            
+        Returns:
+            np.ndarray: Difference volume (HF - LF).
+        """
+        # Load subject data
+        data = self.get_subject_data(subject_id)
+        hf_img = data["HF"][hf_seq]
+        lf_img = data["LF"][lf_seq]
+
+        # Convert to numpy
+        hf_vol = hf_img.get_fdata() if hasattr(hf_img, "get_fdata") else np.array(hf_img)
+        lf_vol = lf_img.get_fdata() if hasattr(lf_img, "get_fdata") else np.array(lf_img)
+
+        # Compute difference
+        diff_vol = hf_vol - lf_vol
+
+        # Pick slice
+        if slice_index is None:
+            slice_index = hf_vol.shape[2] // 2
+
+        diff_slice = diff_vol[:, :, slice_index]
+
+        # Plot
+        plt.figure(figsize=(6, 6))
+        plt.imshow(diff_slice.T, cmap="Reds", origin="lower")
+        plt.colorbar(label="HF - LF Intensity")
+        plt.title(f"Difference Image (slice {slice_index})")
+        plt.axis("off")
+        plt.show()
+
+        return diff_vol
+
 if __name__ == "__main__":
+        
+        # Improvement in difference image discard outside things
+        
         dataset = PairedMRI("Data/ULC_img enhancement/Training data")
 
         # List subjects
         print(dataset.subjects)
-
         # Get voxel sizes
         # voxel_info = dataset.get_voxel_sizes(dataset.subjects[0])
         # print(voxel_info)
         dataset.describe_subject(dataset.subjects[0])
-
-        # dataset.display_pair(dataset.subjects[49], "T2", save_path= "Data/")
-
+        # dataset.get_resampled_normalized((dataset.subjects[0]))
+        dataset.display_pair(dataset.subjects[49], "T1", save_path= "Data/")
         # dataset.analyze_noise_distribution("POCEMR003", hf_seq="T1", lf_seq="T1")
+        
+        # dataset.get_subject_image(dataset.subjects[0], "T1", 'LF')
+        # dataset.compare_hf_lf_alignment(dataset.subjects[4], "T1", "T1")
+        # dataset.show_hf_lf_difference(dataset.subjects[4], "T1", "T1")
+        # # Multi-channel (default) → shape (N, 2, H, W, D)
+        # (x_train, y_train), (x_val, y_val) = dataset.make_train_val_split("T1", train_size=1, val_size=1, mode="multi")
+        # print(x_train.shape, y_train.shape)
+        # print(x_val.shape, y_val.shape)
+
+        # subject = dataset.get_subject_image(dataset.subjects[0], "T1", 'LF', visible=True)
+        # subject = dataset.get_subject_image(dataset.subjects[0], "T1", 'HF', visible=True)
+
+        # print(f"Shape: {subject.shape}")
+        # print(f"Data type: {subject.dtype}")
+        # print(f"Min: {np.min(subject)}, Max: {np.max(subject)}")
+        # print(f"Mean: {np.mean(subject):.3f}, Std: {np.std(subject):.3f}")
+        

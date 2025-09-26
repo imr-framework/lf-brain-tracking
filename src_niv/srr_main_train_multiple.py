@@ -58,7 +58,7 @@ augmentation = True
 
 # Training parameters
 steps_per_epoch = 40
-epochs = 150
+epochs = 500
 batch_size = 2
 
 # Training data
@@ -174,7 +174,7 @@ for subject_v in subjects_val:
         print("HF Input shape:", hf_input_volume_val.shape)
         print("HF volume shape:", hf_target_volume_val.shape)
 
-# calling the residual_srr_unet model
+# Calling the residual_srr_unet model
 model_type = 'residual_srr_unet5_subjects_500_d1'
 model_case = 'single_encoder_unet'
 model_ = residual_srr_unet

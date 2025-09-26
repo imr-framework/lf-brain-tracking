@@ -6,14 +6,16 @@ import matplotlib.pyplot as plt
 # Path to the folder containing the files
 data_folder = 'Data/MW/VLF_invivo/raw'
 
-# List all files in the folder and pick the first NIfTI or NPY file
+# List all files in the folder and pick the first NIfTI or NPY. file
 files = [f for f in os.listdir(data_folder) if f.endswith(('.nii', '.nii.gz', '.npy'))]
+
 if not files:
     raise FileNotFoundError("No NIfTI or NPY files found in the specified folder.")
+
 # Prepare a figure to show all three subjects vertically, each with three slices horizontally
 fig, axes = plt.subplots(3, 3, figsize=(15, 15))
 
-output_folder = 'output_nifty'
+output_folder = 'SRR_r21/output_nifty'
 os.makedirs(output_folder, exist_ok=True)
 
 for i in range(3):  
@@ -48,6 +50,11 @@ for i in range(3):
 
     for j in range(3):
         axes[i, j].axis('off')
+
+    # Save central slices as PNG images
+    plt.imsave(os.path.join(output_folder, f'subject_{i+1}_sagittal.png'), np.abs(slice_x), cmap='gray', origin='lower')
+    plt.imsave(os.path.join(output_folder, f'subject_{i+1}_coronal.png'), np.abs(slice_y).T, cmap='gray', origin='lower')
+    plt.imsave(os.path.join(output_folder, f'subject_{i+1}_axial.png'), np.abs(slice_z).T, cmap='gray', origin='lower')
 
     # Save sagittal, coronal, and axial slices as NIfTI files with correct orientation
     # Expand dims to ensure 3D shape for NIfTI (slice, height, width)

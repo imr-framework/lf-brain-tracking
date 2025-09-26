@@ -152,30 +152,30 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                         # print("Data type of np.abs(im):", np.abs(im).dtype)
                         print("Shape of im:", im.shape)
                         
-                        # num_slices = im.shape[2]
-                        # fig, axes = plt.subplots(2, 8, figsize=(20, 8))
-                        # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
-                        # axes = axes.flatten()
+                        num_slices = im.shape[2]
+                        fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+                        fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+                        axes = axes.flatten()
 
-                        # for i in range(16):
-                        #     if i < num_slices:
-                        #         slice_img = np.flipud(np.abs(im[:, :, i]).T)
-                        #         axes[i].imshow(slice_img, cmap='gray')
-                        #         axes[i].set_title(f'Slice {i + 1}')
-                        #         axes[i].axis('off')
-                        #     else:
-                        #         axes[i].axis('off')
+                        for i in range(16):
+                            if i < num_slices:
+                                slice_img = np.flipud(np.abs(im[:, :, i]).T)
+                                axes[i].imshow(slice_img, cmap='gray')
+                                axes[i].set_title(f'Slice {i + 1}')
+                                axes[i].axis('off')
+                            else:
+                                axes[i].axis('off')
 
-                        # plt.tight_layout()
-                        # plt.savefig(f'Figures/{subject}/{fig_name}')
-                        # plt.show()
-                        # plt.close()
+                        plt.tight_layout()
+                        plt.savefig(f'Figures/{subject}/{fig_name}')
+                        plt.show()
+                        plt.close()
 
     return lf_dataset
 
 if __name__ == "__main__":
     
-    subjects = ['26184']
+    subjects = ['30366']
 
     for subject in subjects:
         

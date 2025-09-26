@@ -128,6 +128,7 @@ def do_zssr_recon(img:np.ndarray = 0, fname:str='', do_preprocess:bool= False,
     axial_2x_volume = do_ZSSR_steps(img=coronal_2x_volume, recon_conf=recon_conf,
                                         num_cols=num_cols, num_rows=num_rows,
                                         fname_zssr=fname_zssr, fspec='_output_coronal', scale_fact=2)
+    
     axial_2x_volume = np.swapaxes(axial_2x_volume, 0, 2)   # 128 X 64 X 32
     print(Fore.GREEN + 'New shape of volume is: '+ str(axial_2x_volume.shape)) 
     if viewing == True:
