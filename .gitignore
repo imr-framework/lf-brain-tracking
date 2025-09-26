@@ -178,3 +178,4 @@ cython_debug/
 ./SRR models/predictions/
 ./Figures/*
 *.png
+SRR_r21/output_nifty/*
