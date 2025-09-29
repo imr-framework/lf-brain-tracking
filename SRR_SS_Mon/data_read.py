@@ -78,7 +78,6 @@ class PairedMRI:
                 processed[field][seq] = normed
         return processed
 
-
     def describe_subject(self, subject_id: str):
       """
       Prints details of all HF and LF modalities for the given subject:
@@ -165,6 +164,42 @@ class PairedMRI:
 
         plt.tight_layout()
         plt.show()
+    
+    def resample_nifti(self, img, target_spacing=(1.6, 1.6, 1.0)):
+        
+        # Load image
+        # img = nib.load(in_file)
+        data = img.get_fdata()
+        affine = img.affine
+        header = img.header.copy()
+
+        # Original voxel spacing
+        original_spacing = header.get_zooms()[:3]
+
+        # Compute zoom factors
+        zoom_factors = np.array(original_spacing) / np.array(target_spacing)
+
+        # Resample
+        resampled_data = zoom(data, zoom_factors, order=3)  # cubic interpolation
+
+        # Update affine
+        new_affine = affine.copy()
+        for i in range(3):
+            new_affine[i, i] = target_spacing[i] * np.sign(affine[i, i])
+
+        # Create new header with updated zooms
+        new_header = header.copy()
+        new_header.set_zooms(target_spacing)
+
+        # Create new image
+        new_img = nib.Nifti1Image(resampled_data, new_affine, header=new_header)
+
+        # import nibabel.viewers
+
+        # # Display the resampled image using OrthoSlicer3D
+        # nibabel.viewers.OrthoSlicer3D(new_img.get_fdata()).show()
+
+        return new_img
 
     def get_subject_image(self, subject_id: str, seq: str, modality: str = "HF", slice_index: int = None, cmap="gray", visible=True):
         """
@@ -186,23 +221,12 @@ class PairedMRI:
         data = self.get_subject_data(subject_id)
         img = data[modality][seq]
 
-        # Convert to numpy
-        volume = img.get_fdata() if hasattr(img, "get_fdata") else np.array(img)
+        new_img = self.resample_nifti(img, target_spacing=(1.6, 1.6, 1.0))
 
-        # Visualization if requested
-        if visible:
-            if slice_index is None:
-                slice_index = volume.shape[2] // 2  # default to middle slice
+        #Perform operations here
+        # Normalize
 
-            slice_img = volume[:, :, slice_index]
-
-            plt.figure(figsize=(6, 6))
-            plt.imshow(slice_img.T, cmap=cmap, origin="lower")
-            plt.title(f"{modality} MRI - {seq} (slice {slice_index})")
-            plt.axis("off")
-            plt.show()
-
-        return img
+        return new_img
 
     def compare_hf_lf_alignment(self, subject_id: str, hf_seq: str, lf_seq: str, slice_index: int = None, cmap_hf="gray", cmap_lf="hot", alpha=0.5):
         
@@ -456,7 +480,7 @@ if __name__ == "__main__":
         dataset.display_pair(dataset.subjects[49], "T1", save_path= "Data/")
         # dataset.analyze_noise_distribution("POCEMR003", hf_seq="T1", lf_seq="T1")
         
-        # dataset.get_subject_image(dataset.subjects[0], "T1", 'LF')
+        dataset.get_subject_image(dataset.subjects[0], "T1", 'LF')
         # dataset.compare_hf_lf_alignment(dataset.subjects[4], "T1", "T1")
         # dataset.show_hf_lf_difference(dataset.subjects[4], "T1", "T1")
         # # Multi-channel (default) → shape (N, 2, H, W, D)

@@ -8,7 +8,7 @@ class Config:
     # scale_factors = [[1.0, 2.0], [1.0, 5.0]]  # list of pairs (vertical, horizontal) for gradual increments in resolution
     base_change_sfs = [[1.0]]  # list of scales after which the input is changed to be the output (recommended for high sfs)
     # base_change_sfs = [[1.0, 2.0]]  # list of scales after which the input is changed to be the output (recommended for high sfs)
-    max_iters = 3000
+    max_iters = 1000
     min_iters = 256
     min_learning_rate = 9e-6  # this tells the algorithm when to stop (specify lower than the last learning-rate)
     width = 64

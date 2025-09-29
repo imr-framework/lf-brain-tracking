@@ -1,6 +1,7 @@
 # SISR-ZSSR
 # Read single image of T1 or T2 or Flair and train ZSSR
-
+# 1.6 x 1.6 x 1
+# 2D ZSSR --> 1 x 1 x 1
 
 import sys
 sys.path.insert(0, './')  # Adjust the path as necessary to import from src_niv
@@ -47,58 +48,58 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 viewing = True
 ds_to_process = 4
-target_resolution_fact = [1, 1, 1]
-snr_component = True
+target_resolution_fact = [1.6, 1.6, 1]
+snr_component = False
 
 dataset = PairedMRI("Data/ULC_img enhancement/Training data")
 
 # List subjects
 print(dataset.subjects)
 
-subject_LF = dataset.get_subject_image(dataset.subjects[0], "T1", 'LF', visible=False)
-subject_HF = dataset.get_subject_image(dataset.subjects[0], "T1", 'HF', visible=False)
+for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
+    print(Fore.CYAN + f"\n=== Processing Subject {i+1}: {subject_id} ===" + Style.RESET_ALL)
 
-# Convert both images to uint8
-subject_LF = nib.Nifti1Image(subject_LF.get_fdata().astype(np.uint8), subject_LF.affine, subject_LF.header)
-subject_HF = nib.Nifti1Image(subject_HF.get_fdata().astype(np.uint8), subject_HF.affine, subject_HF.header)
+    # Get LF & HF images
+    subject_LF = dataset.get_subject_image(subject_id, "T1", 'LF', visible=False)
+    subject_HF = dataset.get_subject_image(subject_id, "T1", 'HF', visible=False)
 
-img_data = subject_LF.get_fdata()  # Convert to numpy array
-nifti_file = 'Data/POCEMR104_T1_111.nii.gz'
+    # Convert to uint8 NIfTI
+    subject_LF = nib.Nifti1Image(subject_LF.get_fdata().astype(np.uint8),
+                                 subject_LF.affine, subject_LF.header)
+    subject_HF = nib.Nifti1Image(subject_HF.get_fdata().astype(np.uint8),
+                                 subject_HF.affine, subject_HF.header)
 
-# nifti_data_lf = nib.load(simulated_nifti)
-hdr = subject_LF.header
-pixdim  = hdr['pixdim']
+    img_data = subject_LF.get_fdata()
 
-# Print information from NIfTI data header
-print(Fore.GREEN + 'PROCESSING NIFTI FILE METADATA' + Style.RESET_ALL)
-print("NIfTI Header Information:")
-print("Dimensions:", hdr.get_data_shape())
-print("Voxel Sizes:", hdr.get_zooms())
-print("Data Type:", hdr.get_data_dtype())
-print("Intent:", hdr.get_intent())
-print("Affine Matrix:")
-print(hdr.get_qform())
+    OrthoSlicer3D(img_data).show()
+    print("Shape of img_data:", img_data.shape)
+    # Generate unique NIfTI filename per subject
+    nifti_file = f"Data/{subject_id}_T1.nii.gz"
 
-# if viewing == True:
-#     print(Fore.GREEN + 'Viewing: ', subject_LF,  Style.RESET_ALL)
-#     OrthoSlicer3D(subject_LF).show()
-#     # Display using interactive browser-based viewer
-#     # view = plotting.view_img(subject_LF, title="LF Simulated Image")
-#     # view.open_in_browser()
+    hdr = subject_LF.header
+    pixdim = hdr['pixdim']
 
-# 3. Pass it through the ZSSR algorithm
-print('Passing through ZSSR')
-im_lf_sim_zssr = do_zssr_recon_slices(img=img_data, fname=nifti_file, 
-                    do_preprocess = True, do_postprocess=True, 
-                    padding=False, mask_image=False, reuse_mask=False, 
-                    target_resolution_fact= target_resolution_fact)
+    # Print info
+    print(Fore.GREEN + 'PROCESSING NIFTI FILE METADATA' + Style.RESET_ALL)
+    print("Dimensions:", hdr.get_data_shape())
+    print("Voxel Sizes:", hdr.get_zooms())
+    print("Data Type:", hdr.get_data_dtype())
+    print("Intent:", hdr.get_intent())
 
-# 4. Save the output as a nifti file
-zssr_fname= nifti_file[:-7] + '_zssr_noise_'+ str(snr_component) +'.nii.gz'
-make_nifti(im_lf_sim_zssr, fname =  zssr_fname, mask=False, 
-res=[pixdim[1], pixdim[2], pixdim[3]], dim_info=[0, 1, 2])
+    # Run ZSSR
+    print('Passing through ZSSR')
+    im_lf_sim_zssr = do_zssr_recon_slices(
+        img=img_data, fname=nifti_file,
+        do_preprocess=True, do_postprocess=True,
+        padding=False, mask_image=False, reuse_mask=False,
+        target_resolution_fact=target_resolution_fact
+    )
 
-if viewing == True:
-    OrthoSlicer3D(im_lf_sim_zssr).show()
+    # Save output with subject-specific name
+    zssr_fname = f"Data/{subject_id}_T1_zssr_noise_new{snr_component}.nii.gz"
+    make_nifti(im_lf_sim_zssr, fname=zssr_fname, mask=False,
+               res=[pixdim[1], pixdim[2], pixdim[3]], dim_info=[0, 1, 2])
 
-
+    print(Fore.YELLOW + f"Saved ZSSR output -> {zssr_fname}" + Style.RESET_ALL)
+    if viewing:
+        OrthoSlicer3D(im_lf_sim_zssr).show()
