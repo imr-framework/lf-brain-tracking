@@ -201,32 +201,51 @@ class PairedMRI:
 
         return new_img
 
-    def get_subject_image(self, subject_id: str, seq: str, modality: str = "HF", slice_index: int = None, cmap="gray", visible=True):
+    def get_subject_image(self, subject_id: str, seq: str, modality: str = "HF",
+                        target_spacing=(1.6, 1.6, 1.0),
+                        slice_index: int = None, cmap="gray", visible=True):
         """
-        Retrieve an MRI volume from a subject for a given sequence.
-        Optionally display a single slice.
+        Retrieve an MRI volume from a subject for a given sequence,
+        resample it to a target voxel spacing, update header, and optionally display a slice.
 
         Args:
             subject_id (str): Subject identifier.
             seq (str): Sequence key (e.g., "T1", "T2", etc.).
             modality (str): "HF" or "LF" (default: "HF").
+            target_spacing (tuple): Desired voxel spacing in mm (dx, dy, dz).
             slice_index (int): Slice index to visualize if visible=True (default: center slice).
             cmap (str): Colormap for visualization (default: "gray").
             visible (bool): If True, display the chosen slice.
 
         Returns:
-            np.ndarray: The full 3D MRI volume as a NumPy array.
+            nibabel.Nifti1Image: Resampled image with updated header
         """
+        import nibabel as nib
+        import matplotlib.pyplot as plt
+
         # Load subject data
         data = self.get_subject_data(subject_id)
         img = data[modality][seq]
 
-        new_img = self.resample_nifti(img, target_spacing=(1.6, 1.6, 1.0))
+        # Resample to target spacing
+        resampled_img = self.resample_nifti(img, target_spacing=target_spacing)
 
-        #Perform operations here
-        # Normalize
+        # Update header voxel sizes
+        new_header = resampled_img.header.copy()
+        new_header.set_zooms(target_spacing)
+        resampled_img = nib.Nifti1Image(resampled_img.get_fdata(), resampled_img.affine, header=new_header)
 
-        return new_img
+        # Visualization
+        if visible:
+            if slice_index is None:
+                slice_index = resampled_img.shape[2] // 2
+            plt.imshow(resampled_img.get_fdata()[:, :, slice_index], cmap=cmap)
+            plt.title(f"{modality}-{seq} slice {slice_index}")
+            plt.axis("off")
+            plt.show()
+
+        return resampled_img
+
 
     def compare_hf_lf_alignment(self, subject_id: str, hf_seq: str, lf_seq: str, slice_index: int = None, cmap_hf="gray", cmap_lf="hot", alpha=0.5):
         
@@ -473,26 +492,26 @@ if __name__ == "__main__":
         # List subjects
         print(dataset.subjects)
         # Get voxel sizes
-        # voxel_info = dataset.get_voxel_sizes(dataset.subjects[0])
-        # print(voxel_info)
+        voxel_info = dataset.get_voxel_sizes(dataset.subjects[0])
+        print(voxel_info)
         dataset.describe_subject(dataset.subjects[0])
-        # dataset.get_resampled_normalized((dataset.subjects[0]))
+        dataset.get_resampled_normalized((dataset.subjects[0]))
         dataset.display_pair(dataset.subjects[49], "T1", save_path= "Data/")
-        # dataset.analyze_noise_distribution("POCEMR003", hf_seq="T1", lf_seq="T1")
+        # # dataset.analyze_noise_distribution("POCEMR003", hf_seq="T1", lf_seq="T1")
         
-        dataset.get_subject_image(dataset.subjects[0], "T1", 'LF')
-        # dataset.compare_hf_lf_alignment(dataset.subjects[4], "T1", "T1")
-        # dataset.show_hf_lf_difference(dataset.subjects[4], "T1", "T1")
-        # # Multi-channel (default) → shape (N, 2, H, W, D)
-        # (x_train, y_train), (x_val, y_val) = dataset.make_train_val_split("T1", train_size=1, val_size=1, mode="multi")
-        # print(x_train.shape, y_train.shape)
-        # print(x_val.shape, y_val.shape)
+        # dataset.get_subject_image(dataset.subjects[0], "T1", 'LF')
+        # # dataset.compare_hf_lf_alignment(dataset.subjects[4], "T1", "T1")
+        # # dataset.show_hf_lf_difference(dataset.subjects[4], "T1", "T1")
+        # # # Multi-channel (default) → shape (N, 2, H, W, D)
+        # # (x_train, y_train), (x_val, y_val) = dataset.make_train_val_split("T1", train_size=1, val_size=1, mode="multi")
+        # # print(x_train.shape, y_train.shape)
+        # # print(x_val.shape, y_val.shape)
 
-        # subject = dataset.get_subject_image(dataset.subjects[0], "T1", 'LF', visible=True)
-        # subject = dataset.get_subject_image(dataset.subjects[0], "T1", 'HF', visible=True)
+        # # subject = dataset.get_subject_image(dataset.subjects[0], "T1", 'LF', visible=True)
+        # # subject = dataset.get_subject_image(dataset.subjects[0], "T1", 'HF', visible=True)
 
-        # print(f"Shape: {subject.shape}")
-        # print(f"Data type: {subject.dtype}")
-        # print(f"Min: {np.min(subject)}, Max: {np.max(subject)}")
-        # print(f"Mean: {np.mean(subject):.3f}, Std: {np.std(subject):.3f}")
+        # # print(f"Shape: {subject.shape}")
+        # # print(f"Data type: {subject.dtype}")
+        # # print(f"Min: {np.min(subject)}, Max: {np.max(subject)}")
+        # # print(f"Mean: {np.mean(subject):.3f}, Std: {np.std(subject):.3f}")
         

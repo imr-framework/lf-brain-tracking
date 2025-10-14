@@ -7,7 +7,8 @@ from src_niv.utils import srr_generator, display_pred, load_and_preprocess_hf, l
 from src_niv.prep_lf import normalize, resize_mri_volume
 from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
 from src_niv.niv_srr_main import train
-from src_niv.models.ResUNet import residual_srr_unet, residual_att_unet_3d
+from src_niv.models.ResUNet import residual_srr_unet
+from src_niv.models.residual_linear import build_3d_residual
 from src_niv.models.DenseUNet import build_dense_unet_3d
 from src_niv.models.Inception import build_inception_unet_3d
 from demo_read_data import read_lf_data
@@ -22,7 +23,7 @@ import tensorflow as tf
 import pydicom
 import numpy as np
 import matplotlib
-matplotlib.use('tkagg')  # or 'Qt5Agg' depending on what's installed
+matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
 import matplotlib.pyplot as plt
 import ants
 import nibabel as nib
@@ -34,24 +35,21 @@ from skimage.transform import resize  # Required for 3D resizing
 tf.keras.backend.clear_session()
 
 # Discard -- 34507
-#['26184', '30366', '35528', '59081','59228'] Model 5 trained on
+# ['26184', '30366', '35528', '59081','59228'] Model 5 trained on
 # 35547 -- 1st can be included for training; 59877 can be included in training IST; 59877
-# 59228 -- Test
-
 # List of observations
-# 
-# subjects1 = ['26184', '30366', '35528']
-subjects1 = ['26184', '30366', '35528', '59081','59228']
 
-# subjects1 = ['26184', '30366', '35528'] # '59877', '59175','59233', '59877', '35547'
-# subjects1 = ['26184', '30366', '35528'] 
+subjects1 = ['26184', '30366', '35528', '59081', '59228']
+
+# subjects1 = ['26184', '30366', '35528']
+# subjects1 = ['26184', '30366', '35528']
 # Mismatch due to high field shape
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-day_idx = 1
-visualize = False
-visualize_pairs = False
+day_idx = 3
+visualize = True
+visualize_pairs = True
 padding = False
 register2_hf = True
 augmentation = True
@@ -175,7 +173,7 @@ for subject_v in subjects_val:
         print("HF volume shape:", hf_target_volume_val.shape)
 
 # Calling the residual_srr_unet model
-model_type = 'residual_srr_unet5_subjects_500_d1'
+model_type = 'residual_linear_srr_unet5_subjects_500_d1_final'
 model_case = 'single_encoder_unet'
 model_ = residual_srr_unet
 

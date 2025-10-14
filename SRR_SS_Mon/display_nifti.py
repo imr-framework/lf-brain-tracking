@@ -4,7 +4,7 @@ from skimage.metrics import peak_signal_noise_ratio as psnr, structural_similari
 
 # List of NIfTI files to display
 nifti_files = [
-    "Data/POCEMR001_T1_zssr_noise_newFalse.nii.gz",
+    "Data/Results_ss/POCEMR001_T1_zssr_w64_d8_c128_n0.0_test1False.nii.gz",
     "Data/ULC_img enhancement/Training data/POCEMR001/64mT/POCEMR001_T1.nii.gz",
     "Data/ULC_img enhancement/Training data/POCEMR001/3T/POCEMR001_T1.nii.gz"
 ]

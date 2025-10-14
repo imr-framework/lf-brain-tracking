@@ -81,9 +81,10 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,lf_input_volume_val
 
     # gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, augment=True, num_augmented_copies=6)
     train_gen = srr_generator_single(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, patch_xy=128, augment=True, extra_slices=50, noise_sigma=0.02)
-    # lf_input, hf_target = next(train_gen)
-    # print(lf_input.shape)  # (2, 32, 128, 128, 1)
-    # print(hf_target.shape)  # (2, 32, 128, 128, 1)
+    lf_input, hf_target = next(train_gen)
+    print(lf_input.shape)  # (2, 32, 128, 128, 1)
+    print(hf_target.shape)  # (2, 32, 128, 128, 1)
+
 
     valid_gen = srr_generator_single(lf_input_volume_val, hf_target_volume_val, batch_size=1, patch_z=32, patch_xy=128, augment=False, extra_slices=0, noise_sigma=0.02)
     # lf_input_val, hf_target_val = next(valid_gen)
@@ -294,5 +295,5 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,lf_input_volume_val
             #     print("\nProcessing complete.")
 
 # if __name__ == "__main__":
-#     train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_,subject,
-#            day_idx,steps_per_epoch = 3,epochs = 3,batch_size = 1,visualize_pairs = visualize_pairs)
+    # train(lf_input_volume, hf_input_volume, hf_target_volume, model_type, model_case, model_,subject,
+    #        day_idx,steps_per_epoch = 3,epochs = 3,batch_size = 1,visualize_pairs = visualize_pairs)

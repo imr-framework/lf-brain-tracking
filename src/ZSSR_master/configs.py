@@ -1,6 +1,5 @@
 import os
 
-
 class Config:
     # network meta params
     python_path = '/home/assafsho/PycharmProjects/network/venv/bin/python2.7'
@@ -8,7 +7,7 @@ class Config:
     # scale_factors = [[1.0, 2.0], [1.0, 5.0]]  # list of pairs (vertical, horizontal) for gradual increments in resolution
     base_change_sfs = [[1.0]]  # list of scales after which the input is changed to be the output (recommended for high sfs)
     # base_change_sfs = [[1.0, 2.0]]  # list of scales after which the input is changed to be the output (recommended for high sfs)
-    max_iters = 1000
+    max_iters = 3000
     min_iters = 256
     min_learning_rate = 9e-6  # this tells the algorithm when to stop (specify lower than the last learning-rate)
     width = 64
@@ -33,7 +32,7 @@ class Config:
 
     # Data augmentation related params
     augment_leave_as_is_probability = 0.05
-    augment_no_interpolate_probability = 0.45
+    augment_no_interpolate_probability = 0.45 # change to lower performance to test improvement in real noisy images
     augment_min_scale = 0.5
     augment_scale_diff_sigma = 0.25
     augment_shear_sigma = 0.1

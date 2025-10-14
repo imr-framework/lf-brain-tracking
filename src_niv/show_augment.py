@@ -32,9 +32,7 @@ import os
 from skimage.transform import resize  # Required for 3D resizing
 
 # 59228
-subjects1 = ['30366'] # '59877', '59175','59233', '59877', '35547'
-
-# Mismatch due to high field shape
+subjects1 = ['26184'] # '59877', '59175','59233', '59877', '35547'
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
@@ -110,83 +108,142 @@ print("LF Input shape:", lf_input_volume_combined.shape)
 print("HF Input shape:", hf_input_volume_combined.shape)
 print("HF volume shape:", hf_target_volume_combined.shape)
 
-# # Validation data
-# print('-----------------------------\n\nLoading validation data .................................-----------------')
-# subjects_val = ['35528']
-# for subject_v in subjects_val:
-#     for day_idx in [2]:  # Assuming 0 = Day 1, 1 = Day 2
-#         print(f"\n=============================== Processing subject: {subject_v}, Day: {day_idx + 1} ===============================")
-#         # ----- Load HF data -----
-#         print(f"\n=============================== HF_MRI data processing started .............")
-#         resampled_volume_hf_norm = load_and_preprocess_hf(subject_v, day_idx, visualize)
-#         # ----- Load LF data -----
-#         print(f"\n=============================== LF_MRI data processing started .............")
-#         resampled_volume_lf_be_norm = load_and_preprocess_lf(subject_v, day_idx, visualize)
-#         print("Resampled LF volume shape:", resampled_volume_lf_be_norm.shape)
-#         print("Resampled HF volume shape:", resampled_volume_hf_norm.shape)
-        
-#         # Register LF to HF
-#         if register2_hf:
-#             resampled_volume_lf_be_norm = register_to_hf(resampled_volume_lf_be_norm, resampled_volume_hf_norm)
-        
-#         # Padding
-#         if padding:
-#             resampled_volume_lf_be_norm = padding_LF(
-#                 resampled_volume_lf_be_norm,
-#                 resampled_volume_hf_norm,
-#                 target_slices=64
-#             )
-#             print("After padding LF volume shape:", resampled_volume_lf_be_norm.shape)
-        
-#         # Visualization (optional)
-#         if visualize_pairs:
-#             visualize_pair(
-#                 resampled_volume_lf_be_norm,
-#                 resampled_volume_hf_norm,
-#                 slice_indices=list(range(31))
-#             )
-        
-#         # ----- Final Volume Preparation -----
-#         lf_input_volume_val = resampled_volume_lf_be_norm.astype(np.float32)
-#         hf_input_volume_val = resampled_volume_hf_norm.astype(np.float32)
-#         hf_target_volume_val = resampled_volume_hf_norm.astype(np.float32)
-        
-#         # Slice selection
-#         lf_input_volume_val = lf_input_volume_val[0:32, :, :]
-#         hf_input_volume_val = hf_input_volume_val[0:32, :, :]
-#         hf_target_volume_val = hf_target_volume_val[0:32, :, :]
-#         print("LF Input shape:", lf_input_volume_val.shape)
-#         print("HF Input shape:", hf_input_volume_val.shape)
-#         print("HF volume shape:", hf_target_volume_val.shape)
-
-# gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=batch_size, patch_z=32, augment=True, num_augmented_copies=6)
 train_gen = srr_generator(lf_input_volume, hf_target_volume, batch_size=1, patch_z=32, patch_xy=128, augment=True, extra_slices=50, noise_sigma=0.03)
 lf_input, hf_target = next(train_gen)
 print(lf_input.shape)  # (2, 32, 128, 128, 1)
 print(hf_target.shape)  # (2, 32, 128, 128, 1)
 
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from scipy.ndimage import rotate, affine_transform
+import random
+import os
 
-def display_batch_slices_side_by_side(lf_volume, hf_volume, num_slices=15):
-    batch_size, slices, height, width, channels = lf_volume.shape
-    for b in range(batch_size):
-        plt.figure(figsize=(15, 6))
-        # First row: LF
-        for i in range(num_slices):
-            plt.subplot(2, num_slices, i + 1)
-            plt.imshow(lf_volume[b, i, :, :, 0], cmap='gray')
-            plt.title(f"LF Batch {b}, Slice {i}")
-            plt.axis('off')
-        # Second row: HF
-        for i in range(num_slices):
-            plt.subplot(2, num_slices, num_slices + i + 1)
-            plt.imshow(hf_volume[b, i, :, :, 0], cmap='gray')
-            plt.title(f"HF Batch {b}, Slice {i}")
-            plt.axis('off')
-        plt.tight_layout()
-        plt.show()
+# ---------------------------------------------
+# Create output directory
+# ---------------------------------------------
+output_dir = "LF_Augmentations"
+os.makedirs(output_dir, exist_ok=True)
 
-display_batch_slices_side_by_side(lf_input, hf_target, num_slices=15)
+# ---------------------------------------------
+# Augmentation utility functions
+# ---------------------------------------------
+def rotate2d(image, angle):
+    """Rotate a 2D image by a given angle."""
+    return rotate(image, angle, reshape=False, mode='reflect')
 
+def shear2d(image, shear_x=0.1, shear_y=0.0):
+    """Apply simple affine shear transform."""
+    transform_matrix = np.array([[1, shear_x, 0],
+                                 [shear_y, 1, 0],
+                                 [0, 0, 1]])
+    return affine_transform(image, transform_matrix, mode='reflect')
 
+def add_gaussian_noise(image, sigma=0.03):
+    """Add Gaussian noise."""
+    noise = np.random.normal(0, sigma, image.shape)
+    noisy = image + noise
+    return np.clip(noisy, 0, 1)
 
+def adjust_intensity(image, factor_range=(0.85, 1.15)):
+    """Randomly adjust intensity."""
+    factor = random.uniform(*factor_range)
+    adjusted = image * factor
+    return np.clip(adjusted, 0, 1)
 
+# ---------------------------------------------
+# Example LF slice
+# ---------------------------------------------
+# Assuming you already have `lf_input_volume_combined`
+lf_slice = lf_input_volume_combined[0, 4, :, :]
+# lf_slice = (lf_slice - lf_slice.min()) / (lf_slice.max() - lf_slice.min())  # Normalize to [0,1]
+
+# ---------------------------------------------
+# Apply augmentations
+# ---------------------------------------------
+augmentations = {
+    "Original Slice": lf_slice,
+    "Rotation +10°": rotate2d(lf_slice, 10),
+    "Rotation +15°": rotate2d(lf_slice, 15),
+    "Rotation −20°": rotate2d(lf_slice, -20),
+    "Gaussian Noise (σ=0.05)": add_gaussian_noise(lf_slice, sigma=0.05),
+    "Intensity Adjustment": adjust_intensity(lf_slice, factor_range=(0.9, 1.1))
+}
+
+import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
+# ---------------------------------------------
+# Save individual figures with title written on image
+# ---------------------------------------------
+import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import os
+
+# ---------------------------------------------
+# Save individual figures with small title at top
+# ---------------------------------------------
+for name, img in augmentations.items():
+    # Normalize and convert image to uint8 grayscale
+    img_uint8 = (255 * (img - np.min(img)) / (np.ptp(img) + 1e-8)).astype(np.uint8)
+    img_rgb = cv2.cvtColor(img_uint8, cv2.COLOR_GRAY2RGB)
+
+    # Convert to PIL for text overlay
+    pil_img = Image.fromarray(img_rgb)
+    draw = ImageDraw.Draw(pil_img)
+
+    # Font setup (smaller size)
+    try:
+        font = ImageFont.truetype("DejaVuSans-Bold.ttf", 8)
+    except:
+        font = ImageFont.load_default()
+
+    text = name
+
+    # Measure text size (Pillow 10+ compatible)
+    if hasattr(draw, "textbbox"):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width, text_height = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    else:
+        text_width, text_height = draw.textsize(text, font=font)
+
+    # Position text at top center with a small margin
+    text_x = (img_rgb.shape[1] - text_width) // 2
+    text_y = 3
+
+    # Optional: draw subtle dark background for visibility
+    draw.rectangle([(0, 0), (img_rgb.shape[1], text_height + 6)], fill=(0, 0, 0))
+
+    # Draw title text in white
+    draw.text((text_x, text_y), text, font=font, fill=(255, 255, 255))
+
+    # Convert back to NumPy and save
+    img_with_title = np.array(pil_img)
+    save_name = f"{name.replace('°', 'deg').replace(' ', '_').replace('(', '').replace(')', '').replace('−', '-')}.png"
+    save_path = os.path.join(output_dir, save_name)
+    cv2.imwrite(save_path, cv2.cvtColor(img_with_title, cv2.COLOR_RGB2BGR))
+
+print("✅ All augmented images saved with small titles on top.")
+
+# ---------------------------------------------
+# Combined visualization for publication
+# ---------------------------------------------
+titles = list(augmentations.keys())
+images = list(augmentations.values())
+
+plt.figure(figsize=(22, 5))
+for i, (img, title) in enumerate(zip(images, titles)):
+    plt.subplot(1, len(images), i + 1)
+    plt.imshow(img, cmap='gray')
+    plt.title(title, fontsize=12)
+    plt.axis('off')
+
+plt.suptitle("Augmentation Visualization for LF-MRI Slice", fontsize=16, fontweight='bold')
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, "LF_Augmentation_Panel.png"), dpi=300, bbox_inches='tight')
+plt.show()
+
+print(f"✅ All individual augmented images and combined panel saved in: {output_dir}")

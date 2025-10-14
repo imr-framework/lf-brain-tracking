@@ -2,52 +2,48 @@ import tensorflow as tf
 from tensorflow.keras import layers, models
 
 def res_conv_block(x, filters, kernel_size=3):
-    """Residual convolutional block"""
     shortcut = layers.Conv3D(filters, kernel_size=1, padding="same")(x)
-
     x = layers.Conv3D(filters, kernel_size, padding="same", activation="relu")(x)
     x = layers.Conv3D(filters, kernel_size, padding="same")(x)
-
-    x = layers.Add()([x, shortcut])  # residual connection
+    x = layers.Add()([x, shortcut])
     x = layers.Activation("relu")(x)
     return x
 
-def residual_srr_unet(input_shape=(64, 128, 128, 1)):
+def residual_srr_unet(input_shape=(64,128,128,1)):
     inputs = layers.Input(shape=input_shape)
 
     # ---------------- Encoder ----------------
-    c1 = res_conv_block(inputs, 32)  # Level 1
-    p1 = layers.MaxPooling3D((2, 2, 2))(c1)   # -> (16, 64, 64)
+    c1 = res_conv_block(inputs, 32)
+    p1 = layers.MaxPooling3D((2,2,2))(c1)
 
-    c2 = res_conv_block(p1, 64)      # Level 2
-    p2 = layers.MaxPooling3D((2, 2, 2))(c2)   # -> (8, 32, 32)
+    c2 = res_conv_block(p1, 64)
+    p2 = layers.MaxPooling3D((2,2,2))(c2)
 
-    c3 = res_conv_block(p2, 128)     # Level 3
-    p3 = layers.MaxPooling3D((2, 2, 2))(c3)   # -> (4, 16, 16)
+    c3 = res_conv_block(p2, 128)
+    p3 = layers.MaxPooling3D((2,2,2))(c3)
 
     # ---------------- Bottleneck ----------------
     bn = res_conv_block(p3, 256)
 
     # ---------------- Decoder ----------------
-    u3 = layers.UpSampling3D((2, 2, 2))(bn)   # -> (8, 32, 32)
+    u3 = layers.Conv3DTranspose(128, kernel_size=2, strides=2, padding='same')(bn)
     u3 = layers.Concatenate()([u3, c3])
     c4 = res_conv_block(u3, 128)
 
-    u2 = layers.UpSampling3D((2, 2, 2))(c4)   # -> (16, 64, 64)
+    u2 = layers.Conv3DTranspose(64, kernel_size=2, strides=2, padding='same')(c4)
     u2 = layers.Concatenate()([u2, c2])
     c5 = res_conv_block(u2, 64)
 
-    u1 = layers.UpSampling3D((2, 2, 2))(c5)   # -> (32, 128, 128)
+    u1 = layers.Conv3DTranspose(32, kernel_size=2, strides=2, padding='same')(c5)
     u1 = layers.Concatenate()([u1, c1])
     c6 = res_conv_block(u1, 32)
 
     # ---------------- Output ----------------
-    residual = layers.Conv3D(1, (1, 1, 1), activation="linear")(c6)
+    residual = layers.Conv3D(1, (1,1,1), activation="linear")(c6)
+    outputs = layers.Add()([inputs, residual])
 
-    # Add residual correction to input
-    outputs = layers.Add()([inputs, residual])  
-    # outputs = residual
     model = models.Model(inputs, outputs, name="Residual_SRR_UNet3D")
+    model.summary()
     return model
 
 # Example usage

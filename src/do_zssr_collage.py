@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 from nibabel.viewers import OrthoSlicer3D
 from roipoly import RoiPoly
 import cv2
+from skimage.transform import resize
+
+visible = False
 
 def do_mask_image(img:np.ndarray=None):
     masked_image = np.copy(img)
@@ -28,24 +31,56 @@ def do_ZSSR_steps(img:np.ndarray=None, recon_conf:configs.Config=None,
                     fname_zssr:str=None, fspec:str='', scale_fact:int=2):
     fext='.nii.gz'
     # Convert to mosaic
-    input2zssr = mosaic_all_slices(img, debug=False,
+    input2zssr = mosaic_all_slices(img, debug=True,
                                     filename=fname_zssr +'_input.png', savefig=True,
                                     num_cols=num_cols, num_rows=num_rows) # adds a 90 degree rotation
 
     print(input2zssr.shape)
 
-    # Perform collage ZSSR
-    im_collage = do_collage_ZSSR_nhp(low_res_im=input2zssr, recon_conf=recon_conf, 
+    # check getting the volume back  - debug code
+    # vol_check = mosaic_to_3D(input2zssr, orig_dim1=img.shape[0], 
+    #                                     orig_dim2=img.shape[1], orig_dim3=img.shape[2], num_cols=num_cols, num_rows = num_rows)
+
+    # print('Checking volume ...')
+    # OrthoSlicer3D(vol_check).show()
+    # plt.show()
+    # # Perform collage ZSSR - in 1 dimension, say x direction
+    recon_conf.scale_factors = [[scale_fact, 1]]
+    im_collage_x = do_collage_ZSSR_nhp(low_res_im=input2zssr, recon_conf=recon_conf, 
                             debug_mode=False, fname_file_save=fname_zssr + fspec + fext, 
                             contrast_enhance=False, write_nifti=False,
                             num_iters_srr=1)
     # plt.imshow(im_collage,cmap='gray')
     # plt.show()
-    print(im_collage.shape)
-    new_dims = [img.shape[0], int(img.shape[1] * scale_fact),
-                img.shape[2]]
+    print(im_collage_x.shape)
+
+    
+
+    # Perform collage ZSSR - in the other dimension, say y direction
+    recon_conf.scale_factors = [[1, scale_fact]]
+    im_collage = do_collage_ZSSR_nhp(low_res_im=im_collage_x, recon_conf=recon_conf, 
+                            debug_mode=False, fname_file_save=fname_zssr + fspec + fext, 
+                            contrast_enhance=False, write_nifti=False,
+                            num_iters_srr=1)
+    
+
+
+    new_dims = [int(img.shape[0]), int(img.shape[1]* scale_fact),
+                img.shape[2]* scale_fact]
     srr_volume = mosaic_to_3D(im_collage, orig_dim1=new_dims[0], 
-                                        orig_dim2=new_dims[1], orig_dim3=new_dims[2])
+                                        orig_dim2=new_dims[1], orig_dim3=new_dims[2], num_cols=num_cols, num_rows = num_rows)
+    
+    # dislpay the srr_volume
+    print(Fore.GREEN + 'New shape of volume after collage to 3D is: '+ str(srr_volume.shape))
+    OrthoSlicer3D(srr_volume).show()
+    plt.show()
+
+    # We will make this conditional on debug but using it for now
+    filename = fname_zssr + fspec + 'op_collage.png'
+    plt.imshow(im_collage, cmap='gray')
+    plt.axis('off')
+    plt.savefig(filename, bbox_inches="tight")
+    plt.show()
     return srr_volume
 
 # ----------------------------------------------
@@ -67,7 +102,7 @@ def do_zssr_recon(img:np.ndarray = 0, fname:str='', do_preprocess:bool= False,
     T = 0.01 *  (np.max(img))
     img[img < T] = 0
     img = img / np.max(img) # Normalize
-   
+    
     # ----------------------------------------------
     # offset the slice wrap
     img = np.roll(img, -3, axis=2)
@@ -173,11 +208,16 @@ def do_zssr_recon(img:np.ndarray = 0, fname:str='', do_preprocess:bool= False,
 
     # ----------------------------------------------   
     return processed_volume
-    
+
+# Need to work on this function and ZSSR model new
+
 def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= False,
                    do_postprocess:bool=False, viewing = False,
               padding:bool = False, mask_image:bool = False, reuse_mask:bool = False,
-              target_resolution_fact=[1, 1, 2]):
+              target_resolution_fact=[1, 1, 2], recon_conf:configs.Config=None):
+    
+    # print all config values
+    print(vars(recon_conf))
     
     print(Fore.GREEN + "..................Running ZSSR on slices................................." + Style.RESET_ALL)
     
@@ -190,13 +230,15 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
                         int(img.shape[1] *target_resolution_fact[1]), 
                         int(img.shape[2]*target_resolution_fact[2])])
 
+    # OrthoSlicer3D(img_zssr).show()
 
     # Perform upscaling along x axis - assuming that the data has dimensions [x, y, z]
     img_zssr_x = np.zeros([int(img.shape[0] *target_resolution_fact[0]), 
                         int(img.shape[1]), 
                         int(img.shape[2])])
+    
     for slice in range(img.shape[1]): # Loop over the slice dimension which is the 3rd dimension
-
+        
         print(Fore.GREEN + f"Running with x axis, processing slice {slice}" + Style.RESET_ALL)
         img_slice = np.squeeze(img[:, slice, :])  # Get the slice along x axis
         print(Fore.YELLOW + f"img_slice shape: {img_slice.shape}" + Style.RESET_ALL)
@@ -205,23 +247,52 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
         input_img[:, :, 0] = img_slice
         input_img[:, :, 1] = img_slice
         input_img[:, :, 2] = img_slice
-        recon_conf = configs.Config()
-        recon_conf.scale_factors = [[np.sqrt(target_resolution_fact[0]), 1]]
-        
+        # recon_conf = configs.Config()
+        # recon_conf.scale_factors = [[np.sqrt(target_resolution_fact[0]), 1]]
+
         if np.sum(input_img) > 0:
             # do first pass - x, y all slices
             print(Fore.YELLOW + f"input_img shape: {input_img.shape}" + Style.RESET_ALL)
             
             net = ZSSR.ZSSR(input_img = input_img, conf=recon_conf, ground_truth=None, kernels=None)
             int_img = net.run()
-           
+
             recon_conf.scale_factors[0][0] = img_zssr_x.shape[0] / int_img.shape[0]
             net = ZSSR.ZSSR(input_img = int_img, conf=recon_conf, ground_truth=None, kernels=None)
             output_img = net.run()
+
+            high_res_im = np.squeeze(output_img[:, :, 0])
             
             # Repeat the zssr again so it is gradual upscaling
-            high_res_im = np.squeeze(output_img[:, :, 0])
+            target_shape = img_zssr_x[:, slice, :].shape
+            high_res_im = resize(high_res_im, target_shape, order=3, mode="reflect", anti_aliasing=True)
+
             img_zssr_x[:, slice, :] = high_res_im
+            
+            print(Fore.YELLOW + "High_res_im.shape:", high_res_im.shape)
+            print(Fore.YELLOW + "Image after x axis ZSSR shape:", img_zssr_x.shape)
+
+            if visible == True:
+                # Display input slice, intermediate image, and output high_res_im with shape and axis info, referencing x slice
+                plt.figure(figsize=(15, 4))
+                plt.suptitle(f"Processing x-slice {slice}", fontsize=14)
+                plt.subplot(1, 3, 1)
+                plt.imshow(img_slice, cmap='gray')
+                plt.title(f"Input (x-slice {slice})\nshape: {img_slice.shape}\n(axis: x-z)")
+                plt.axis('off')
+                plt.subplot(1, 3, 2)
+                plt.imshow(np.squeeze(int_img[:, :, 0]), cmap='gray')
+                plt.title(f"Intermediate (x-slice {slice})\nshape: {np.squeeze(int_img[:, :, 0]).shape}\n(axis: x-z)")
+                plt.axis('off')
+                plt.subplot(1, 3, 3)
+                plt.imshow(high_res_im, cmap='gray')
+                plt.title(f"Output (x-slice {slice})\nshape: {high_res_im.shape}\n(axis: x-z)")
+                plt.axis('off')
+                plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+                plt.show()
+                plt.axis('off')
+                plt.tight_layout()
+                plt.show()
 
             print(Fore.YELLOW + str(slice))
         else:
@@ -229,11 +300,14 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
             output_img = input_img
             print(Style.RESET_ALL)
 
+    print("img_zssr_x[:, slice, :].shape:", img_zssr_x.shape)
+    
     # Repeat for y axis
     img_zssr_y = np.zeros([int(img.shape[0] *target_resolution_fact[0]), 
                         int(img.shape[1] *target_resolution_fact[1]), 
                         int(img.shape[2])])
-    for slice in range(img.shape[0]): # Loop over the slice dimension which is the  
+    
+    for slice in range(img_zssr_x.shape[0]): # Loop over the slice dimension which is the  
         print(Fore.GREEN + f"Running with y axis, processing slice {slice}" + Style.RESET_ALL)
         img_slice = np.squeeze(img_zssr_x[slice, :, :])  # Get the slice along y axis
         print(Fore.YELLOW + f"img_slice shape: {img_slice.shape}" + Style.RESET_ALL)
@@ -242,8 +316,9 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
         input_img[:, :, 0] = img_slice
         input_img[:, :, 1] = img_slice
         input_img[:, :, 2] = img_slice
-        recon_conf = configs.Config()
-        recon_conf.scale_factors = [[np.sqrt(target_resolution_fact[1]), 1]]
+        
+        # recon_conf = configs.Config()
+        # recon_conf.scale_factors = [[np.sqrt(target_resolution_fact[1]), 1]]
 
         if np.sum(input_img) > 0:
             print(Fore.YELLOW + f"input_img shape: {input_img.shape}" + Style.RESET_ALL)
@@ -256,7 +331,30 @@ def do_zssr_recon_slices(img:np.ndarray = 0, fname:str='', do_preprocess:bool= F
             output_img = net.run()
             
             high_res_im = np.squeeze(output_img[:, :, 0])
+            
+            target_shape = img_zssr_y[slice, :, :].shape
+            high_res_im = resize(high_res_im, target_shape, order=3, mode="reflect", anti_aliasing=True)
             img_zssr_y[slice,: ,:] = high_res_im
+
+            print("high_res_im.shape:", high_res_im.shape)
+
+            if visible == True:
+                # Display input slice, intermediate image, and output high_res_im for y axis
+                plt.figure(figsize=(15, 4))
+                plt.subplot(1, 3, 1)
+                plt.imshow(img_slice, cmap='gray')
+                plt.title(f"Y-axis Input Slice {slice}\nshape: {img_slice.shape}")
+                plt.axis('off')
+                plt.subplot(1, 3, 2)
+                plt.imshow(np.squeeze(int_img[:, :, 0]), cmap='gray')
+                plt.title(f"Y-axis Intermediate int_img {slice}\nshape: {np.squeeze(int_img[:, :, 0]).shape}")
+                plt.axis('off')
+                plt.subplot(1, 3, 3)
+                plt.imshow(high_res_im, cmap='gray')
+                plt.title(f"Y-axis Output high_res_im {slice}\nshape: {high_res_im.shape}")
+                plt.axis('off')
+                plt.tight_layout()
+                plt.show()
 
             print(Fore.YELLOW + str(slice))
         else:

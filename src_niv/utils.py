@@ -77,9 +77,11 @@ def load_and_preprocess_hf(subject, day_idx, visualize=True):
         visualize_resampled(resampled_volume_hf_norm)
     print("High-field volume shape:", resampled_volume_hf_norm.shape)
     hf_input_volume = resampled_volume_hf_norm.astype(np.float32)
+
     return hf_input_volume
 
 def load_and_preprocess_lf(subject, day_idx, visualize=True):
+    
     """
     Loads and preprocesses LF MRI data for a given subject and day index.
     Returns the normalized, resampled LF volume.

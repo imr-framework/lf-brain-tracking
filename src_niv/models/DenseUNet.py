@@ -5,7 +5,7 @@ from tensorflow.keras import layers, models
 # Dense Block (no BatchNorm)
 # -------------------------------
 def dense_block(x, filters, activation="relu", name=None):
-    """Simple dense block with two Conv3D layers, concatenating features."""
+    """Dense block with two Conv3D layers and skip concatenation."""
     conv1 = layers.Conv3D(filters, 3, padding="same", activation=activation, name=f"{name}_conv1")(x)
     concat1 = layers.Concatenate(name=f"{name}_concat1")([x, conv1])
     conv2 = layers.Conv3D(filters, 3, padding="same", activation=activation, name=f"{name}_conv2")(concat1)
@@ -13,16 +13,16 @@ def dense_block(x, filters, activation="relu", name=None):
     return concat2
 
 # -------------------------------
-# Dense U-Net 3D
+# Dense U-Net 3D (3 blocks)
 # -------------------------------
 def build_dense_unet_3d(
-    input_shape,
-    out_channels=1,                 # number of segmentation labels
+    input_shape=(64, 64, 40, 1),
+    out_channels=1,
     base_filters=16,
     levels=3,
     activation="relu",
     final_activation="sigmoid",
-    dense_blocks_per_level=2        # choice: 1 or 2
+    dense_blocks_per_level=1
 ):
     inputs = layers.Input(shape=input_shape)
     x = inputs
@@ -52,21 +52,21 @@ def build_dense_unet_3d(
     # -------- Output --------
     outputs = layers.Conv3D(out_channels, 1, padding="same", activation=final_activation, name="output")(x)
 
-    return models.Model(inputs, outputs, name="DenseUNet3D")
+    return models.Model(inputs, outputs, name="DenseUNet3D_3Blocks")
 
 
 # -------------------------------
 # Example Run
 # -------------------------------
 if __name__ == "__main__":
-    in_shape = (32, 128, 128, 1)   # (D, H, W, C)
+    input_shape = (64, 64, 40, 1)
     model = build_dense_unet_3d(
-        input_shape=in_shape,
-        out_channels=1,             # 3 or 4 labels
+        input_shape=input_shape,
+        out_channels=1,
         base_filters=16,
         levels=3,
         activation="relu",
         final_activation="sigmoid",
-        dense_blocks_per_level=2    # 👈 choice: 1 or 2
+        dense_blocks_per_level=1
     )
     model.summary()

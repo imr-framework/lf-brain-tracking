@@ -9,7 +9,6 @@ import sys
 from ZSSR_master import configs, ZSSR
 from ZSSR_master.utils import *
 
-
 class ZSSR:
     # Basic current state variables initialization / declaration
     kernel = None
@@ -147,7 +146,7 @@ class ZSSR:
             # Ground truth (supervision)
             self.hr_father_t = tf.compat.v1.placeholder(tf.float32, name='hr_father')
 
-            # Filters
+            # Filters #Error in class ZSSR: 'ZSSR' has no attribute 'filters_t'
             self.filters_t = [tf.compat.v1.get_variable(shape=meta.filter_shape[ind], name='filter_%d' % ind,
                                               initializer=tf.random_normal_initializer(
                                                   stddev=np.sqrt(meta.init_variance/np.prod(

@@ -37,9 +37,9 @@ subjects1 = ['26184', '30366', '35528'] # 59228
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-day_idx = 1
+day_idx = 3
 visualize = False
-visualize_pairs = False
+visualize_pairs = True
 padding = False
 register2_hf = True
 augmentation = True
@@ -152,12 +152,12 @@ for subject in subjects1:
         print("LF Input shape:", lf_input_volume_val.shape)
         print("HF Input shape:", hf_input_volume_val.shape)
         print("HF volume shape:", hf_target_volume_val.shape)
-
+        
         # calling the residual_srr_unet model
         model_type = 'residual_srr_unet_subjects_single_callbacks'
         model_case = 'single_encoder_unet'
         model_ = residual_srr_unet
-
+        
         train(lf_input_volume, hf_input_volume, hf_target_volume, 
               lf_input_volume_val, hf_input_volume_val, hf_target_volume_val,
               model_type, model_case, model_, subject,day_idx, steps_per_epoch=steps_per_epoch,

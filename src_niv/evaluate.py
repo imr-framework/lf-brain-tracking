@@ -63,9 +63,9 @@ import random
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-model_type = 'residual_srr_unet_subjects_single_callbacks'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
+model_type = 'residual_srr_unet5_subjects_500_d1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
 model_case = 'single_encoder_unet'
-multi_subject_train = False
+multi_subject_train = True
 
 day_idx = 2
 
@@ -74,9 +74,9 @@ visualize_pairs = False
 padding = False
 register2_hf = True
 
-subject = '35528'  # Example subject number, adjust as needed 
+subject = '26184'  # Example subject number, adjust as needed 
 # '59233' visit 1 can be evaluation
-subject_train = '35528'
+subject_train = '59228'
 
 if multi_subject_train == False:
     output_path = f'./Data/Results/{model_type}/{subject_train}'
@@ -217,10 +217,10 @@ def predict_and_evaluate(
         plt.savefig(os.path.join(predictions_dir, f"Day{day_idx}_slices.png"))
         plt.show()
     
-        # # Save predicted volume as NIfTI (identity affine here, update if needed)
-        # pred_path = os.path.join(predictions_dir, f"Predicted_volume_day{day_idx}.nii.gz")
-        # nib.save(nib.Nifti1Image(pred_vol.astype(np.float32), affine=np.eye(4)), pred_path)
-        # print(f"Saved prediction to: {pred_path}")
+        # Save predicted volume as NIfTI (identity affine here, update if needed)
+        pred_path = os.path.join(predictions_dir, f"Predicted_volume_day{day_idx}.nii.gz")
+        nib.save(nib.Nifti1Image(pred_vol.astype(np.float32), affine=np.eye(4)), pred_path)
+        print(f"Saved prediction to: {pred_path}")
         
         # Compute metrics (make sure volumes are normalized or scaled consistently!)
         psnr_val = peak_signal_noise_ratio(hf_vol, pred_vol, data_range=hf_vol.max() - hf_vol.min())

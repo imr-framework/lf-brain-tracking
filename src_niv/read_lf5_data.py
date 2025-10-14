@@ -7,7 +7,7 @@ from nibabel.viewers import OrthoSlicer3D
 import os
 import glob
 import pydicom
-import re
+# import re
 
 from demo_read_data import read_lf_data
 import json

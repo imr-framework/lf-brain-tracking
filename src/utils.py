@@ -4,6 +4,7 @@ from skimage.restoration import denoise_wavelet
 from skimage.filters import unsharp_mask
 import matplotlib.pyplot as plt
 from src.nifti_write import make_nifti
+from nibabel.viewers import OrthoSlicer3D
 
 def preprocess_img_nhp(data,  debug=False):
     # Load the NIfTI file
@@ -57,33 +58,34 @@ def mosaic_all_slices(processed_data, debug=False,
     # if np.max(processed_data) < 1.2:
     #     processed_data = processed_data * 2047
         
-    num_slices = processed_data.shape[2]
+    num_slices = processed_data.shape[0]
     # num_cols = int(np.ceil(np.sqrt(num_slices)))
     # num_rows = int(np.ceil(num_slices / num_cols))
     # if num_cols ** 2 > num_slices:
     #     num_cols = 5
     #     num_rows = num_slices // num_cols
-    
-    
+    visible = True
+    if visible == True:
+        OrthoSlicer3D(processed_data).show()
     # Create an empty array to hold the collage
-    collage_height = num_rows * processed_data.shape[0]
-    collage_width = num_cols * processed_data.shape[1]
+    collage_height = num_rows * processed_data.shape[1]
+    collage_width = num_cols * processed_data.shape[2]
     collage = np.zeros((collage_height, collage_width))
     
     # Fill the collage with slices
     for i in range(num_slices):
         row = i // num_cols
         col = i % num_cols
-        slice_ = processed_data[:, :, i]
-        collage[row * processed_data.shape[0]:(row + 1) * processed_data.shape[0],
-                col * processed_data.shape[1]:(col + 1) * processed_data.shape[1]] = slice_
+        slice_ = processed_data[i, :, :]
+        collage[row * processed_data.shape[1]:(row + 1) * processed_data.shape[1],
+                col * processed_data.shape[2]:(col + 1) * processed_data.shape[2]] = slice_
     
-    collage =  np.rot90(collage) 
+    # collage =  np.rot90(collage) 
 
     if debug:
         plt.imshow(collage, cmap='gray')
         plt.axis('off')
-        plt.savefig(filename, dpi=600, bbox_inches="tight")
+        plt.savefig(filename, bbox_inches="tight")
         plt.show()
             
     return collage
@@ -92,24 +94,24 @@ def threshold_image(image, threshold):
     image[image < threshold] = 0
     return image
 
-def mosaic_to_3D(collage_img, orig_dim1=64, orig_dim2=16, orig_dim3=64):
+def mosaic_to_3D(collage_img, orig_dim1=64, orig_dim2=16, orig_dim3=64, num_rows =10, num_cols = 14):
     # Initialize the 3D array
-    im_3D = np.zeros((orig_dim3,  orig_dim1, orig_dim2))
-    collage_img = np.rot90(collage_img, k=-1) # Undo by 270 degrees
-     
+    im_3D = np.zeros((orig_dim1,  orig_dim2, orig_dim3))
+    # collage_img = np.rot90(collage_img, k=-1) # Undo by 270 degrees
+    # collage_img = np.rot90(collage_img, -1)
     # Calculate the number of slices
     collage_img_shape = collage_img.shape
 
     # Extract each slice from the collage image
     slice_num = 0
     
-    for row in range(collage_img_shape[0] // orig_dim1):
-        for col in range(collage_img_shape[1] // orig_dim2):
-            slice_ = collage_img[row * orig_dim1:(row + 1) * orig_dim1,
-                                 col * orig_dim2:(col + 1) * orig_dim2]
+    for row in range(num_rows):
+        for col in range(num_cols):
+            slice_ = collage_img[row * orig_dim2:(row + 1) * orig_dim2,
+                                 col * orig_dim3:(col + 1) * orig_dim3]
             # plt.imshow(slice_, cmap='gray')
             # plt.show()
-            im_3D[slice_num, :, :] = slice_
+            im_3D[slice_num, :, : ] = slice_
             slice_num += 1
     
     print(slice_num)
