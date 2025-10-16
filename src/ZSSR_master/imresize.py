@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.ndimage import filters, measurements, interpolation
+from scipy.ndimage import filters, measurements, interpolation, correlate
 from math import pi
 
 
@@ -29,6 +29,7 @@ def imresize(im, scale_factor=None, output_shape=None, kernel=None, antialiasing
 
     # Iterate over dimensions to calculate local weights for resizing and resize each time in one direction
     out_im = np.copy(im)
+    
     for dim in sorted_dims:
         # No point doing calculations for scale-factor 1. nothing will happen anyway
         if scale_factor[dim] == 1.0:
@@ -162,7 +163,7 @@ def numeric_kernel(im, kernel, scale_factor, output_shape, kernel_shift_flag):
     # First run a correlation (convolution with flipped kernel)
     out_im = np.zeros_like(im)
     for channel in range(np.ndim(im)):
-        out_im[:, :, channel] = filters.correlate(im[:, :, channel], kernel)
+        out_im[:, :, channel] = correlate(im[:, :, channel], kernel)
 
     # Then subsample and return
     return out_im[np.round(np.linspace(0, im.shape[0] - 1 / scale_factor[0], output_shape[0])).astype(int)[:, None],

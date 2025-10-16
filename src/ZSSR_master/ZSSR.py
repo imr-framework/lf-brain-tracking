@@ -92,6 +92,7 @@ class ZSSR:
         # then we use default provided by the configs
         self.file_name = input_img if type(input_img) is str else conf.name
 
+    
     def run(self):
         # Run gradually on all scale factors (if only one jump then this loop only happens once)
         for self.sf_ind, (sf, self.kernel) in enumerate(zip(self.conf.scale_factors, self.kernels)):
@@ -147,6 +148,7 @@ class ZSSR:
             self.hr_father_t = tf.compat.v1.placeholder(tf.float32, name='hr_father')
 
             # Filters #Error in class ZSSR: 'ZSSR' has no attribute 'filters_t'
+
             self.filters_t = [tf.compat.v1.get_variable(shape=meta.filter_shape[ind], name='filter_%d' % ind,
                                               initializer=tf.random_normal_initializer(
                                                   stddev=np.sqrt(meta.init_variance/np.prod(
@@ -158,17 +160,31 @@ class ZSSR:
             for l in range(meta.depth - 1):
                 self.layers_t[l + 1] = tf.compat.v1.nn.relu(tf.nn.conv2d(self.layers_t[l], self.filters_t[l],
                                                                [1, 1, 1, 1], "SAME", name='layer_%d' % (l + 1)))
-
+                
             # Last conv layer (Separate because no ReLU here)
             l = meta.depth - 1
             self.layers_t[-1] = tf.compat.v1.nn.conv2d(self.layers_t[l], self.filters_t[l],
                                              [1, 1, 1, 1], "SAME", name='layer_%d' % (l + 1))
-
+            
             # Output image (Add last conv layer result to input, residual learning with global skip connection)
             self.net_output_t = self.layers_t[-1] + self.conf.learn_residual * self.lr_son_t
 
             # Final loss (L1 loss between label and output layer)
-            self.loss_t = tf.reduce_mean(tf.compat.v1.reshape(tf.abs(self.net_output_t - self.hr_father_t), [-1]))
+
+
+
+            # L1 loss   
+            # Sobel edge loss
+            sobel_net = tf.image.sobel_edges(self.net_output_t)
+            sobel_hr = tf.image.sobel_edges(self.hr_father_t)
+            sobel_loss = tf.reduce_mean(tf.abs(sobel_net - sobel_hr))
+
+            # compute ssim loss (added in case needed in future)
+            ssim_loss = 1 - tf.reduce_mean(tf.image.ssim(self.net_output_t, self.hr_father_t, max_val=1.0))
+            l1_loss = tf.reduce_mean(tf.compat.v1.reshape(tf.abs(self.net_output_t - self.hr_father_t), [-1])) 
+
+            # Total loss: L1 + edge loss (weight edge loss as needed, e.g., 0.1)
+            self.loss_t = 1e3 * (l1_loss + (1 * sobel_loss) + (1 * ssim_loss))
 
             # Apply adam optimizer
             self.train_op = tf.compat.v1.train.AdamOptimizer(learning_rate=self.learning_rate_t).minimize(self.loss_t)
@@ -300,6 +316,7 @@ class ZSSR:
         for self.iter in range(self.conf.max_iters):
             # Use augmentation from original input image to create current father.
             # If other scale factors were applied before, their result is also used (hr_fathers_in)
+            
             self.hr_father = random_augment(ims=self.hr_fathers_sources,
                                             base_scales=[1.0] + self.conf.scale_factors,
                                             leave_as_is_probability=self.conf.augment_leave_as_is_probability,
@@ -398,9 +415,9 @@ class ZSSR:
 
     def plot(self):
         plots_data, labels = zip(*[(np.array(x), l) for (x, l)
-                                   in zip([self.mse, self.mse_rec, self.interp_mse, self.interp_rec_mse],
+                                   in zip([self.mse, self.mse_rec, self.interp_mse, self.interp_rec_mse, self.loss[-1]],
                                           ['True MSE', 'Reconstruct MSE', 'Bicubic to ground truth MSE',
-                                           'Bicubic to reconstruct MSE']) if x is not None])
+                                           'Bicubic to reconstruct MSE', 'Total Loss']) if x is not None])
 
         # For the first iteration create the figure
         if not self.iter:

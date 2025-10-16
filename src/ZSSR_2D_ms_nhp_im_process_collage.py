@@ -45,8 +45,8 @@ def do_norm_im(im_slice:np.ndarray=0):
 
 def do_collage_ZSSR_nhp(low_res_im:np.ndarray=None, recon_conf:configs_2.Config=None, 
                         debug_mode:bool=False, fname_file_save:str=None, 
-                        contrast_enhance:bool=False, write_nifti:bool=True,
-                        num_iters_srr:int=1):  
+                        contrast_enhance:bool=False, write_nifti:bool=True, kernel=None,
+                        num_iters_srr:int=1, ground_truth:np.ndarray=None):  
     ''' Input: low-resolution collage
         Output: high resolution collage in direction and factor specified by config
     '''
@@ -74,17 +74,27 @@ def do_collage_ZSSR_nhp(low_res_im:np.ndarray=None, recon_conf:configs_2.Config=
     
     for iter_srr in range(num_iters_srr):
         input_img = np.zeros((low_res_im.shape[0], low_res_im.shape[1], 3))
-        seg = do_norm_im(low_res_im)
-
+        if ground_truth is not None:    
+            ground_truth_img = np.zeros((ground_truth.shape[0], ground_truth.shape[1], 3))
+            ground_truth_img[:, :, 0] = do_norm_im(ground_truth)
+            ground_truth_img[:, :, 1] = do_norm_im(ground_truth)
+            ground_truth_img[:, :, 2] = do_norm_im(ground_truth)
+            ground_truth_img = do_norm_im(ground_truth_img) 
+            np.nan_to_num(ground_truth_img, copy=False,nan=0.0)
+        else:
+            ground_truth_img = None
+        seg = do_norm_im(low_res_im) 
+      
         input_img[:, :, 0] = seg
         input_img[:, :, 1] = seg
         input_img[:, :, 2] = seg
-
+        
         np.nan_to_num(input_img, copy=False,nan=0.0)
         
         if np.sum(input_img) > 0:
             # do first pass - x, y all slices
-            net = ZSSR.ZSSR(input_img = input_img, conf=recon_conf, ground_truth=None, kernels=None)
+            net = ZSSR.ZSSR(input_img = input_img, conf=recon_conf, 
+                            ground_truth=ground_truth_img, kernels=kernel)
             output_img = net.run()
             high_res_im = np.squeeze(output_img[:, :, 0])
             print(Fore.YELLOW + str(slice))

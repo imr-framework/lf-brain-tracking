@@ -11,11 +11,11 @@ class Config:
     min_iters = 256
     min_learning_rate = 9e-6  # this tells the algorithm when to stop (specify lower than the last learning-rate)
     width = 64
-    depth = 8
+    depth = 12
     output_flip = True  # geometric self-ensemble (see paper)
-    downscale_method = 'cubic'  # a string ('cubic', 'linear'...), has no meaning if kernel given
-    upscale_method = 'cubic'  # this is the base interpolation from which we learn the residual (same options as above)
-    downscale_gt_method = 'cubic'  # when ground-truth given and intermediate scales tested, we shrink gt to wanted size
+    downscale_method = 'lanczos3'  # a string ('cubic', 'linear'...), has no meaning if kernel given
+    upscale_method = 'lanczos3'  # this is the base interpolation from which we learn the residual (same options as above)
+    downscale_gt_method = 'lanczos3'  # when ground-truth given and intermediate scales tested, we shrink gt to wanted size
     learn_residual = True  # when true, we only learn the residual from base interpolation
     init_variance = 0.1  # variance of weight initializations, typically smaller when residual learning is on
     back_projection_iters = [10, 10]  # for each scale num of bp iterations (same length as scale_factors)
@@ -32,15 +32,15 @@ class Config:
 
     # Data augmentation related params
     augment_leave_as_is_probability = 0.05
-    augment_no_interpolate_probability = 0.45 # change to lower performance to test improvement in real noisy images
+    augment_no_interpolate_probability = 0. #0.45 change to lower performance to test improvement in real noisy images
     augment_min_scale = 0.5
     augment_scale_diff_sigma = 0.25
     augment_shear_sigma = 0.1
-    augment_allow_rotation = True  # recommended false for non-symmetric kernels
+    augment_allow_rotation = True # recommended false for non-symmetric kernels
 
     # params related to test and display
     run_test = True
-    run_test_every = 50
+    run_test_every = 100
     display_every = 20
     name = 'test'
     plot_losses = False
@@ -50,12 +50,20 @@ class Config:
     create_code_copy = True  # save a copy of the code in the results folder to easily match code changes to results
     display_test_results = True
     save_results = True
+    zssr_3d = False # whether to use 3D version of ZSSR (otherwise 2D slices are treated independently)
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         # network meta params that by default are determined (by other params) by other params but can be changed
-        self.filter_shape = ([[3, 3, 3, self.width]] +
-                             [[3, 3, self.width, self.width]] * (self.depth-2) +
-                             [[3, 3, self.width, 3]])
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        if self.zssr_3d:
+            self.filter_shape = ([[3, 3, 2, self.width]] +
+                                 [[3, 3, self.width, self.width]] * (self.depth-2) +
+                                 [[3, 3, self.width, 128]])
+        else:
+            self.filter_shape = ([[3, 3, 3, self.width]] +
+                                 [[3, 3, self.width, self.width]] * (self.depth-2) +
+                                 [[3, 3, self.width, 3]])
 
 ########################################
 # Some pre-made useful example configs #

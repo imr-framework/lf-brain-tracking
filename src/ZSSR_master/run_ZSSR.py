@@ -1,13 +1,13 @@
 import GPUtil
 import glob
 import os
-from utils import prepare_result_dir
+from uti ls import prepare_result_dir
 import configs
 from time import sleep
 import sys
 import run_ZSSR_single_input
 import os
-
+sys.path.append(os.path.dirname(__file__))
 
 def main(conf_name, gpu):
     # Initialize configs and prepare result dir with date

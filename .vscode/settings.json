@@ -1,9 +1,9 @@
 {
-    "editor.fontSize": 36,
+    "editor.fontSize": 20,
     "editor.minimap.sectionHeaderFontSize": 32,
     "debug.console.fontSize": 24,
     "scm.inputFontSize": 24,
-    "terminal.integrated.fontSize": 24,
+    "terminal.integrated.fontSize": 16,
     "chat.editor.fontSize": 24,
     "markdown.preview.fontSize": 24,
     "cSpell.words": [

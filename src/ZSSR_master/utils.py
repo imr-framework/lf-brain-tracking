@@ -1,13 +1,225 @@
+import sys
+import os
+sys.path.append('/Users/sairamgeethanath/Documents/Contributions/Tools/Projects/R21/lf-brain-tracking/src/ZSSR_master/')
+sys.path.insert(0, '.')
 import numpy as np
 from math import pi, sin, cos
 from cv2 import warpPerspective, INTER_CUBIC
-from ZSSR_master.imresize import imresize
+from src.ZSSR_master.imresize import imresize
 from shutil import copy
 from time import strftime, localtime
-import os
+import numpy as np
+from scipy import ndimage
 import glob
 from scipy.ndimage import measurements, interpolation
 from scipy.io import loadmat
+from scipy.ndimage import gaussian_filter
+
+def warp_volume(volume, transform_matrix, output_shape, order=3):
+    """
+    Applies a 3D transformation to a volume using interpolation.
+
+    Args:
+        volume (np.ndarray): The input 3D NumPy array (volume).
+        transform_matrix (np.ndarray): A 4x4 transformation matrix.
+        output_shape (tuple): A tuple defining the shape (depth, height, width) 
+                              of the output volume.
+        order (int): The order of the interpolator. 0 is nearest-neighbor, 
+                     1 is linear, and 3 is cubic.
+    
+    Returns:
+        np.ndarray: The warped output volume.
+    """
+    # Create output grid coordinates
+    output_depth, output_height, output_width = output_shape
+    
+    output_coords = np.meshgrid(
+        np.arange(output_depth),
+        np.arange(output_height),
+        np.arange(output_width),
+        indexing='ij'
+    )
+    
+    # Flatten the grid coordinates and add homogeneous coordinate (1)
+    output_coords_flat = np.vstack([c.flatten() for c in output_coords])
+    output_coords_homogeneous = np.vstack([output_coords_flat, np.ones(output_coords_flat.shape[1])])
+
+    # Get the inverse transformation matrix
+    inverse_transform_matrix = np.linalg.inv(transform_matrix)
+    
+    # Map output coordinates back to input coordinates
+    input_coords_homogeneous = inverse_transform_matrix @ output_coords_homogeneous
+    input_coords = input_coords_homogeneous[:3] / input_coords_homogeneous[3]
+
+    # Reshape input coordinates for map_coordinates
+    input_coords_reshaped = input_coords.reshape(3, *output_shape)
+
+    # Perform 3D interpolation
+    warped_volume = ndimage.map_coordinates(
+        volume,
+        input_coords_reshaped,
+        order=order,
+        mode='constant',
+        cval=0.0
+    )
+
+    return warped_volume
+
+#
+
+def random_augment_3D(ims,
+                   base_scales=None,
+                   leave_as_is_probability=0.2,
+                   no_interpolate_probability=0.3,
+                   min_scale=0.5,
+                   max_scale=1.0,
+                   allow_rotation=True,
+                   scale_diff_sigma=0.01,
+                   shear_sigma=0.01,
+                   crop_size=128):
+
+    # Determine which kind of augmentation takes place according to probabilities
+    random_chooser = np.random.rand()
+
+    # Option 1: No augmentation, return the original image
+    if random_chooser < leave_as_is_probability:
+        mode = 'leave_as_is'
+
+    # Option 2: Only non-interpolated augmentation, which means 8 possible augs (4 rotations X 2 mirror flips)
+    elif leave_as_is_probability < random_chooser < leave_as_is_probability + no_interpolate_probability:
+        mode = 'no_interp'
+
+    # Option 3: Affine transformation (uses interpolation)
+    else:
+        mode = 'affine'
+
+    # If scales not given, calculate them according to sizes of images. This would be suboptimal, because when scales
+    # are not integers, different scales can have the same image shape.
+    if base_scales is None:
+        base_scales = [np.sqrt(np.prod(im.shape) / np.prod(ims[0].shape)) for im in ims]
+
+    # In case scale is a list of scales with take the smallest one to be the allowed minimum
+    max_scale = np.min([max_scale])
+
+    # Determine a random scale by probability
+    if mode == 'leave_as_is':
+        scale = 1.0
+    else:
+        scale = np.random.rand() * (max_scale - min_scale) + min_scale
+
+    # The image we will use is the smallest one that is bigger than the wanted scale
+    # (Using a small value overlap instead of >= to prevent float issues)
+    scale_ind, base_scale = next((ind, np.min([base_scale])) for ind, base_scale in enumerate(base_scales)
+                                 if np.min([base_scale]) > scale - 1.0e-6)
+    im = ims[scale_ind]
+
+    # Next are matrices whose multiplication will be the transformation. All are 3x3 matrices.
+
+    # First matrix shifts image to center so that crop is in the center of the image (3D version)
+    shift_to_center_mat = np.array([[1, 0, 0, -im.shape[2] / 2.0],
+                                    [0, 1, 0, -im.shape[1] / 2.0],
+                                    [0, 0, 1, -im.shape[0] / 2.0],
+                                    [0, 0, 0, 1]])
+
+    shift_back_from_center = np.array([[1, 0, 0, im.shape[2] / 2.0],
+                                       [0, 1, 0, im.shape[1] / 2.0],
+                                       [0, 0, 1, im.shape[0] / 2.0],
+                                       [0, 0, 0, 1]])
+    # Keeping the transform interpolation free means only shifting by integers
+    if mode != 'affine':
+        shift_to_center_mat = np.round(shift_to_center_mat)
+        shift_back_from_center = np.round(shift_back_from_center)
+
+    # Scale matrix (3D)
+    if mode == 'affine':
+        scale /= base_scale
+        scale_diff = np.random.randn() * scale_diff_sigma
+    else:
+        scale = 1.0
+        scale_diff = 0.0
+    # Mirror reflection possibility (3D: can reflect along any axis, but here just one for simplicity)
+    if mode == 'leave_as_is' or not allow_rotation:
+        reflect = 1
+    else:
+        reflect = np.sign(np.random.randn())
+
+    scale_mat = np.array([[reflect * (scale + scale_diff / 2), 0, 0, 0],
+                          [0, scale - scale_diff / 2, 0, 0],
+                          [0, 0, scale, 0],
+                          [0, 0, 0, 1]])
+
+    # Shift matrix for random crop (3D)
+    shift_x = np.random.rand() * np.clip(scale * im.shape[2] - crop_size, 0, 9999)
+    shift_y = np.random.rand() * np.clip(scale * im.shape[1] - crop_size, 0, 9999)
+    shift_z = np.random.rand() * np.clip(scale * im.shape[0] - crop_size, 0, 9999)
+    shift_mat = np.array([[1, 0, 0, -shift_x],
+                          [0, 1, 0, -shift_y],
+                          [0, 0, 1, -shift_z],
+                          [0, 0, 0, 1]])
+
+    # Keeping the transform interpolation free means only shifting by integers
+    if mode != 'affine':
+        shift_mat = np.round(shift_mat)
+
+    # Rotation matrix (3D: random rotation around each axis)
+    if mode == 'affine':
+        theta_x = np.random.rand() * 2 * pi
+        theta_y = np.random.rand() * 2 * pi
+        theta_z = np.random.rand() * 2 * pi
+    elif mode == 'no_interp':
+        theta_x = np.random.randint(4) * pi / 2
+        theta_y = np.random.randint(4) * pi / 2
+        theta_z = np.random.randint(4) * pi / 2
+    else:
+        theta_x = theta_y = theta_z = 0
+    if not allow_rotation:
+        theta_x = theta_y = theta_z = 0
+
+    # Rotation matrices around each axis
+    Rx = np.array([[1, 0, 0, 0],
+                   [0, cos(theta_x), -sin(theta_x), 0],
+                   [0, sin(theta_x), cos(theta_x), 0],
+                   [0, 0, 0, 1]])
+    Ry = np.array([[cos(theta_y), 0, sin(theta_y), 0],
+                   [0, 1, 0, 0],
+                   [-sin(theta_y), 0, cos(theta_y), 0],
+                   [0, 0, 0, 1]])
+    Rz = np.array([[cos(theta_z), -sin(theta_z), 0, 0],
+                   [sin(theta_z), cos(theta_z), 0, 0],
+                   [0, 0, 1, 0],
+                   [0, 0, 0, 1]])
+    rotation_mat = Rz.dot(Ry).dot(Rx)
+
+    # Shear matrix (3D)
+    if mode == 'affine':
+        shear_xy = np.random.randn() * shear_sigma
+        shear_xz = np.random.randn() * shear_sigma
+        shear_yx = np.random.randn() * shear_sigma
+        shear_yz = np.random.randn() * shear_sigma
+        shear_zx = np.random.randn() * shear_sigma
+        shear_zy = np.random.randn() * shear_sigma
+    else:
+        shear_xy = shear_xz = shear_yx = shear_yz = shear_zx = shear_zy = 0
+    shear_mat = np.array([[1, shear_xy, shear_xz, 0],
+                          [shear_yx, 1, shear_yz, 0],
+                          [shear_zx, shear_zy, 1, 0],
+                          [0, 0, 0, 1]])
+
+    # Final transformation matrix (3D)
+    transform_mat = (shift_back_from_center
+                     .dot(shift_mat)
+                     .dot(shear_mat)
+                     .dot(rotation_mat)
+                     .dot(scale_mat)
+                     .dot(shift_to_center_mat))
+    
+    # Apply transformation to image and return the transformed image clipped between 0-1
+    transformed_im = warp_volume(im, transform_mat, (crop_size, crop_size, crop_size), order=3)
+
+    return transformed_im
+
+
+
 
 
 def random_augment(ims,
@@ -95,7 +307,6 @@ def random_augment(ims,
     shift_mat = np.array([[1, 0, - shift_x],
                           [0, 1, - shift_y],
                           [0, 0, 1]])
-
     # Keeping the transform interpolation free means only shifting by integers
     if mode != 'affine':
         shift_mat = np.round(shift_mat)
@@ -134,7 +345,35 @@ def random_augment(ims,
                      .dot(shift_to_center_mat))
 
     # Apply transformation to image and return the transformed image clipped between 0-1
-    return np.clip(warpPerspective(im, transform_mat, (crop_size, crop_size), flags=INTER_CUBIC), 0, 1)
+    transformed_im = warpPerspective(im, transform_mat, (crop_size, crop_size), flags=INTER_CUBIC)
+    attempts = 0
+    while np.sum(transformed_im) <= 0.3 and attempts < 10:
+        # Redo augmentation
+        # print('Black image, redoing augmentation: ' + str(attempts))
+        transformed_im = random_augment(ims,
+                                        base_scales=base_scales,
+                                        leave_as_is_probability=leave_as_is_probability,
+                                        no_interpolate_probability=no_interpolate_probability,
+                                        min_scale=min_scale,
+                                        max_scale=max_scale,
+                                        allow_rotation=allow_rotation,
+                                        scale_diff_sigma=scale_diff_sigma,
+                                        shear_sigma=shear_sigma,
+                                        crop_size=crop_size)
+        attempts += 1
+
+    # Apply unsharp masking to enhance edges for better SRR performance
+
+    # Parameters for unsharp mask
+    sigma = 1.0  # Standard deviation for Gaussian blur
+    amount = 10.0  # Amount of sharpening
+
+    # Create blurred image
+    # blurred = gaussian_filter(transformed_im, sigma=sigma)
+    # # Unsharp mask: original + amount * (original - blurred)
+    # transformed_im = np.clip(transformed_im + amount * (transformed_im - blurred), 0, 1)
+    return transformed_im
+    
 
 
 def back_projection(y_sr, y_lr, down_kernel, up_kernel, sf=None):
@@ -181,7 +420,7 @@ def kernel_shift(kernel, sf):
 
     # Before applying the shift, we first pad the kernel so that nothing is lost due to the shift
     # (biggest shift among dims + 1 for safety)
-    kernel = np.pad(kernel, np.int(np.ceil(np.max(np.abs(shift_vec)))) + 1, 'constant')
+    kernel = np.pad(kernel, int(np.ceil(np.max(np.abs(shift_vec)))) + 1, 'constant')
 
     # Finally shift the kernel and return
     return interpolation.shift(kernel, shift_vec)

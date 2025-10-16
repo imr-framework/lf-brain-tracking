@@ -1,6 +1,6 @@
 import nibabel as nib
 import numpy as np
-from utils import preprocess_img_nhp, mosaic_all_slices, mosaic_to_3D, get_num_cols_rows
+from src.utils import preprocess_img_nhp, mosaic_all_slices, mosaic_to_3D, get_num_cols_rows
 from nifti_write import make_nifti
 from ZSSR_master import configs, configs_2, ZSSR
 from ZSSR_2D_ms_nhp_im_process_collage import do_collage_ZSSR_nhp
@@ -10,6 +10,7 @@ from nibabel.viewers import OrthoSlicer3D
 from roipoly import RoiPoly
 import cv2
 from skimage.transform import resize
+import pywt
 
 visible = False
 
@@ -28,11 +29,19 @@ def do_mask_image(img:np.ndarray=None):
 
 def do_ZSSR_steps(img:np.ndarray=None, recon_conf:configs.Config=None,
                     num_cols:int=5, num_rows:int=5,
-                    fname_zssr:str=None, fspec:str='', scale_fact:int=2):
+                    fname_zssr:str=None, fspec:str='', scale_fact:int=2, dims:int=1, ground_truth:np.ndarray=None, kernel=None):
     fext='.nii.gz'
     # Convert to mosaic
-    input2zssr = mosaic_all_slices(img, debug=True,
+    input2zssr = mosaic_all_slices(img, debug=False,
                                     filename=fname_zssr +'_input.png', savefig=True,
+                                    num_cols=num_cols, num_rows=num_rows) # adds a 90 degree rotation
+
+
+    
+    if ground_truth is not None:
+        print('Ground truth provided ...')
+        input2zssr_gt = mosaic_all_slices(ground_truth, debug=False,
+                                    filename=fname_zssr +'_gt.png', savefig=True,
                                     num_cols=num_cols, num_rows=num_rows) # adds a 90 degree rotation
 
     print(input2zssr.shape)
@@ -45,42 +54,61 @@ def do_ZSSR_steps(img:np.ndarray=None, recon_conf:configs.Config=None,
     # OrthoSlicer3D(vol_check).show()
     # plt.show()
     # # Perform collage ZSSR - in 1 dimension, say x direction
-    recon_conf.scale_factors = [[scale_fact, 1]]
+    recon_conf.scale_factors = [[1, np.sqrt(scale_fact)]]
     im_collage_x = do_collage_ZSSR_nhp(low_res_im=input2zssr, recon_conf=recon_conf, 
                             debug_mode=False, fname_file_save=fname_zssr + fspec + fext, 
-                            contrast_enhance=False, write_nifti=False,
-                            num_iters_srr=1)
+                            contrast_enhance=False, write_nifti=False, kernel=kernel,
+                            num_iters_srr=1, ground_truth=input2zssr_gt if ground_truth is not None else None)
+    
+    im_collage_x = do_collage_ZSSR_nhp(low_res_im=im_collage_x, recon_conf=recon_conf, 
+                            debug_mode=False, fname_file_save=fname_zssr + fspec + fext, 
+                            contrast_enhance=False, write_nifti=False, kernel=kernel,
+                            num_iters_srr=1, ground_truth=input2zssr_gt if ground_truth is not None else None)
     # plt.imshow(im_collage,cmap='gray')
     # plt.show()
     print(im_collage_x.shape)
 
     
+    if dims == 2:
+        # Perform collage ZSSR - in the other dimension, say y direction
+        recon_conf.scale_factors = [[scale_fact, 1]]
+        im_collage = do_collage_ZSSR_nhp(low_res_im=im_collage_x, recon_conf=recon_conf, 
+                                debug_mode=False, fname_file_save=fname_zssr + fspec + fext, 
+                                contrast_enhance=False, write_nifti=False,
+                                num_iters_srr=1)
+        
+        new_dims = [int(img.shape[0]* scale_fact), int(img.shape[1]* scale_fact),
+                    img.shape[2]]
+        srr_volume = mosaic_to_3D(im_collage, orig_dim1=new_dims[0], 
+                                            orig_dim2=new_dims[1], orig_dim3=new_dims[2], num_cols=num_cols, num_rows = num_rows)
+        
+        # dislpay the srr_volume
+        print(Fore.GREEN + 'New shape of volume after collage to 3D is: '+ str(srr_volume.shape))
+        # OrthoSlicer3D(srr_volume).show()
+        # plt.show()
 
-    # Perform collage ZSSR - in the other dimension, say y direction
-    recon_conf.scale_factors = [[1, scale_fact]]
-    im_collage = do_collage_ZSSR_nhp(low_res_im=im_collage_x, recon_conf=recon_conf, 
-                            debug_mode=False, fname_file_save=fname_zssr + fspec + fext, 
-                            contrast_enhance=False, write_nifti=False,
-                            num_iters_srr=1)
-    
-
-
-    new_dims = [int(img.shape[0]), int(img.shape[1]* scale_fact),
+        new_dims = [int(img.shape[0]), int(img.shape[1]* scale_fact),
                 img.shape[2]* scale_fact]
+
+    else:
+        im_collage = im_collage_x
+        new_dims = [int(img.shape[0]), int(img.shape[1]),
+                img.shape[2]* scale_fact]
+    
     srr_volume = mosaic_to_3D(im_collage, orig_dim1=new_dims[0], 
                                         orig_dim2=new_dims[1], orig_dim3=new_dims[2], num_cols=num_cols, num_rows = num_rows)
     
     # dislpay the srr_volume
     print(Fore.GREEN + 'New shape of volume after collage to 3D is: '+ str(srr_volume.shape))
-    OrthoSlicer3D(srr_volume).show()
-    plt.show()
+    # OrthoSlicer3D(srr_volume).show()
+    # plt.show()
 
-    # We will make this conditional on debug but using it for now
-    filename = fname_zssr + fspec + 'op_collage.png'
-    plt.imshow(im_collage, cmap='gray')
-    plt.axis('off')
-    plt.savefig(filename, bbox_inches="tight")
-    plt.show()
+    # # We will make this conditional on debug but using it for now
+    # filename = fname_zssr + fspec + 'op_collage.png'
+    # plt.imshow(im_collage, cmap='gray')
+    # plt.axis('off')
+    # plt.savefig(filename, bbox_inches="tight")
+    # plt.show()
     return srr_volume
 
 # ----------------------------------------------

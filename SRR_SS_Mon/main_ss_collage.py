@@ -22,7 +22,7 @@ import tensorflow as tf
 import pydicom
 import numpy as np
 import matplotlib
-matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
+# matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
 
 from pydicom.filereader import dcmread
 from tensorflow.keras import backend as K
@@ -65,8 +65,7 @@ crop_sizes = [128, 64]
 noise_stds = [0.0, 0.2]
 
 # Load dataset
-training_path = "Data/ULC_img enhancement/Training data"
-
+training_path = "Data/ULC_img_enhancement/Training data"
 dataset = PairedMRI(training_path)
 
 # List subjects

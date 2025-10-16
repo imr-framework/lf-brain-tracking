@@ -1,3 +1,6 @@
+import sys
+sys.path.append('/Users/sairamgeethanath/Documents/Contributions/Tools/Projects/R21/lf-brain-tracking/src/ZSSR_master/')
+
 import nibabel as nib
 import numpy as np
 from skimage.restoration import denoise_wavelet
@@ -5,7 +8,6 @@ from skimage.filters import unsharp_mask
 import matplotlib.pyplot as plt
 from src.nifti_write import make_nifti
 from nibabel.viewers import OrthoSlicer3D
-
 def preprocess_img_nhp(data,  debug=False):
     # Load the NIfTI file
    
@@ -64,8 +66,8 @@ def mosaic_all_slices(processed_data, debug=False,
     # if num_cols ** 2 > num_slices:
     #     num_cols = 5
     #     num_rows = num_slices // num_cols
-    visible = True
-    if visible == True:
+
+    if debug == True:
         OrthoSlicer3D(processed_data).show()
     # Create an empty array to hold the collage
     collage_height = num_rows * processed_data.shape[1]
@@ -166,4 +168,25 @@ def get_factors(num):
     factor = factors[-1]
     return factor
 
+# # Compute Average Edge Strength (AES)
+def compute_aes(image):
+    # Compute gradients using Sobel filter
+    from scipy.ndimage import sobel
+    dx = sobel(image, axis=0)
+    dy = sobel(image, axis=1)
+    if image.ndim == 3: 
+        dz = sobel(image, axis=2)
+    else:
+        dz = 0
+            
+    # Compute gradient magnitude
+    grad_mag = np.sqrt(dx**2 + dy**2 + dz**2)
+    # Average Edge Strength
+    aes_value = np.mean(grad_mag)
+    return aes_value
 
+def do_norm_im(im_slice:np.ndarray=0):
+    max_slice = np.max(im_slice)
+    min_slice = np.min(im_slice)
+    im_slice_norm = (im_slice - min_slice) / (max_slice - min_slice)
+    return im_slice_norm
