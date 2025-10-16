@@ -30,7 +30,7 @@ def edge_loss(y_true, y_pred):
 def l1_l2_ssim_loss(y_true, y_pred, w1=0.2, w2=0.6, w3=0.2):
     return w1 * l1_loss(y_true, y_pred) + w2 * l2_loss(y_true, y_pred) + w3 * ssim_loss(y_true, y_pred)
 
-def l2_ssim_loss(y_true, y_pred, w2=0.8, w3=0.2):
+def l2_ssim_loss(y_true, y_pred, w2=0.7, w3=0.3):
     return w2 * l2_loss(y_true, y_pred) + w3 * ssim_loss(y_true, y_pred)
 
 def l1_ssim_loss(y_true, y_pred, w1=0.2, w3=0.8):

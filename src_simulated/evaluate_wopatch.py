@@ -11,41 +11,34 @@ from src_niv.utils import visualize_pair
 # ------------------------------------------------
 # Sliding Window Inference
 # ------------------------------------------------
-def predict_volume(model, lf_volume, patch_size=(64,64,32), overlap=0.5):
+import numpy as np
+
+def predict_volume(model, lf_volume):
     """
-    Sliding-window 3D prediction on LF volume.
-    Returns predicted enhanced volume of same shape.
+    Predict enhanced volume on the entire LF volume at once.
+    Pads the input to nearest multiple of 8 and unpads after prediction.
+    Returns output of the same shape as input.
     """
     H, W, D = lf_volume.shape
-    px, py, pz = patch_size
 
-    # Strides
-    sx = int(px * (1 - overlap))
-    sy = int(py * (1 - overlap))
-    sz = int(pz * (1 - overlap))
+    # ✅ Pad to nearest multiple of 8 (for U-Net-like models)
+    pad_x = (8 - (H % 8)) if H % 8 != 0 else 0
+    pad_y = (8 - (W % 8)) if W % 8 != 0 else 0
+    pad_z = (8 - (D % 8)) if D % 8 != 0 else 0
 
-    pad_x = (px - H % px) if H % px != 0 else 0
-    pad_y = (py - W % py) if W % py != 0 else 0
-    pad_z = (pz - D % pz) if D % pz != 0 else 0
+    lf_padded = np.pad(lf_volume, ((0, pad_x), (0, pad_y), (0, pad_z)), mode='reflect')
 
-    lf_padded = np.pad(lf_volume, ((0,pad_x),(0,pad_y),(0,pad_z)), mode='reflect')
-    H_pad, W_pad, D_pad = lf_padded.shape
+    # Add batch and channel dimensions → (1, H, W, D, 1)
+    input_tensor = np.expand_dims(lf_padded, axis=(0, -1)).astype(np.float32)
 
-    pred_volume = np.zeros_like(lf_padded, dtype=np.float32)
-    count_volume = np.zeros_like(lf_padded, dtype=np.float32)
+    # 🔮 Predict entire volume
+    pred = model.predict(input_tensor, verbose=1)
+    pred = np.squeeze(pred)  # remove batch/channel dims
 
-    for x in range(0, H_pad - px + 1, sx):
-        for y in range(0, W_pad - py + 1, sy):
-            for z in range(0, D_pad - pz + 1, sz):
-                patch = lf_padded[x:x+px, y:y+py, z:z+pz]
-                patch_input = np.expand_dims(patch, axis=(0,-1))
-                pred_patch = model.predict(patch_input, verbose=0)
-                pred_patch = np.squeeze(pred_patch)
-                pred_volume[x:x+px, y:y+py, z:z+pz] += pred_patch
-                count_volume[x:x+px, y:y+py, z:z+pz] += 1.0
+    # ✅ Unpad to match original shape
+    pred_unpadded = pred[:H, :W, :D]
 
-    pred_volume /= np.maximum(count_volume, 1e-8)
-    return pred_volume[:H, :W, :D]
+    return pred_unpadded
 
 
 # ------------------------------------------------
@@ -150,10 +143,10 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
         hf = y_test[i]
 
         # ---- Stage 1 Prediction ----
-        pred1 = predict_volume(model1, lf, patch_size=patch_size, overlap=overlap)
+        pred1 = predict_volume(model1, lf)
 
         # ---- Stage 2 Refinement ----
-        pred2 = predict_volume(model2, pred1, patch_size=patch_size, overlap=overlap)
+        pred2 = predict_volume(model2, pred1)
 
         # ---- Compute Metrics ----
         psnr1 = psnr(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),

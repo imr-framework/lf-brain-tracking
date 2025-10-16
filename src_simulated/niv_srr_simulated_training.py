@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, './') 
+sys.path.insert(0, './')
 
 import os
 import numpy as np
@@ -17,23 +17,36 @@ from src_niv.metrics import psnr, ssim, mse, composite_loss
 from tensorflow.keras.losses import MeanAbsoluteError, MeanSquaredError
 from src_niv.utils import visualize_pair
 from src_simulated.utils_simulated import *
-tf.keras.backend.clear_session()
+from src_simulated.losses import *
+
+# l1_loss
+# l2_loss
+# ssim_loss
+# l1_l2_ssim_loss
+# l2_ssim_loss
+# l1_ssim_loss
+# mse_ssim_edge_loss
+
 # -----------------------------
 # PARAMETERS
 # -----------------------------
+from src_simulated.config import config
+
+print(config.model_name)
+
 data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
 subjects = ["26184", "30366", "35528","34507", "35547", "59228", "59877","59233"]
 train_day = 1
 val_day = 2
 test_days = [3, 4, 5]
 model_type = residual_srr_unet
-model_name = "residual_srr_unet_30"
-output_path = "Output_l1"
+model_name = "residual_srr_unet"
+output_path = config.output_path
 os.makedirs(output_path, exist_ok=True)
-batch_size = 32
+# batch_size = 32
+patch_z, patch_xy = 0, 0
 visualize = False
 angles = [10, 20, 25, -10, -20, -25]
-checkpoint_path = os.path.join(output_path, f"{model_name}_checkpoint.keras")
 
 # -----------------------------
 # DATA LOADING
@@ -99,27 +112,40 @@ def rotation_3d(volume, angle, axes=(0,1)):
 # -----------------------------
 # CUSTOM BATCH GENERATOR
 # -----------------------------
-import numpy as np, random
+
+import numpy as np
 
 def srr_batch_generator(
     lf_volumes, hf_volumes,
     batch_size=32,
     patch_xy=64, patch_z=32,
-    patches_per_volume=12,
+    patches_per_volume=8,
     augment=True,
     augmentations_per_patch=3,
-    angles=(0, 5, 10, 20, 25),
+    angles=(0, 5, 10, 15, 20),
     jitter=5,
     intensity_aug=False,
     noise_std=0.01
 ):
     """
-    3D SRR Patch or Full-Volume Generator.
+    3D SRR Patch Generator for patch-based or full-volume training.
 
-    Works in two modes:
-    - Patch mode (if patch_xy, patch_z > 0)
-    - Full-volume mode (if patch_xy == 0 or patch_z == 0)
+    Modes:
+    ------
+    • Patch mode: if patch_xy > 0 and patch_z > 0 → extracts random 3D patches
+    • Full-volume mode: if patch_xy == 0 or patch_z == 0 → uses entire volume
+      and applies 31 augmentations per volume (batch of 32)
+
+    Parameters:
+    -----------
+    lf_volumes, hf_volumes : np.ndarray
+        Arrays of shape (N, H, W, D)
+    batch_size : int
+        Number of total samples per batch (in patch mode)
+    augment : bool
+        Whether to apply augmentations
     """
+
     n_samples = lf_volumes.shape[0]
     volume_order = np.random.permutation(n_samples)
     vol_idx = 0
@@ -136,57 +162,77 @@ def srr_batch_generator(
             if vol_idx == 0:
                 volume_order = np.random.permutation(n_samples)
 
-            # Pad to multiples of 8 for CNN compatibility
-            lf, _ = pad_volume_to_multiple(lf, multiple=8)
-            hf, _ = pad_volume_to_multiple(hf, multiple=8)
-            H, W, D = lf.shape
+            # ------------------------------
+            # 🔹 FULL-VOLUME MODE
+            # ------------------------------
+            if patch_xy == 0 or patch_z == 0:
+                lf, _ = pad_volume_to_multiple(lf, multiple=8)
+                hf, _ = pad_volume_to_multiple(hf, multiple=8)
 
-            # --- PATCH MODE ---
-            if patch_xy > 0 and patch_z > 0:
-                for _ in range(patches_per_volume):
-                    z_start = np.random.randint(0, max(1, D - patch_z))
-                    y_start = np.random.randint(0, max(1, H - patch_xy))
-                    x_start = np.random.randint(0, max(1, W - patch_xy))
-
-                    lf_patch = lf[y_start:y_start + patch_xy,
-                                  x_start:x_start + patch_xy,
-                                  z_start:z_start + patch_z]
-                    hf_patch = hf[y_start:y_start + patch_xy,
-                                  x_start:x_start + patch_xy,
-                                  z_start:z_start + patch_z]
-
-                    # Add original patch
-                    x_batch.append(np.expand_dims(lf_patch, axis=-1))
-                    y_batch.append(np.expand_dims(hf_patch, axis=-1))
-
-                    # Augmentations
-                    if augment:
-                        for _ in range(augmentations_per_patch):
-                            aug_lf, aug_hf = augment_patch_pair(
-                                lf_patch.copy(), hf_patch.copy(),
-                                angles, jitter, intensity_aug, noise_std
-                            )
-                            x_batch.append(np.expand_dims(aug_lf, axis=-1))
-                            y_batch.append(np.expand_dims(aug_hf, axis=-1))
-
-            # --- FULL-VOLUME MODE ---
-            else:
+                # Add original
                 x_batch.append(np.expand_dims(lf, axis=-1))
                 y_batch.append(np.expand_dims(hf, axis=-1))
 
                 if augment:
-                    for _ in range(augmentations_per_patch):
+                    # 31 augmentations per volume → total 32
+                    for _ in range(7):
                         aug_lf, aug_hf = augment_patch_pair(
                             lf.copy(), hf.copy(),
-                            angles, jitter, intensity_aug, noise_std
+                            angles=angles,
+                            jitter=jitter,
+                            intensity_aug=intensity_aug,
+                            noise_std=noise_std
                         )
                         x_batch.append(np.expand_dims(aug_lf, axis=-1))
                         y_batch.append(np.expand_dims(aug_hf, axis=-1))
 
-        # Stack and trim
+                # Once full set generated, yield immediately
+                x_batch = np.stack(x_batch[:32], axis=0)
+                y_batch = np.stack(y_batch[:32], axis=0)
+                yield x_batch.astype(np.float32), y_batch.astype(np.float32)
+                x_batch, y_batch = [], []
+                continue  # proceed to next volume
+
+            # ------------------------------
+            # 🔹 PATCH-BASED MODE
+            # ------------------------------
+            lf, _ = pad_volume_to_multiple(lf, multiple=8)
+            hf, _ = pad_volume_to_multiple(hf, multiple=8)
+            H, W, D = lf.shape
+
+            for _ in range(patches_per_volume):
+                z_start = np.random.randint(0, max(1, D - patch_z))
+                y_start = np.random.randint(0, max(1, H - patch_xy))
+                x_start = np.random.randint(0, max(1, W - patch_xy))
+
+                lf_patch = lf[y_start:y_start + patch_xy,
+                              x_start:x_start + patch_xy,
+                              z_start:z_start + patch_z]
+                hf_patch = hf[y_start:y_start + patch_xy,
+                              x_start:x_start + patch_xy,
+                              z_start:z_start + patch_z]
+
+                x_batch.append(np.expand_dims(lf_patch, axis=-1))
+                y_batch.append(np.expand_dims(hf_patch, axis=-1))
+
+                # Add augmentations per patch
+                if augment:
+                    for _ in range(augmentations_per_patch):
+                        aug_lf, aug_hf = augment_patch_pair(
+                            lf_patch.copy(), hf_patch.copy(),
+                            angles=angles,
+                            jitter=jitter,
+                            intensity_aug=intensity_aug,
+                            noise_std=noise_std
+                        )
+                        x_batch.append(np.expand_dims(aug_lf, axis=-1))
+                        y_batch.append(np.expand_dims(aug_hf, axis=-1))
+
+        # Stack and trim to batch_size
         x_batch = np.stack(x_batch[:batch_size], axis=0)
         y_batch = np.stack(y_batch[:batch_size], axis=0)
         yield x_batch.astype(np.float32), y_batch.astype(np.float32)
+
 
 
 # Helper for augmentations
@@ -226,45 +272,52 @@ def augment_patch_pair(lf_patch, hf_patch, angles, jitter, intensity_aug, noise_
 # -----------------------------
 # MODEL BUILD / COMPILE / TRAIN
 # -----------------------------
-def build_or_load_model(model_fn, checkpoint_path, input_shape=(144,144,40,1)):
+def build_or_load_model(model_type, checkpoint_path, input_shape=(144,144,40,1)):
     if os.path.exists(checkpoint_path):
         print(f"✅ Loading model from checkpoint: {checkpoint_path}")
         model = load_model(checkpoint_path, compile=False)
     else:
         print("⚠️ Checkpoint not found. Building new model...")
-        model = model_fn(input_shape=input_shape)
+        model = model_type(config.input_shape)
     return model
 
-def l1_ssim_loss(y_true, y_pred, alpha=0.8, beta=0.2):
-    l1 = tf.reduce_mean(tf.abs(y_true - y_pred))
-    ssim = 1 - tf.reduce_mean(tf.image.ssim(y_true, y_pred, max_val=1.0))
-    return alpha * l1 + beta * ssim
+# Define custom PSNR and SSIM metrics
+def psnr_metric(y_true, y_pred):
+    return tf.image.psnr(y_true, y_pred, max_val=1.0)
 
-# Define custom L1 loss (optional explicit function)
-def l1_loss(y_true, y_pred):
-    return tf.reduce_mean(tf.abs(y_true - y_pred))
+def ssim_metric(y_true, y_pred):
+    return tf.image.ssim(y_true, y_pred, max_val=1.0)
 
-def compile_model(model, lr=0.001, loss_type='composite'):
-    """
-    Compile model with configurable loss type (L1, L2, or composite).
-    """
+def compile_model(model, lr=0.001, loss_type='l1_l2_ssim'):
+    
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+    mse_metric = MeanSquaredError(name='mse')
 
+    # --- Select Loss ---
     if loss_type == 'l1':
         loss_fn = l1_loss
     elif loss_type == 'l2':
-        loss_fn = MeanSquaredError()
+        loss_fn = l2_loss
+    elif loss_type == 'ssim':
+        loss_fn = ssim_loss
+    elif loss_type == 'l1_l2_ssim':
+        loss_fn = l1_l2_ssim_loss
+    elif loss_type == 'l2_ssim':
+        loss_fn = l2_ssim_loss
     elif loss_type == 'l1_ssim':
         loss_fn = l1_ssim_loss
-    elif loss_type == 'composite':
-        loss_fn = composite_loss  # assume you have defined this elsewhere
+    elif loss_type == 'mse_ssim_edge':
+        loss_fn = mse_ssim_edge_loss
     else:
-        raise ValueError("Invalid loss_type. Use 'l1', 'l2', or 'composite'.")
+        raise ValueError("❌ Invalid loss_type. Choose from: ['l1', 'l2', 'ssim', 'l1_ssim', 'l2_ssim', 'l1_l2_ssim', 'mse_ssim_edge'].")
 
+    # --- Compile ---
     model.compile(
         optimizer=optimizer,
         loss=loss_fn,
-        metrics=[psnr, ssim, MeanSquaredError(name='mse')]
+        metrics=[mse_metric,
+                 psnr_metric,
+                 ssim_metric]
     )
 
     print(f"✅ Model compiled with {loss_type.upper()} loss and lr={lr}")
@@ -299,7 +352,7 @@ def train_model(train_gen, val_gen, model, checkpoint_path,
 
     early_stop_cb = EarlyStopping(
         monitor='val_ssim',
-        patience=60,
+        patience=50,
         restore_best_weights=True,
         mode='max',
         verbose=1
@@ -413,13 +466,13 @@ def evaluate_on_sample(model, lf_volume, hf_volume,
 # -----------------------------
 def run_training(lf_train, hf_train, lf_val, hf_val,
                  output_path, model_type=residual_srr_unet, model_name = 'ResUNet',
-                 patch_xy=64, patch_z=32,
+                 loss_type = 'l1_l2_ssim', patch_xy=64, patch_z=32,
                  batch_size=32, steps_per_epoch=48, epochs=500):
     
     import os
     # checkpoint_path = os.path.join(output_path, f"{model_name}_checkpoint.keras")
-    model = build_or_load_model(model_type, checkpoint_path)
-    model = compile_model(model, lr=0.001, loss_type='composite')
+    model = build_or_load_model(model_type, config.checkpoint_path)
+    model = compile_model(model, lr=0.001, loss_type=loss_type)
     
     # Generators
     train_gen = srr_batch_generator(
@@ -428,7 +481,7 @@ def run_training(lf_train, hf_train, lf_val, hf_val,
         batch_size=batch_size,
         patch_xy=patch_xy,
         patch_z=patch_z,
-        augment=True
+        augment=config.train_augment
     )
 
     val_gen = srr_batch_generator(
@@ -437,7 +490,7 @@ def run_training(lf_train, hf_train, lf_val, hf_val,
         batch_size=8,         # validation smaller
         patch_xy=patch_xy,
         patch_z=patch_z,
-        augment=False
+        augment=config.val_augment
     )
 
     # Steps
@@ -449,7 +502,7 @@ def run_training(lf_train, hf_train, lf_val, hf_val,
         train_gen,
         val_gen,
         model,
-        checkpoint_path,
+        config.checkpoint_path,
         steps_per_epoch=steps_per_epoch,
         validation_steps = validation_steps,
         epochs=epochs
@@ -465,7 +518,7 @@ def run_training(lf_train, hf_train, lf_val, hf_val,
 # -----------------------------
 # GENERATE PSEUDO-ENHANCED INPUTS
 # -----------------------------
-def predict_refined_inputs(model, lf_volumes, patch_size=(144,144,40), overlap=0.5):
+def predict_refined_inputs(model, lf_volumes, patch_size=(64,64,32), overlap=0.5):
     """Apply model prediction volume-wise to generate refined inputs."""
     refined_vols = []
     for i, lf in enumerate(lf_volumes):
@@ -525,15 +578,83 @@ def show_refinement_slices(originals, refined, n=3, axis=2):
     plt.tight_layout()
     plt.show()
 
+import numpy as np
+
+def generate_refined_training_inputs(
+    base_model,
+    X_train,
+    X_val,
+    multiple=8
+):
+    """
+    Generate pseudo-enhanced (refined) LF inputs for SRR training and validation sets.
+    Each volume is processed as a full 3D image (no patching), with padding
+    to make dimensions multiples of `multiple`.
+
+    Parameters
+    ----------
+    base_model : keras.Model
+        Pretrained model used to refine LF inputs.
+    X_train, X_val : np.ndarray
+        Arrays of LF volumes of shape (N, H, W, D).
+    multiple : int, optional
+        Ensures padding to the nearest multiple (default: 8).
+
+    Returns
+    -------
+    lf_train_refined, lf_val_refined : np.ndarray
+        Model-predicted refined LF volumes for training and validation.
+    """
+
+    def pad_volume_to_multiple(vol, multiple=8):
+        """Pad volume so each dimension is a multiple of 'multiple'."""
+        H, W, D = vol.shape
+        pad_H = (multiple - H % multiple) % multiple
+        pad_W = (multiple - W % multiple) % multiple
+        pad_D = (multiple - D % multiple) % multiple
+        padded = np.pad(vol, ((0, pad_H), (0, pad_W), (0, pad_D)), mode='reflect')
+        return padded, (H, W, D)
+
+    def predict_full_volume(model, vol, multiple=8):
+        """Predict a single 3D volume using the model (full shape)."""
+        padded, original_shape = pad_volume_to_multiple(vol, multiple)
+        inp = np.expand_dims(padded, axis=(0, -1))
+        pred = model.predict(inp, verbose=0)
+        pred = np.squeeze(pred)
+        return pred[:original_shape[0], :original_shape[1], :original_shape[2]]
+
+    # ------------------------------
+    # 🔧 Generate refined training inputs
+    # ------------------------------
+    print("🔧 Generating pseudo-enhanced training and validation inputs ...")
+
+    lf_train_refined = []
+    for i, vol in enumerate(X_train):
+        print(f"   🧠 Processing train volume {i+1}/{len(X_train)} ...")
+        refined = predict_full_volume(base_model, vol, multiple)
+        lf_train_refined.append(refined)
+    lf_train_refined = np.array(lf_train_refined, dtype=np.float32)
+
+    lf_val_refined = []
+    for i, vol in enumerate(X_val):
+        print(f"   🧠 Processing val volume {i+1}/{len(X_val)} ...")
+        refined = predict_full_volume(base_model, vol, multiple)
+        lf_val_refined.append(refined)
+    lf_val_refined = np.array(lf_val_refined, dtype=np.float32)
+
+    print("✅ Refinement complete.")
+    return lf_train_refined, lf_val_refined
+
 
 def run_retraining(checkpoint_path,
-                   model_name,
+                   refined_model_name,
                    X_train, y_train, 
                    X_val, y_val, 
                    output_path,
-                   batch_size=2,
-                   patch_xy=0,
-                   patch_z=0,
+                   batch_size=32,
+                   loss_type = 'l2_ssim_edge',
+                   patch_xy=64,
+                   patch_z=32,
                    steps_per_epoch=34,
                    epochs=1000,
                    visualize=False):
@@ -542,25 +663,31 @@ def run_retraining(checkpoint_path,
     Run second-pass retraining with refined LF inputs using a loaded base model checkpoint.
     """
     print(f"📥 Loading base model from checkpoint: {checkpoint_path}")
-    tf.keras.backend.clear_session()    
     base_model = tf.keras.models.load_model(checkpoint_path, compile=False)
 
     print("🔧 Generating pseudo-enhanced training and validation inputs ...")
-    lf_train_refined = predict_refined_inputs(base_model, X_train)
-    lf_val_refined   = predict_refined_inputs(base_model, X_val)
+    # lf_train_refined = predict_refined_inputs(base_model, X_train)
+    # lf_val_refined   = predict_refined_inputs(base_model, X_val)
+
+    lf_train_refined, lf_val_refined = generate_refined_training_inputs(
+    base_model,
+    X_train,
+    X_val,
+    multiple=8
+    )
 
     if visualize:
-        print("🖼️ Visualizing refinement results ...")
+        print(" Visualizing refinement results ...")
         show_refinement_slices(X_train, lf_train_refined, n=3, axis=2)
 
-    refined_model_name = f"refined_{model_name}"
+    
     refined_checkpoint_path = os.path.join(output_path, f"{refined_model_name}_checkpoint.keras")
 
-    print("🧠 Building and compiling refined model ...")
+    print(" Building and compiling refined model ...")
     refined_model = build_or_load_model(lambda input_shape: base_model, refined_checkpoint_path)
-    refined_model = compile_model(refined_model, lr=1e-4 )
+    refined_model = compile_model(refined_model, lr=1e-3,loss_type = loss_type)
 
-    print("📦 Creating data generators ...")
+    print(" Creating data generators ...")
     train_gen = srr_batch_generator(
         lf_volumes=lf_train_refined,
         hf_volumes=y_train,
@@ -600,7 +727,7 @@ def compare_four_volumes(vol1, vol2, vol3, vol4,
                          labels=('Input LF', 'Refined LF', 'Refined Output', 'Target HF'),
                          axis=2, n_slices=3, normalize=True):
     """
-    Display corresponding slices from four 3D volumes in a grid for comparison.
+checkpoint    Display corresponding slices from four 3D volumes in a grid for comparison.
 
     Args:
         vol1, vol2, vol3, vol4: 3D numpy arrays of same shape (H, W, D).
@@ -643,83 +770,122 @@ def compare_four_volumes(vol1, vol2, vol3, vol4,
 # MAIN EXECUTION
 # -----------------------------
 if __name__ == "__main__":
+    
     # Load data
-    X_train, y_train = load_data_for_days(subjects, [train_day])
-    X_val, y_val     = load_data_for_days(subjects, [val_day])
-    X_test, y_test = load_data_for_days(subjects, test_days)
-
-    # Normalize
-    X_train, y_train = normalize_dataset(X_train, y_train)
-    X_val, y_val     = normalize_dataset(X_val, y_val)
-    X_test, y_test = normalize_dataset(X_test, y_test)
-
-    # -----------------------------
-    # Print shapes for confirmation
-    # -----------------------------
-
-    print("\n✅ Dataset normalization complete.")
-    print(f"🧩 X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
-    print(f"🧩 X_val shape:   {X_val.shape}, y_val shape:   {y_val.shape}")
-    print(f"🧩 X_test shape:  {X_test.shape}, y_test shape:  {y_test.shape}")
-    print(f"📦 Total training volumes: {len(X_train)}")
-    print(f"📦 Total validation volumes: {len(X_val)}")
-    print(f"📦 Total testing volumes: {len(X_test)}\n")
-
-
-    # Train
-    trained_model, history = run_training(
-        lf_train=X_train,
-        hf_train=y_train,
-        lf_val=X_val,
-        hf_val=y_val,
-        output_path=output_path,
-        model_type=model_type,
-        model_name= model_name,
-        patch_xy=0,
-        patch_z=0,
-        batch_size=2,
-        steps_per_epoch=30,
-        epochs=1000
-    )
-
-    # Retrain model using Predicted X_train and Predicted_x_val
-    tf.keras.backend.clear_session()
-    refined_model, history, lf_train_refined, lf_val_refined = run_retraining(checkpoint_path,
-                   model_name,
-                   X_train, y_train, 
-                   X_val, y_val,
-                   output_path,
-                   batch_size=2,
-                   patch_xy=0,
-                   patch_z=0,
-                   steps_per_epoch=30,
-                   visualize=False)
+    # 🎯 Define selected combinations (denoise → retrain)
+        # "l1_l2_ssim"
+    selected_combinations = [
+        ("l1_l2_ssim", "mse_ssim_edge"),
+        ("l2_ssim", "mse_ssim_edge"),
+        ("l1_l2_ssim", "l2_ssim"),
+        ("l2_ssim", "l2_ssim")
+        ]
     
-    refined_model_name = f"refined_{model_name}"
-    refined_checkpoint_path = os.path.join(output_path, f"{refined_model_name}_checkpoint.keras")
-    print(f"📥 Loading base model from checkpoint: {refined_checkpoint_path}")
-    base_model = tf.keras.models.load_model(refined_checkpoint_path, compile=False)
+    # 🌀 Iterate over chosen combinations
+    for loss_denoise, loss_retrain in selected_combinations:
+        # Update config
+        config.loss_type_denoise = loss_denoise
+        config.retrain_loss_type = loss_retrain
+        # config.loss_weights_denoise = loss_weights[loss_denoise]
+        # config.loss_weights_retrain = loss_weights[loss_retrain]
+        import tensorflow as tf
+        tf.keras.backend.clear_session()
+        # Combine dynamically
+        config.model_name = f"{model_name}_{config.loss_type_denoise}_{config.retrain_loss_type}"
+        config.checkpoint_path = os.path.join(config.output_path, f"{config.model_name}_checkpoint.keras")
+        config.refined_model_name = f"{config.model_name}_retrained"
+        print("------------------------------------------------------\n")
 
-    print("🔧 Generating pseudo-enhanced training and validation inputs ...")
-    lf_train_refined_output = predict_refined_inputs(base_model, lf_train_refined)
+        # 🪶 Print summary
+        print(f"🚀 Configuration:")
+        print(f"   Model Name: {config.model_name}")
+        print(f"   Denoise Loss:  {loss_denoise} ")
+        print(f"   Retrain Loss:  {loss_retrain} ")
+        print(f"   checkpoint_path:  {config.checkpoint_path} ")
+        print("------------------------------------------------------\n")
 
-    # Visual comparison across 4 stages for one subject
-    compare_four_volumes(
-        X_train[0],
-        lf_train_refined[0],
-        lf_train_refined_output[0],
-        y_train[0],
-        labels=('LF Input', 'Refined Input', 'Refined Output', 'HF Target'),
-        axis=2,
-        n_slices=3
-    )
-    
-    # # Evaluate example on a single LF volume
-    # pred_volume = evaluate_on_sample(
-    #     model=trained_model,
-    #     lf_volume=X_test[0],
-    #     hf_volume=y_test[0],
-    #     patch_size=(64,64,32),
-    #     overlap=0.5,
-    #     slice_indices=[10,20,30]
-    # )
+
+        # Load Data
+        X_train, y_train = load_data_for_days(config.subjects, [config.train_day])
+        X_val, y_val     = load_data_for_days(config.subjects, [config.val_day])
+        X_test, y_test   = load_data_for_days(config.subjects, config.test_days)
+
+        X_train, y_train = normalize_dataset(X_train, y_train)
+        X_val, y_val     = normalize_dataset(X_val, y_val)
+        X_test, y_test   = normalize_dataset(X_test, y_test)
+
+        # -----------------------------
+        # Print shapes for confirmation
+        # -----------------------------
+
+        print("\n✅ Dataset normalization complete.")
+        print(f"🧩 X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+        print(f"🧩 X_val shape:   {X_val.shape}, y_val shape:   {y_val.shape}")
+        print(f"🧩 X_test shape:  {X_test.shape}, y_test shape:  {y_test.shape}")
+        print(f"📦 Total training volumes: {len(X_train)}")
+        print(f"📦 Total validation volumes: {len(X_val)}")
+        print(f"📦 Total testing volumes: {len(X_test)}\n")
+
+        # Train model
+        trained_model, history = run_training(
+            lf_train=X_train,
+            hf_train=y_train,
+            lf_val=X_val,
+            hf_val=y_val,
+            output_path=config.output_path,
+            model_type=residual_srr_unet,
+            model_name=config.model_name,
+            loss_type=config.loss_type_denoise,
+            patch_xy=config.patch_xy,
+            patch_z=config.patch_z,
+            batch_size=config.batch_size,
+            steps_per_epoch=config.steps_per_epoch,
+            epochs=config.epochs
+        )
+
+        # Refinement (2nd pass)
+        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
+            checkpoint_path=config.checkpoint_path,
+            refined_model_name=config.refined_model_name,
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            output_path=config.output_path,
+            batch_size=config.retrain_batch_size,
+            loss_type=config.retrain_loss_type,
+            patch_xy=config.patch_xy,
+            patch_z=config.patch_z,
+            steps_per_epoch=config.retrain_steps_per_epoch,
+            epochs=config.retrain_epochs,
+            visualize=config.visualize
+        )
+        
+        # refined_model_name = config.refined_model_name
+        # refined_checkpoint_path = os.path.join(config.output_path, f"{refined_model_name}_checkpoint.keras")
+        # print(f"📥 Loading base model from checkpoint: {refined_checkpoint_path}")
+        # base_model = tf.keras.models.load_model(refined_checkpoint_path, compile=False)
+
+        # print("🔧 Generating pseudo-enhanced training and validation inputs ...")
+        # lf_train_refined_output = predict_refined_inputs(base_model, lf_train_refined)
+        
+        # # # Visual comparison across 4 stages for one subject
+        # # compare_four_volumes(
+        # #     X_train[0],
+        # #     lf_train_refined[0],
+        # #     lf_train_refined_output[0],
+        # #     y_train[0],
+        # #     labels=('LF Input', 'Denoise Output', 'SRR Output', 'HF Target'),
+        # #     axis=2,
+        # #     n_slices=3
+        # # )
+        
+        # # # Evaluate example on a single LF volume
+        # # pred_volume = evaluate_on_sample(
+        # #     model=trained_model,
+        # #     lf_volume=X_test[0],
+        # #     hf_volume=y_test[0],
+        # #     patch_size=(64,64,32),
+        # #     overlap=0.5,
+        # #     slice_indices=[10,20,30]
+        # # )

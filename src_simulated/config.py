@@ -19,16 +19,16 @@ class Config:
     # -----------------------------
     model_name = "residual_srr_unet"
     # model_type = residual_srr_unet  # symbolic name; loaded dynamically if needed
-    output_path = "Output_patch"
+    output_path = "Output_wopatch"
     os.makedirs(output_path, exist_ok=True)
     
     # -----------------------------
     # ⚙️ TRAINING PARAMETERS
     # -----------------------------
-    patch_xy = 64
-    patch_z = 32
-    input_shape = (64,64,32,1)
-    batch_size = 32
+    patch_xy = 0
+    patch_z = 0
+    input_shape = (144,144,40,1)
+    batch_size = 8
     steps_per_epoch = 24
     epochs = 500
     learning_rate = 0.001
@@ -38,9 +38,9 @@ class Config:
     # 🔁 REFINEMENT PARAMETERS
     # -----------------------------
     retrain_loss_type = "mse_ssim_edge"
-    retrain_batch_size = 32
+    retrain_batch_size = 8
     retrain_steps_per_epoch = 24
-    retrain_epochs = 500
+    retrain_epochs = 1000
     visualize = False
 
     # -----------------------------

@@ -30,7 +30,7 @@ from src_simulated.losses import *
 # -----------------------------
 # PARAMETERS
 # -----------------------------
-from config import config
+from src_simulated.config import config
 
 print(config.model_name)
 
@@ -112,7 +112,6 @@ def rotation_3d(volume, angle, axes=(0,1)):
 # -----------------------------
 # CUSTOM BATCH GENERATOR
 # -----------------------------
-import numpy as np, random
 
 def srr_batch_generator(
         lf_volumes, hf_volumes,
@@ -659,9 +658,9 @@ if __name__ == "__main__":
     # 🎯 Define selected combinations (denoise → retrain)
     selected_combinations = [
         ("l1_l2_ssim", "mse_ssim_edge"),
-        ("l2_ssim", "l2_ssim"),
+        ("l2_ssim", "mse_ssim_edge"),
         ("l1_l2_ssim", "l2_ssim"),
-        ("l2_ssim", "mse_ssim_edge")
+        ("l2_ssim", "l2_ssim")
         ]
     
     # 🌀 Iterate over chosen combinations
