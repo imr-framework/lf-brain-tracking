@@ -1,3 +1,5 @@
+# Training patch without padding for simulated data
+
 import sys
 sys.path.insert(0, './') 
 
@@ -5,7 +7,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from scipy.ndimage import rotate
+from scipy.ndimage import rotate, gaussian_filter
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping, CSVLogger
@@ -33,19 +35,18 @@ from src_simulated.losses import *
 from src_simulated.config import config
 
 print(config.model_name)
-
-data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
-subjects = ["26184", "30366", "35528","34507", "35547", "59228", "59877","59233"]
+data_folder = config.data_folder
+subjects = config.subjects
 train_day = 1
 val_day = 2
 test_days = [3, 4, 5]
 model_type = residual_srr_unet
 model_name = "residual_srr_unet"
-output_path = "Output_patch"
+output_path = "Output_patch_noise"
 os.makedirs(output_path, exist_ok=True)
 batch_size = 32
 patch_z, patch_xy = 32, 64
-visualize = False
+visualize = True
 angles = [10, 20, 25, -10, -20, -25]
 
 # -----------------------------
@@ -120,7 +121,7 @@ def srr_batch_generator(
         patches_per_volume=8,
         augment=True,
         augmentations_per_patch=3,
-        angles=(0, 5, 10, 15, 20),
+        angles=(0, 5, 10, 15, 20, 45, 60, 90),
         jitter=5,
         intensity_aug=False,
         noise_std=0.01
@@ -172,7 +173,14 @@ def srr_batch_generator(
                               x_start:x_start + patch_xy,
                               z_start:z_start + patch_z]
 
+                #  Assuming hf_patch is a NumPy 3D array (e.g., shape (H, W, D))
+                hf_patch[hf_patch < 0.01] = 0
+
+                # # continue patche generation with patches_per_volume-1 with zeros more than 60% in hf_patch
+                if np.sum(hf_patch == 0) / hf_patch.size > 0.7:
+                    continue
                 # Add original patch
+
                 x_batch.append(np.expand_dims(lf_patch, axis=-1))
                 y_batch.append(np.expand_dims(hf_patch, axis=-1))
 
@@ -202,10 +210,18 @@ def augment_patch_pair(lf_patch, hf_patch, angles, jitter, intensity_aug, noise_
     aug_lf = rotation_3d(lf_patch, angle, axes)
     aug_hf = rotation_3d(hf_patch, angle, axes)
 
-    if random.random() < 0.5:
-        flip_axis = random.choice([0, 1, 2])
-        aug_lf = np.flip(aug_lf, axis=flip_axis)
-        aug_hf = np.flip(aug_hf, axis=flip_axis)
+    lf_sigma_lb = 1
+    lf_sigma_ub = 1.25
+    aug_lf = gaussian_filter(aug_lf, sigma=random.uniform(lf_sigma_lb, lf_sigma_ub))
+
+    # visualize_pair(aug_lf, aug_hf, slice_indices = [10,12,14,16,18,20])
+    # visualize_pair(lf_patch, aug_lf, slice_indices = [10,12,14,16,18,20])
+
+
+    # if random.random() < 0.5:
+    #     flip_axis = random.choice([0, 1, 2])
+    #     aug_lf = np.flip(aug_lf, axis=flip_axis)
+    #     aug_hf = np.flip(aug_hf, axis=flip_axis)
 
     if intensity_aug:
         scale = 1.0 + 0.2 * (np.random.rand() - 0.5)
@@ -263,12 +279,16 @@ def compile_model(model, lr=0.001, loss_type='l1_l2_ssim'):
         loss_fn = l2_ssim_loss
     elif loss_type == 'l1_ssim':
         loss_fn = l1_ssim_loss
-    elif loss_type == 'mse_ssim_edge':
-        loss_fn = mse_ssim_edge_loss
+    elif loss_type == 'l2_ssim_edge':
+        loss_fn = l2_ssim_edge_loss
+    elif loss_type == 'l1_l2_ssim_edge':
+        loss_fn = l1_l2_ssim_edge_loss
+    elif loss_type == 'gram_loss':
+        loss_fn = gram_matrix
     else:
         raise ValueError("❌ Invalid loss_type. Choose from: ['l1', 'l2', 'ssim', 'l1_ssim', 'l2_ssim', 'l1_l2_ssim', 'mse_ssim_edge'].")
 
-    # --- Compile ---
+    # --- compile ---
     model.compile(
         optimizer=optimizer,
         loss=loss_fn,
@@ -656,13 +676,16 @@ if __name__ == "__main__":
     
     # Load data
     # 🎯 Define selected combinations (denoise → retrain)
-    selected_combinations = [
-        ("l1_l2_ssim", "mse_ssim_edge"),
-        ("l2_ssim", "mse_ssim_edge"),
-        ("l1_l2_ssim", "l2_ssim"),
-        ("l2_ssim", "l2_ssim")
-        ]
+    # selected_combinations = [
+    #     ("l1_l2_ssim", "mse_ssim_edge"),
+    #     ("l2_ssim", "mse_ssim_edge"),
+    #     ("l1_l2_ssim", "l2_ssim"),
+    #     ("l2_ssim", "l2_ssim")
+    #     ]
     
+    selected_combinations = [
+        ("l1_l2_ssim", "l2_ssim_edge"),
+        ]
     # 🌀 Iterate over chosen combinations
     for loss_denoise, loss_retrain in selected_combinations:
         # Update config
@@ -695,6 +718,19 @@ if __name__ == "__main__":
         X_val, y_val     = normalize_dataset(X_val, y_val)
         X_test, y_test   = normalize_dataset(X_test, y_test)
 
+        # # #visualize images of X-train and y-train
+        # if visualize:
+        #     for i in range(min(3, len(X_train))):
+        #         visualize_pair(X_train[i], y_train[i], slice_indices = [12,22,25])
+        
+        # Apply slight Gaussian smoothing to simulated LF images to mimic real-world blurring
+        # print("🔧 Applying Gaussian smoothing to simulated LF images ...")
+        # apply Gaussian smoothin to X_train, X_val, X_test
+        # lf_sigma = 1.0
+        # X_train = np.array([gaussian_filter(X_train[i], sigma=lf_sigma) for i in range(len(X_train))])
+        # X_val = np.array([gaussian_filter(X_val[i], sigma=lf_sigma) for i in range(len(X_val))])
+        # X_test = np.array([gaussian_filter(X_test[i], sigma=lf_sigma) for i in range(len(X_test))])
+
         # -----------------------------
         # Print shapes for confirmation
         # -----------------------------
@@ -706,7 +742,7 @@ if __name__ == "__main__":
         print(f"📦 Total training volumes: {len(X_train)}")
         print(f"📦 Total validation volumes: {len(X_val)}")
         print(f"📦 Total testing volumes: {len(X_test)}\n")
-
+        # -----------------------------
         # Train model
         trained_model, history = run_training(
             lf_train=X_train,
@@ -749,24 +785,3 @@ if __name__ == "__main__":
 
         print("🔧 Generating pseudo-enhanced training and validation inputs ...")
         lf_train_refined_output = predict_refined_inputs(base_model, lf_train_refined)
-        
-        # # # Visual comparison across 4 stages for one subject
-        # # compare_four_volumes(
-        # #     X_train[0],
-        # #     lf_train_refined[0],
-        # #     lf_train_refined_output[0],
-        # #     y_train[0],
-        # #     labels=('LF Input', 'Denoise Output', 'SRR Output', 'HF Target'),
-        # #     axis=2,
-        # #     n_slices=3
-        # # )
-        
-        # # # Evaluate example on a single LF volume
-        # # pred_volume = evaluate_on_sample(
-        # #     model=trained_model,
-        # #     lf_volume=X_test[0],
-        # #     hf_volume=y_test[0],
-        # #     patch_size=(64,64,32),
-        # #     overlap=0.5,
-        # #     slice_indices=[10,20,30]
-        # # )

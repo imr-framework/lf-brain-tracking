@@ -162,7 +162,7 @@ import numpy as np
 # ------------------------------------------------
 if __name__ == "__main__":
     # Paths
-    folder_path = "Output_patch"
+    folder_path = "Output"
 
     # Loop through all items in the folder
     for item in os.listdir(folder_path):

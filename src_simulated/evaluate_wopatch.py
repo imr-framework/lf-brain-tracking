@@ -178,8 +178,6 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
     print("\n✅ Evaluation complete.")
     return results
 
-
-
 # -----------------------------
 # NORMALIZATION
 # -----------------------------

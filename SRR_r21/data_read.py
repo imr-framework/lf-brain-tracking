@@ -8,7 +8,7 @@ data_folder = 'Data/MW/VLF_invivo/raw'
 
 # List all files in the folder and pick the first NIfTI or NPY. file
 files = [f for f in os.listdir(data_folder) if f.endswith(('.nii', '.nii.gz', '.npy'))]
-
+  
 if not files:
     raise FileNotFoundError("No NIfTI or NPY files found in the specified folder.")
 
@@ -30,7 +30,8 @@ for i in range(3):
         data = img.get_fdata()
         affine = img.affine
 
-    # Get the center slices for each axis
+    print(f"Subject {i+1} data shape: {data.shape}")    # Get the center slices for each axis
+    
     x_center = data.shape[0] // 2
     y_center = data.shape[1] // 2
     z_center = data.shape[2] // 2

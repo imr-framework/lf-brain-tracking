@@ -147,9 +147,9 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                             print("Skipping due to read error.")
                             continue
 
-                        # print(np.max(np.abs(im)))
+                        print(np.max(np.abs(im)))
                         # print("Min value:", np.min(np.abs(im)))
-                        # print("Data type of np.abs(im):", np.abs(im).dtype)
+                        print("Data type of np.abs(im):", np.abs(im).dtype)
                         print("Shape of im:", im.shape)
                         
                         num_slices = im.shape[2]
@@ -175,7 +175,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
 
 if __name__ == "__main__":
     
-    subjects = ['30366']
+    subjects = ['59228']
 
     for subject in subjects:
         

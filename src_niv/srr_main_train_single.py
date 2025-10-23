@@ -31,14 +31,14 @@ import os
 from skimage.transform import resize  # Required for 3D resizing
 
 # 59228
-subjects1 = ['26184', '30366', '35528'] # 59228
+subjects1 = ['59228'] # 59228
 # subjects1 = ['30366']
 # Mismatch due to high field shape
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
 day_idx = 3
-visualize = False
+visualize = True
 visualize_pairs = True
 padding = False
 register2_hf = True

@@ -8,7 +8,7 @@ class Config:
     # -----------------------------
     # 🔧 DATA PARAMETERS
     # -----------------------------
-    data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
+    data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
     subjects = ["26184", "30366", "35528", "34507", "35547", "59228", "59877", "59233"]
     train_day = 1
     val_day = 2
@@ -19,16 +19,16 @@ class Config:
     # -----------------------------
     model_name = "residual_srr_unet"
     # model_type = residual_srr_unet  # symbolic name; loaded dynamically if needed
-    output_path = "Output_wopatch"
+    output_path = "Output_patch_noise"
     os.makedirs(output_path, exist_ok=True)
     
     # -----------------------------
     # ⚙️ TRAINING PARAMETERS
     # -----------------------------
-    patch_xy = 0
-    patch_z = 0
-    input_shape = (144,144,40,1)
-    batch_size = 8
+    patch_xy = 64
+    patch_z = 32
+    input_shape = (64,64,32,1)
+    batch_size = 48
     steps_per_epoch = 24
     epochs = 500
     learning_rate = 0.001
@@ -38,9 +38,9 @@ class Config:
     # 🔁 REFINEMENT PARAMETERS
     # -----------------------------
     retrain_loss_type = "mse_ssim_edge"
-    retrain_batch_size = 8
+    retrain_batch_size = 48
     retrain_steps_per_epoch = 24
-    retrain_epochs = 1000
+    retrain_epochs = 700
     visualize = False
 
     # -----------------------------
@@ -57,7 +57,7 @@ class Config:
     # -----------------------------
     # 🧩 PATCH SETTINGS
     # -----------------------------
-    patches_per_volume = 8
+    patches_per_volume = 16
     overlap = 0.5
 
     # Combine dynamically

@@ -63,7 +63,7 @@ import random
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-model_type = 'residual_srr_unet5_subjects_500_d1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
+model_type = 'residual_linear_srr_unet5_subjects_500_d1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
 model_case = 'single_encoder_unet'
 multi_subject_train = True
 
@@ -74,7 +74,7 @@ visualize_pairs = False
 padding = False
 register2_hf = True
 
-subject = '26184'  # Example subject number, adjust as needed 
+subject = '30366'  # Example subject number, adjust as needed 
 # '59233' visit 1 can be evaluation
 subject_train = '59228'
 

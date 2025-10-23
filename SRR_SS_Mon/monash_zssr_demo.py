@@ -40,8 +40,6 @@ from pydicom.filereader import dcmread
 from tensorflow.keras import backend as K
 import scipy.io as sio
 
-
-
 # Clear the current TensorFlow/Keras session
 K.clear_session()
 
@@ -75,16 +73,15 @@ snr_component = False
 max_iters = 3000
 min_iters = 256
 # Define parameter options
-widths = [256] # width of the filters in the conv layers
-depths = [24] # depth of the network
+widths = [64] # width of the filters in the conv layers
+depths = [16] # depth of the network
 crop_sizes = [32] # size of the patches to crop from the image
 noise_stds = [0.0] # standard deviation of the noise to add to the image
 
 # Load dataset
-training_path = "Data/ULC_img_enhancement/Training data"
+training_path = "Data/ULC_img enhancement/Training data"
 dataset = PairedMRI(training_path)
 kernel_path = '/Users/sairamgeethanath/Documents/Contributions/Tools/Projects/R21/lf-brain-tracking/src/ZSSR_master/kernel_example/BSD100_100_lr_rand_ker_c_X2_0.mat'
-
 
 kernel_files = ['%s_%d.mat' % (kernel_path[:-4], ind) for ind in range(len([1, 2]))]
 # List subjects
@@ -162,8 +159,8 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
         print('Interpolation method:', recon_config.upscale_method)
         # Run ZSSR
 
-
         print('Passing through ZSSR ..........')
+        
         im_lf_sim_zssr = do_ZSSR_steps(
             img=img_data, recon_conf=recon_config, num_cols=num_cols, num_rows=num_rows,
             fname_zssr=nifti_file, fspec='', scale_fact=2, dims = 1, ground_truth=None, kernel=None)
@@ -176,7 +173,7 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
 
         # Now let us switch the two axes to also perform ZSSR in the other plane
         img_data_xz = np.swapaxes(img_data, 0, 1)
-        print(Fore.GREEN + "Shape of img_data_xz:", img_data_xz.shape + Style.RESET_ALL)
+        print(Fore.GREEN + "Shape of img_data_xz:" + str(img_data_xz.shape) + Style.RESET_ALL)
 
 
         # Run ZSSR on the swapped axes
@@ -209,10 +206,7 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
 
         # Convert all images to unit8 255 for all computations
         im_lf_sim_zssr_combined = (im_lf_sim_zssr_combined * 255).astype(np.uint8)
-        im_lf_sim_zssr = im_lf_sim_zssr_combined
-
-
-        
+        im_lf_sim_zssr = im_lf_sim_zssr_combined        
         
         # Compute PSNR
         psnr_value_monash = psnr(subject_LF_Monash_data, subject_HF_data)
@@ -241,7 +235,7 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
                    res=[pixdim[1], pixdim[2], pixdim[3]], dim_info=[0, 1, 2])
 
         print(Fore.YELLOW + f"Saved ZSSR output -> {zssr_fname}" + Style.RESET_ALL)
-        viewing = True
+        viewing = False
         if viewing:
             # Display a panel of the mid coronal slice for HF, Monash LF, LF input, and LF ZSSR
             mid_slice = subject_HF_data.shape[1] // 2
@@ -269,5 +263,3 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
         if viewing:
             OrthoSlicer3D(im_lf_sim_zssr).show()
             plt.show()
-
-        
