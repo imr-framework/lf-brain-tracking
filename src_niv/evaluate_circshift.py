@@ -61,7 +61,7 @@ from src_niv.utils import load_and_preprocess_hf, load_and_preprocess_lf
 from src_niv.utils import visualize_pair
 import random
 
-visualize = True
+visualize = False
 visualize_pairs = False
 padding = False
 register2_hf = True
@@ -71,7 +71,7 @@ model_type = 'residual_srr_unet4_subjects_500_d1'  # Options: 'single_encoder_un
 model_case = 'single_encoder_unet'
 multi_subject_train = True
 
-day_idx = 2
+day_idx = 3
 # unet4 as att resor resunet
 # 20184,30366,35528,59081,59228
 subject = '26184'  # Example subject number, adjust as needed 
@@ -95,6 +95,239 @@ else:
 os.makedirs(output_path, exist_ok=True)
 os.makedirs(predictions_dir, exist_ok=True)
 
+
+# ----------------------------
+# Visualization Utility
+# ----------------------------
+def visualize_volume(volume, title="Volume Slices", cols=8):
+    """Display all slices of a 3D volume in a grid."""
+    num_slices = volume.shape[0]
+    rows = int(np.ceil(num_slices / cols))
+    fig, axes = plt.subplots(rows, cols, figsize=(15, 8))
+    axes = axes.flatten()
+
+    for i in range(num_slices):
+        axes[i].imshow(volume[i,:, :].T, cmap='gray', origin='lower')
+        axes[i].set_title(f"Slice {i}")
+        axes[i].axis('off')
+
+    for j in range(num_slices, len(axes)):
+        axes[j].axis('off')
+
+    plt.suptitle(title)
+    plt.tight_layout()
+    plt.show()
+
+# ----------------------------
+# Resampling Function
+# ----------------------------
+def resample_volume(volume, original_spacing=(2, 2, 5), new_spacing=(1, 1, 2)):
+    """Resample 3D volume to new voxel spacing using zoom."""
+    zoom_factors = np.array(original_spacing) / np.array(new_spacing)
+    resampled = zoom(volume, zoom_factors, order=1)
+    print(f"Resampled shape: {resampled.shape}")
+    return resampled
+
+# ----------------------------
+# Morphological Head Extraction
+# ----------------------------
+def extract_head(volume):
+    """Extract head region using morphological operations."""
+    thresh = np.percentile(volume, 20)
+    mask = volume > thresh
+
+    mask = binary_closing(mask, footprint=ball(3))
+    mask = binary_opening(mask, footprint=ball(2))
+    mask = binary_fill_holes(mask)
+    mask = remove_small_objects(mask, min_size=500)
+
+    labeled = label(mask)
+    regions = regionprops(labeled)
+    if regions:
+        largest = max(regions, key=lambda r: r.area)
+        mask = labeled == largest.label
+
+    return volume * mask
+
+def shift_volume_circular(volume, shift_x=0, shift_y=0):
+    """Shift 3D volume without losing pixels (wrap-around)."""
+    transformed = np.roll(volume, shift=shift_y, axis=0)  # vertical shift
+    transformed = np.roll(transformed, shift=shift_x, axis=1)  # horizontal shift
+    return transformed
+
+
+def rotate_volume_circular(volume, angle_deg):
+    """Rotate 3D volume slice-wise without losing pixels (wrap-around)."""
+    h, w, d = volume.shape
+    transformed = np.zeros_like(volume)
+    center = np.array([w / 2, h / 2])
+
+    for i in range(d):
+        slice_img = volume[:, :, i]
+
+        # Compute coordinates grid
+        ys, xs = np.meshgrid(np.arange(h), np.arange(w), indexing='ij')
+        coords = np.stack([xs - center[0], ys - center[1]], axis=-1)
+
+        # Rotation matrix
+        theta = np.deg2rad(angle_deg)
+        R = np.array([[np.cos(theta), -np.sin(theta)],
+                      [np.sin(theta),  np.cos(theta)]])
+
+        # Apply rotation
+        rotated_coords = coords @ R.T
+        rotated_coords += center
+
+        # Wrap coordinates around the image size
+        rotated_coords[..., 0] %= w  # x-axis wrap
+        rotated_coords[..., 1] %= h  # y-axis wrap
+
+        # Map rotated coordinates back to pixel values
+        x_floor = np.floor(rotated_coords[..., 0]).astype(int)
+        y_floor = np.floor(rotated_coords[..., 1]).astype(int)
+        transformed[:, :, i] = slice_img[y_floor, x_floor]
+
+    return transformed
+
+# ----------------------------
+# Transform Function (Shift + Rotate)
+# ----------------------------
+def transform_volume(volume, shift_x=0, shift_y=0, rotate_deg=0):
+    """Apply affine shift and rotation to each slice of a 3D volume."""
+    h, w, d = volume.shape
+    transformed = np.zeros_like(volume)
+    for i in range(d):
+        im = volume[:, :, i]
+        M_shift = np.float32([[1, 0, shift_x], [0, 1, shift_y]])
+        shifted = cv2.warpAffine(im, M_shift, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+
+        center = (w // 2, h // 2)
+        M_rot = cv2.getRotationMatrix2D(center, rotate_deg, 1.0)
+        rotated = cv2.warpAffine(shifted, M_rot, (w, h), borderMode=cv2.BORDER_CONSTANT, borderValue=0)
+        transformed[:, :, i] = rotated
+    return transformed
+
+# ----------------------------
+# Circular Shift Function
+# ----------------------------
+def circshift_volume(volume, shift_x=0, shift_y=0, shift_z=0):
+    """Apply circular shift to a 3D volume (wrap-around translation)."""
+    shifted = np.roll(volume, shift=(shift_y, shift_x, shift_z), axis=(0, 1, 2))
+    return shifted
+
+import cv2
+import numpy as np
+from tqdm import tqdm
+
+def extract_head_slices(im):
+    """
+    Extract head/brain region slice-by-slice using morphological refinement.
+    Equivalent to extract_brain(), but for 3D MRI volumes.
+    Args:
+        im (np.ndarray): 3D MRI volume, shape (H, W, D)
+    Returns:
+        orig_slices (list): Original normalized 2D slices
+        head_slices (list): Brain-extracted slices
+        head_volume (np.ndarray): Combined 3D head-extracted volume
+    """
+    print("==================================== Inside Head Extraction (Slice-wise) ================================")
+    orig_slices = []
+    head_slices = []
+    mask_stack = []
+
+    num_slices = im.shape[2]
+    print(f"Processing {num_slices} slices for head extraction...")
+
+    for i in tqdm(range(num_slices)):
+        slice_data = im[:, :, i]
+
+        if slice_data is None or slice_data.size == 0:
+            print(f"Skipping slice {i} due to empty data.")
+            head_slices.append(np.zeros_like(slice_data))
+            mask_stack.append(np.zeros_like(slice_data))
+            continue
+
+        try:
+            # Normalize slice to 8-bit
+            normalized_slice = cv2.normalize(np.abs(slice_data), None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+            orig_slices.append(normalized_slice)
+
+            # Binary mask using Otsu’s threshold
+            _, thresh = cv2.threshold(normalized_slice, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            refined_mask = np.zeros_like(normalized_slice, dtype=np.uint8)
+            if contours:
+                largest_contour = max(contours, key=cv2.contourArea)
+                mask = np.zeros_like(normalized_slice, dtype=np.uint8)
+                cv2.drawContours(mask, [largest_contour], -1, (255), thickness=cv2.FILLED)
+
+                # Morphological refinement
+                kernel_dilate = np.ones((10, 10), np.uint8)
+                mask_dilated = cv2.dilate(mask, kernel_dilate, iterations=1)
+
+                kernel_close = np.ones((5, 5), np.uint8)
+                refined_mask = cv2.morphologyEx(mask_dilated, cv2.MORPH_CLOSE, kernel_close)
+
+            # Apply mask to slice
+            extracted_slice = cv2.bitwise_and(normalized_slice, normalized_slice, mask=refined_mask)
+            head_slices.append(extracted_slice)
+            mask_stack.append(refined_mask)
+
+        except Exception as e:
+            print(f"Error on slice {i}: {e}")
+            head_slices.append(np.zeros_like(slice_data))
+            mask_stack.append(np.zeros_like(slice_data))
+
+    print("✅ Head extraction completed for all slices.")
+
+    # Stack 2D slices back into a 3D volume
+    head_volume = np.stack(head_slices, axis=2)
+    return orig_slices, head_slices, head_volume
+
+
+# ----------------------------
+# Full Workflow
+# ----------------------------
+def process_and_visualize(subject_volume, orig_spacing=(2, 2, 5), shift_x=0, shift_y=0, angle_deg=0):
+    print(f"Original shape: {subject_volume.shape}")
+    visualize_volume(subject_volume, "Original Volume")
+
+    # volume_shifted = shift_volume_circular(subject_volume, shift_x=shift_x, shift_y=shift_y)
+    # volume_transformed = rotate_volume_circular(volume_shifted, angle_deg=angle_deg)
+
+    transform = transform_volume(subject_volume, shift_x=12, shift_y=-0, rotate_deg=26)
+    print("✅ Applied Shift and Rotation Transformations")
+    # visualize_volume(volume_transformed, "Transformed Volume Before Resampling")
+
+    # Step 1: Resample
+    # resampled = resample_volume(volume_transformed, original_spacing=orig_spacing, new_spacing=(1, 1, 2))
+    visualize_volume(transform, "Resampled Volume (1×1×2)")
+  
+    # Step 2: Head Extraction
+    _ ,_ , head = extract_head_slices(resampled)
+    visualize_volume(head, "Head Extracted Volume")
+
+    # Step 3: Circular Shift before augmentations
+    # circ_shifted = circshift_volume(head, shift_x=10, shift_y=-10, shift_z=10)
+    # visualize_volume(circ_shifted, "Circularly Shifted Volume")
+
+    #apply K-means clustring  to show segmentation of clusters
+    # from sklearn.cluster import KMeans
+    # h, w, d = transform.shape
+    # flat_volume = transform.reshape(-1, 1)
+    # kmeans = KMeans(n_clusters=3, random_state=0).fit(flat_volume)
+    # clustered = kmeans.labels_.reshape(h, w, d)
+    # visualize_volume(clustered, "K-means Clustering (3 clusters)")
+    
+    # Step 4: Rotation Augmentations
+    for idx, angle in enumerate([10, 20, -15,60,-50], start=1):
+        rotated = transform_volume(head, rotate_deg=angle)
+        visualize_volume(rotated, f"Rotation Augmentation {idx}: {angle}°")
+
+    print("✅ Processing Complete")
+    return head
+
 # Initialize data object and load data (HFMRI_data_IRF)
 print(f"\n===============================HF_MRI data processing  started .............")
 # Day1 HF data for model input
@@ -104,28 +337,28 @@ resampled_volume_hf_norm_D1 = load_and_preprocess_hf(subject, day_idx = 3, visua
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Assume your high-field volume is stored as hf_volume with shape (35, 128, 128)
-num_slices = resampled_volume_hf_norm_D1.shape[0]
+# # Assume your high-field volume is stored as hf_volume with shape (35, 128, 128)
+# num_slices = resampled_volume_hf_norm_D1.shape[0]
 
-# Compute rows and columns for a nice grid
-cols = 7  # number of slices per row
-rows = int(np.ceil(num_slices / cols))
+# # Compute rows and columns for a nice grid
+# cols = 7  # number of slices per row
+# rows = int(np.ceil(num_slices / cols))
 
-fig, axes = plt.subplots(rows, cols, figsize=(2.2 * cols, 2.2 * rows))
+# fig, axes = plt.subplots(rows, cols, figsize=(2.2 * cols, 2.2 * rows))
 
-for i in range(rows * cols):
-    r, c = divmod(i, cols)
-    ax = axes[r, c] if rows > 1 else axes[c]
-    if i < num_slices:
-        ax.imshow(np.rot90(resampled_volume_hf_norm_D1[i, :, :].T), cmap='gray', origin='lower')
-        ax.set_title(f"Slice {i}", fontsize=8)
-    ax.axis('off')
+# for i in range(rows * cols):
+#     r, c = divmod(i, cols)
+#     ax = axes[r, c] if rows > 1 else axes[c]
+#     if i < num_slices:
+#         ax.imshow(np.rot90(resampled_volume_hf_norm_D1[i, :, :].T), cmap='gray', origin='lower')
+#         ax.set_title(f"Slice {i}", fontsize=8)
+#     ax.axis('off')
 
-plt.suptitle("All High-Field MRI Slices", fontsize=16, y=0.92)
-plt.subplots_adjust(wspace=0, hspace=0, left=0, right=1, top=0.95, bottom=0)
+# plt.suptitle("All High-Field MRI Slices", fontsize=16, y=0.92)
+# plt.subplots_adjust(wspace=0, hspace=0, left=0, right=1, top=0.95, bottom=0)
 
-plt.savefig('Data/high_field_all_slices.png', dpi=400, bbox_inches='tight', pad_inches=0)
-plt.show()
+# plt.savefig('Data/high_field_all_slices.png', dpi=400, bbox_inches='tight', pad_inches=0)
+# plt.show()
 
     
 # Current day HF data for target
@@ -138,6 +371,8 @@ resampled_volume_lf_be_norm = load_and_preprocess_lf(subject, day_idx, visualize
 print("Resampled HF volume shape Day 1:", resampled_volume_hf_norm_D1.shape)
 print("Resampled LF volume shape:", resampled_volume_lf_be_norm.shape)
 print("Resampled HF volume shape:", resampled_volume_hf_norm.shape)
+
+head = process_and_visualize(resampled_volume_lf_be_norm, shift_x=10, shift_y=0, angle_deg=10)  #26184
 
 if register2_hf == True:
     resampled_volume_lf_be_norm = register_to_hf(resampled_volume_lf_be_norm, resampled_volume_hf_norm_D1)

@@ -39,14 +39,14 @@ data_folder = config.data_folder
 subjects = config.subjects
 train_day = 1
 val_day = 2
-test_days = [3, 4, 5]
+test_days = [5]
 model_type = residual_srr_unet
 model_name = "residual_srr_unet"
 output_path = "Output_patch_noise"
 os.makedirs(output_path, exist_ok=True)
-batch_size = 32
+batch_size = 16
 patch_z, patch_xy = 32, 64
-visualize = True
+visualize = False
 angles = [10, 20, 25, -10, -20, -25]
 
 # -----------------------------
@@ -124,7 +124,8 @@ def srr_batch_generator(
         angles=(0, 5, 10, 15, 20, 45, 60, 90),
         jitter=5,
         intensity_aug=False,
-        noise_std=0.01
+        noise_std=0.01,
+        gaussian_blur=False
     ):
     """
     3D SRR Patch Generator for patch-based training.
@@ -189,7 +190,7 @@ def srr_batch_generator(
                     for _ in range(augmentations_per_patch):
                         aug_lf, aug_hf = augment_patch_pair(
                             lf_patch.copy(), hf_patch.copy(),
-                            angles, jitter, intensity_aug, noise_std
+                            angles, jitter, intensity_aug, noise_std, gaussian_blur
                         )
                         x_batch.append(np.expand_dims(aug_lf, axis=-1))
                         y_batch.append(np.expand_dims(aug_hf, axis=-1))
@@ -201,7 +202,7 @@ def srr_batch_generator(
 
 
 # Helper for augmentations
-def augment_patch_pair(lf_patch, hf_patch, angles, jitter, intensity_aug, noise_std):
+def augment_patch_pair(lf_patch, hf_patch, angles, jitter, intensity_aug, noise_std, gaussian_blur):
     base_angle = random.choice(angles)
     sign = random.choice([-1, 1])
     angle = sign * (base_angle + random.uniform(0, jitter))
@@ -210,9 +211,10 @@ def augment_patch_pair(lf_patch, hf_patch, angles, jitter, intensity_aug, noise_
     aug_lf = rotation_3d(lf_patch, angle, axes)
     aug_hf = rotation_3d(hf_patch, angle, axes)
 
-    lf_sigma_lb = 1
-    lf_sigma_ub = 1.25
-    aug_lf = gaussian_filter(aug_lf, sigma=random.uniform(lf_sigma_lb, lf_sigma_ub))
+    if gaussian_blur:
+        lf_sigma_lb = 1
+        lf_sigma_ub = 1.25
+        aug_lf = gaussian_filter(aug_lf, sigma=random.uniform(lf_sigma_lb, lf_sigma_ub))
 
     # visualize_pair(aug_lf, aug_hf, slice_indices = [10,12,14,16,18,20])
     # visualize_pair(lf_patch, aug_lf, slice_indices = [10,12,14,16,18,20])
@@ -444,7 +446,7 @@ def evaluate_on_sample(model, lf_volume, hf_volume,
 def run_training(lf_train, hf_train, lf_val, hf_val,
                  output_path, model_type=residual_srr_unet, model_name = 'ResUNet',
                  loss_type = 'l1_l2_ssim', patch_xy=64, patch_z=32,
-                 batch_size=32, steps_per_epoch=48, epochs=500):
+                 batch_size=32, steps_per_epoch=48, epochs=500,gaussian_blur=False):
     
     import os
     # checkpoint_path = os.path.join(output_path, f"{model_name}_checkpoint.keras")
@@ -458,7 +460,8 @@ def run_training(lf_train, hf_train, lf_val, hf_val,
         batch_size=batch_size,
         patch_xy=patch_xy,
         patch_z=patch_z,
-        augment=config.train_augment
+        augment=config.train_augment,
+        gaussian_blur=gaussian_blur
     )
 
     val_gen = srr_batch_generator(
@@ -467,7 +470,8 @@ def run_training(lf_train, hf_train, lf_val, hf_val,
         batch_size=8,         # validation smaller
         patch_xy=patch_xy,
         patch_z=patch_z,
-        augment=config.val_augment
+        augment=config.val_augment,
+        gaussian_blur=gaussian_blur
     )
 
     # Steps
@@ -567,7 +571,8 @@ def run_retraining(checkpoint_path,
                    patch_z=32,
                    steps_per_epoch=34,
                    epochs=1000,
-                   visualize=False):
+                   visualize=False,
+                   gaussian_blur=False):
     
     """
     Run second-pass retraining with refined LF inputs using a loaded base model checkpoint.
@@ -597,7 +602,8 @@ def run_retraining(checkpoint_path,
         batch_size=batch_size,
         patch_xy=patch_xy,
         patch_z=patch_z,
-        augment=True
+        augment=True,
+        gaussian_blur=gaussian_blur
     )
 
     val_gen = srr_batch_generator(
@@ -606,7 +612,8 @@ def run_retraining(checkpoint_path,
         batch_size=8,
         patch_xy=patch_xy,
         patch_z=patch_z,
-        augment=False
+        augment=False,
+        gaussian_blur=gaussian_blur
     )
 
     print("🚀 Starting refinement (second-pass) training ...")
@@ -718,6 +725,15 @@ if __name__ == "__main__":
         X_val, y_val     = normalize_dataset(X_val, y_val)
         X_test, y_test   = normalize_dataset(X_test, y_test)
 
+
+        # apply gaussian smoothing to X_test for visualization
+
+
+
+        if visualize:
+            for i in range(len(X_test)):
+                print(f"Visualizing X_test[{i}] and y_test[{i}]")
+                visualize_pair(X_test[i], y_test[i], slice_indices=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30])
         # # #visualize images of X-train and y-train
         # if visualize:
         #     for i in range(min(3, len(X_train))):
@@ -726,10 +742,10 @@ if __name__ == "__main__":
         # Apply slight Gaussian smoothing to simulated LF images to mimic real-world blurring
         # print("🔧 Applying Gaussian smoothing to simulated LF images ...")
         # apply Gaussian smoothin to X_train, X_val, X_test
-        # lf_sigma = 1.0
-        # X_train = np.array([gaussian_filter(X_train[i], sigma=lf_sigma) for i in range(len(X_train))])
-        # X_val = np.array([gaussian_filter(X_val[i], sigma=lf_sigma) for i in range(len(X_val))])
-        # X_test = np.array([gaussian_filter(X_test[i], sigma=lf_sigma) for i in range(len(X_test))])
+        lf_sigma = 1.0
+        X_train = np.array([gaussian_filter(X_train[i], sigma=lf_sigma) for i in range(len(X_train))])
+        X_val = np.array([gaussian_filter(X_val[i], sigma=lf_sigma) for i in range(len(X_val))])
+        X_test = np.array([gaussian_filter(X_test[i], sigma=lf_sigma) for i in range(len(X_test))])
 
         # -----------------------------
         # Print shapes for confirmation
@@ -741,7 +757,8 @@ if __name__ == "__main__":
         print(f"🧩 X_test shape:  {X_test.shape}, y_test shape:  {y_test.shape}")
         print(f"📦 Total training volumes: {len(X_train)}")
         print(f"📦 Total validation volumes: {len(X_val)}")
-        print(f"📦 Total testing volumes: {len(X_test)}\n")
+        print(f"📦 Total testing volumes: {len(X_test)}\n")        
+        
         # -----------------------------
         # Train model
         trained_model, history = run_training(
@@ -757,7 +774,8 @@ if __name__ == "__main__":
             patch_z=config.patch_z,
             batch_size=config.batch_size,
             steps_per_epoch=config.steps_per_epoch,
-            epochs=config.epochs
+            epochs=config.epochs,
+            gaussian_blur=True
         )
 
         # Refinement (2nd pass)
@@ -775,7 +793,8 @@ if __name__ == "__main__":
             patch_z=config.patch_z,
             steps_per_epoch=config.retrain_steps_per_epoch,
             epochs=config.retrain_epochs,
-            visualize=config.visualize
+            visualize=config.visualize,
+            gaussian_blur=False
         )
         
         refined_model_name = config.refined_model_name

@@ -9,7 +9,7 @@ class Config:
     # base_change_sfs = [[1.0, 2.0]]  # list of scales after which the input is changed to be the output (recommended for high sfs)
     max_iters = 3000
     min_iters = 256
-    min_learning_rate = 9e-6  # this tells the algorithm when to stop (specify lower than the last learning-rate)
+    min_learning_rate = 9e-9  # this tells the algorithm when to stop (specify lower than the last learning-rate)
     width = 64
     depth = 12
     output_flip = True  # geometric self-ensemble (see paper)

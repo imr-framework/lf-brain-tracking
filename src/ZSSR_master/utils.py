@@ -347,7 +347,7 @@ def random_augment(ims,
     # Apply transformation to image and return the transformed image clipped between 0-1
     transformed_im = warpPerspective(im, transform_mat, (crop_size, crop_size), flags=INTER_CUBIC)
     attempts = 0
-    while np.sum(transformed_im) <= 1 and attempts < 10:
+    while np.mean(transformed_im) <= 0.2 and attempts < 10:
         # Redo augmentation
         # print('Black image, redoing augmentation: ' + str(attempts))
         transformed_im = random_augment(ims,

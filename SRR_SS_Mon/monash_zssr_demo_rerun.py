@@ -67,7 +67,7 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 viewing = False
 ds_to_process = 4
-target_resolution_fact = [1, 1, 4]
+target_resolution_fact = [1, 1, 2]
 scale_factor = target_resolution_fact[2]  # Z-axis scaling factor
 snr_component = False
  
@@ -88,7 +88,7 @@ kernel_files = ['%s_%d.mat' % (kernel_path[:-4], ind) for ind in range(len([1, 2
 # List subjects
 print(dataset.subjects)
 
-for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
+for i, subject_id in enumerate(dataset.subjects[0:51]):  # take first 5 subjects
     print(Fore.CYAN + f"\n=== Processing Subject {i+1}: {subject_id} ===" + Style.RESET_ALL)
 
     # Get LF & HF images
@@ -109,9 +109,9 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
 
     img_data = subject_LF_ZSSR.get_fdata()
 
-    if viewing:
-        print("Displaying LF ZSSR image data using OrthoSlicer3D")
-        OrthoSlicer3D(img_data).show()
+    # if viewing:
+    #     print("Displaying LF ZSSR image data using OrthoSlicer3D")
+    #     OrthoSlicer3D(img_data).show()
 
     print("Shape of img_data:", img_data.shape)
     # Generate unique NIfTI filename per subject
@@ -174,15 +174,11 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
         # Ensure all images are in the same dynamic range 0 - 1
         im_lf_sim_zssr_yz = im_lf_sim_zssr / np.max(im_lf_sim_zssr)
 
-        
-
-
         print(Fore.GREEN + "Shape of im_lf_sim_zssr_yz:" + str(im_lf_sim_zssr_yz.shape) + Style.RESET_ALL)
 
         # Now let us switch the two axes to also perform ZSSR in the other plane
         img_data_xz = np.swapaxes(img_data, 0, 1)
         print(Fore.GREEN + "Shape of img_data_xz:" + str(img_data_xz.shape) + Style.RESET_ALL)
-
 
         # Run ZSSR on the swapped axes
         im_lf_sim_zssr_xz = do_ZSSR_steps(
@@ -228,22 +224,30 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
         aes_value_HF = compute_aes(subject_HF_data)
         aes_value_monash = compute_aes(subject_LF_Monash_data)
         aes_value_zssr = compute_aes(im_lf_sim_zssr)
-
+        
         # Print PSNR, SSIM, and AES values in a table format
         print(Fore.GREEN + f"{'Method':<15}{'PSNR':<15}{'SSIM':<15}{'AES':<15}" + Style.RESET_ALL)
         print(Fore.GREEN + f"{'Monash LF':<15}{psnr_value_monash:<15.4f}{ssim_value_monash:<15.4f}{aes_value_monash:<15.4f}" + Style.RESET_ALL)
         print(Fore.GREEN + f"{'ZSSR':<15}{psnr_value_zssr:<15.4f}{ssim_value_zssr:<15.4f}{aes_value_zssr:<15.4f}" + Style.RESET_ALL)
         print(Fore.GREEN + f"{'HF (Ground Truth)':<15}{'N/A':<15}{'N/A':<15}{aes_value_HF:<15.4f}" + Style.RESET_ALL)
+        
+        #save values in a csvfile for all subjects in same file
+        results_fname = f"./Data/Results112/zssr_results_summary.csv"
+        if not os.path.exists(results_fname):
+            with open(results_fname, 'w') as f:
+                f.write("Subject ID,Width,Depth,Crop Size,Noise Std,PSNR Monash,SSIM Monash,AES Monash,PSNR ZSSR,SSIM ZSSR,AES ZSSR,AES HF\n")
+        with open(results_fname, 'a') as f:
+            f.write(f"{subject_id},{width},{depth},{crop_size},{noise_std},{psnr_value_monash:.4f},{ssim_value_monash:.4f},{aes_value_monash:.4f},{psnr_value_zssr:.4f},{ssim_value_zssr:.4f},{aes_value_zssr:.4f},{aes_value_HF:.4f}\n")
         # # Save output with subject-specific name and config values
         zssr_fname = (
-            f"./Data/Results_ss/{subject_id}_T1_zssr_w{width}_d{depth}_c{crop_size}_n{noise_std}_test1{snr_component}.nii.gz"
+            f"./Data/Results112/{subject_id}_T1_zssr_w{width}_d{depth}_c{crop_size}_n{noise_std}_test1{snr_component}.nii.gz"
         )
 
         # make_nifti(im_lf_sim_zssr, fname=zssr_fname, mask=False,
         #            res=[pixdim[1], pixdim[2], pixdim[3]], dim_info=[0, 1, 2])
 
         # print(Fore.YELLOW + f"Saved ZSSR output -> {zssr_fname}" + Style.RESET_ALL)
-        viewing = False
+        viewing = True
         if viewing:
             # Display a panel of the mid coronal slice for HF, Monash LF, LF input, and LF ZSSR
             mid_slice = subject_HF_data.shape[1] // 2
@@ -266,11 +270,15 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
             axes[3].axis('off')
 
             plt.tight_layout()
-            plt.show()
+            plt.savefig(f'./Data/Results112/{subject_id}_T1_comparison_w{width}_d{depth}_c{crop_size}_n{noise_std}_test1{snr_component}.png',
+                dpi=600,  # High DPI for crisp output
+                bbox_inches='tight',
+                pad_inches=0.1)
+            # plt.show()
         
-        if viewing:
-            OrthoSlicer3D(im_lf_sim_zssr).show()
-            plt.show()
+        # if viewing:
+        #     OrthoSlicer3D(im_lf_sim_zssr).show()
+        #     plt.show()
     end_time = time.time()
     total_time = end_time - start_time
     print(Fore.CYAN + f"Total time for all parameter combinations: {total_time:.2f} seconds" + Style.RESET_ALL)

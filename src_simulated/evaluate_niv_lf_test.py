@@ -71,7 +71,7 @@ import nibabel as nib
 import matplotlib.pyplot as plt
 import numpy as np
 
-def visualize_and_save_results(model_path, lf, hf, pred, pred2=None, slices=[20, 40, 60],
+def visualize_and_save_results(model_path, lf, hf, pred, pred2=None, slices=[20],
                                title_prefix="", out_dir="Output_patch/results"):
     """
     Displays specified LF, HF, predicted slices, and saves both the entire volumes (NIfTI)
@@ -163,15 +163,15 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
     # 🔹 Define model paths
     # ------------------------------------------------------------
     model_path_train = os.path.join(folder_path, f"{model_name}_checkpoint.keras")
-    # model_path_retrained = os.path.join(folder_path, f"{model_name}_retrained_checkpoint.keras")
+    model_path_retrained = os.path.join(folder_path, f"{model_name}_retrained_final.keras")
 
     if not os.path.exists(model_path_train):
         raise FileNotFoundError(f"Base model not found: {model_path_train}")
-    # if not os.path.exists(model_path_retrained):
-    #     raise FileNotFoundError(f"Retrained model not found: {model_path_retrained}")
+    if not os.path.exists(model_path_retrained):
+        raise FileNotFoundError(f"Retrained model not found: {model_path_retrained}")
 
     print(f"🔹 Base model: {model_path_train}")
-    # print(f"🔹 Retrained model: {model_path_retrained}")
+    print(f"🔹 Retrained model: {model_path_retrained}")
 
     # ------------------------------------------------------------
     # 🔹 Load models
@@ -180,10 +180,10 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
                         custom_objects={'psnr': psnr, 'ssim': ssim,
                                         'mse': mse, 'composite_loss': composite_loss},
                         compile=False)
-    # model2 = load_model(model_path_retrained,
-    #                     custom_objects={'psnr': psnr, 'ssim': ssim,
-    #                                     'mse': mse, 'composite_loss': composite_loss},
-    #                     compile=False)
+    model2 = load_model(model_path_retrained,
+                        custom_objects={'psnr': psnr, 'ssim': ssim,
+                                        'mse': mse, 'composite_loss': composite_loss},
+                        compile=False)
     print("✅ Both models loaded successfully.")
 
     results = []
@@ -200,7 +200,7 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
         pred1 = predict_volume(model1, lf, patch_size=patch_size, overlap=overlap)
 
         # # ---- Stage 2 Refinement ----
-        # pred2 = predict_volume(model2, pred1, patch_size=patch_size, overlap=overlap)
+        pred2 = predict_volume(model2, pred1, patch_size=patch_size, overlap=overlap)
 
         # ---- Compute Metrics ----
         psnr1 = psnr(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
@@ -208,25 +208,25 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
         ssim1 = ssim(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
                      tf.convert_to_tensor(pred1[np.newaxis, ..., np.newaxis])).numpy()
 
-        # psnr2 = psnr(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
-        #              tf.convert_to_tensor(pred2[np.newaxis, ..., np.newaxis])).numpy()
-        # ssim2 = ssim(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
-        #              tf.convert_to_tensor(pred2[np.newaxis, ..., np.newaxis])).numpy()
+        psnr2 = psnr(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
+                     tf.convert_to_tensor(pred2[np.newaxis, ..., np.newaxis])).numpy()
+        ssim2 = ssim(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
+                     tf.convert_to_tensor(pred2[np.newaxis, ..., np.newaxis])).numpy()
 
         print(f"📈 Stage1 → PSNR: {psnr1:.3f}, SSIM: {ssim1:.4f}")
-        # print(f"📈 Stage2 → PSNR: {psnr2:.3f}, SSIM: {ssim2:.4f}")
+        print(f"📈 Stage2 → PSNR: {psnr2:.3f}, SSIM: {ssim2:.4f}")
 
         # # ---- Visualization ----
-        visualize_and_save_results(model_name, lf, hf, pred1, pred2,
-                          slices=visualize_slices, title_prefix=f"Subject_day5 {i}")
+        # visualize_and_save_results(model_name, lf, hf, pred1, pred2,
+        #                   slices=visualize_slices, title_prefix=f"Subject_day5 {i}")
 
         # ---- Collect results ----
         results.append({
             'subject': i,
             'psnr_stage1': psnr1,
             'ssim_stage1': ssim1,
-            # 'psnr_stage2': psnr2,
-            # 'ssim_stage2': ssim2
+            'psnr_stage2': psnr2,
+            'ssim_stage2': ssim2
         })
 
     print("\n✅ Evaluation complete.")

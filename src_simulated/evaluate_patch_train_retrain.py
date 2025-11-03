@@ -146,6 +146,9 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
     model_path_train = os.path.join(folder_path, f"{model_name}_checkpoint.keras")
     model_path_retrained = os.path.join(folder_path, f"{model_name}_retrained_checkpoint.keras")
 
+    # model_path_train = 'Output_patch_noise/residual_srr_unet_l1_l2_ssim_l2_ssim_edge_checkpoint.keras'
+    # model_path_retrained = 'Output_patch/residual_srr_unet_l1_l2_ssim_mse_ssim_edge_retrained_checkpoint.keras'
+
     if not os.path.exists(model_path_train):
         raise FileNotFoundError(f"Base model not found: {model_path_train}")
     if not os.path.exists(model_path_retrained):
@@ -246,18 +249,18 @@ if __name__ == "__main__":
     # 🔹 Model list and paths
     # ------------------------------------------------------------
     model_names = [
-        'residual_srr_unet_l1_l2_ssim_mse_ssim_edge',
+        'residual_srr_unet_l1_l2_ssim_l2_ssim_edge',
         # 'residual_srr_unet_l2_ssim_mse_ssim_edge',
         # 'residual_srr_unet_l1_l2_ssim_l2_ssim',
         # 'residual_srr_unet_l2_ssim_l2_ssim'
         # 'residual_srr_unet_l2_ssim_mse_ssim_edge'
     ]
-    folder_path = "Output_patch"
+    folder_path = "Output_patch_noise"
 
     # ------------------------------------------------------------
     # 🔹 Load test data once
     # ------------------------------------------------------------
-    data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
+    data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
     subjects = ["26184", "30366", "35528", "34507", "35547", "59228", "59877", "59233"]
     test_days = [5]
 
@@ -279,6 +282,11 @@ if __name__ == "__main__":
     X_test, y_test = np.array(X_test), np.array(y_test)
     print(f"📦 Loaded {len(X_test)} test volumes.")
     X_test, y_test = normalize_dataset(X_test, y_test, method='minmax')
+
+    #gaussian smoothing to reduce noise X_test
+    from scipy.ndimage import gaussian_filter
+    X_test = np.array([gaussian_filter(vol, sigma=1) for vol in X_test])
+    print("✅ Test data normalized.")
 
     # ------------------------------------------------------------
     # 🔹 Evaluate each model sequentially
@@ -305,7 +313,6 @@ if __name__ == "__main__":
         print(f"💾 Results saved: {results_path}")
 
     print("\n✅ All models evaluated successfully.")
-
 
         # # Print summary
         # avg_psnr = np.mean([r['psnr'] for r in results])

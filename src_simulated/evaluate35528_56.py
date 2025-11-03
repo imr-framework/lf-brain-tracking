@@ -395,8 +395,8 @@ def compute_aes(image):
 # ------------------------------------------------------------
 # Load and resample LF volume
 # ------------------------------------------------------------
-model_name = 'residual_srr_unet_l1_l2_ssim_mse_ssim_edge'
-folder_path = "Output_patch"
+model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
+folder_path = "Output_patch_noise"
 data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
 subjects = ["26184"]
 test_days = [3]
@@ -404,7 +404,7 @@ test_days = [3]
 lf_path = 'Data/data_sim_check/35528D56_3'
 im = load_lf_3d_file(lf_path)
 print(f"Loaded LF volume: {im.shape}, range=({im.min():.4f}, {im.max():.4f})")
-# visualize_volume(im, title="original LF")
+visualize_volume(im, title="original LF")
 
 im = resample_volume_numpy(im,
                             current_spacing=(2.0, 2.0, 5.33333333),
@@ -412,7 +412,7 @@ im = resample_volume_numpy(im,
                             order=3)
 
 print(f"Resampled LF volume: {im.shape}, range=({im.min():.4f}, {im.max():.4f})")
-# visualize_volume(im, title="Resampled LF")
+visualize_volume(im, title="Resampled LF")
 
 im = rot90_3d(im, k=1, axes=(0, 1))
 print(f"Rotated LF volume: {im.shape}, range=({im.min():.4f}, {im.max():.4f})")
@@ -424,7 +424,27 @@ print(f"Rotated LF volume: {im.shape}, range=({im.min():.4f}, {im.max():.4f})")
 im = circshift_3d(im, up_fraction=0.20, left_fraction=0.0, rotation_deg=0)
 visualize_volume(im, title="Shifted + Rotated")
 print("Original shape:", im.shape)
+subject = '35528_1'
+slice_indices = [24,25,26,27,28]  # Slices to display
+num_slices = len(slice_indices)
 
+fig = plt.figure(figsize=(23, 5))
+
+# Parameters to control overlap (fraction of figure width per slice)
+slice_width = 1.0 / num_slices
+overlap = 0.1  # 0 = no overlap, 0.1 = 10% overlap
+
+for idx, slice_idx in enumerate(slice_indices):
+    # Left position of each axis
+    left = idx * slice_width - idx * slice_width * overlap
+    ax = fig.add_axes([left, 0, slice_width, 1])  # [left, bottom, width, height]
+    ax.imshow(np.rot90(np.rot90(im[:, :, slice_idx])), cmap='gray', origin='lower')
+    ax.set_title(f"Slice {slice_idx}", fontsize=10)
+    ax.axis('off')
+
+plt.suptitle(f"Head Extracted Slices for Subject {subject}", fontsize=16, y=1.05)
+plt.savefig(f'Data/{subject}_head_extracted_slices_overlap.png', dpi=500, bbox_inches='tight', pad_inches=0)
+plt.show()
 
 # # Morphological analysis: threshold, fill holes, dilation, erosion, masking
 # cleaned_im, mask = extract_head_mask(im_shift_rot, threshold=0.091, dilation_iter=1, erosion_iter=1)
@@ -434,7 +454,7 @@ print("Original shape:", im.shape)
 
 im = normalize_volume(im, method='minmax')
 # Rotate 90° counterclockwise (default)
-visualize_volume(im, title="Normalized LF")
+# visualize_volume(im, title="Normalized LF")
 
 
 # im_fixed, pad_info = pad_or_crop_volume_to_shape(im_shift_rot, target_shape=(144, 144, 40))
@@ -446,9 +466,112 @@ visualize_volume(im, title="Normalized LF")
 # ------------------------------------------------------------
 # Add batch axis and evaluate
 # ------------------------------------------------------------
+# ------------------------------------------------------------
+# Add batch axis and evaluate
+# ------------------------------------------------------------
+import os
+import glob
+from scipy.ndimage import gaussian_filter
+import cv2
+import matplotlib.pyplot as plt
+
+# Global flag to ensure deletion happens only once
+_pngs_deleted = False
+
+def visualize_slice(pred2, name='image', output_dir='outputs_59228/trail1'):
+    """
+    Visualize selected slices from a 3D volume, compute AES per slice,
+    and save a high-resolution multi-slice figure.
+    """
+    global _pngs_deleted
+
+    # Ensure output folder exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # # 🔹 Delete all existing PNG files only on first run
+    # if not _pngs_deleted:
+    #     old_pngs = glob.glob(os.path.join(output_dir, "*.png"))
+    #     for f in old_pngs:
+    #         try:
+    #             os.remove(f)
+    #         except Exception as e:
+    #             print(f"⚠️ Could not delete {f}: {e}")
+    #     if old_pngs:
+    #         print(f"🧹 Deleted {len(old_pngs)} existing PNG files in {output_dir}")
+    #     else:
+    #         print(f"🧹 No old PNGs found in {output_dir}")
+    #     _pngs_deleted = True  # Mark cleanup as done
+
+    # Define slice range
+    start_slice, end_slice = 24, 27
+    num_slices = end_slice - start_slice + 1
+
+    # 🔹 Use a larger figure size for publication-quality output
+    fig, axes = plt.subplots(1, num_slices, figsize=(5 * num_slices, 10))
+
+    for i, slice_idx in enumerate(range(start_slice, end_slice + 1)):
+        im = pred2[:, :, slice_idx]
+        aes = compute_aes(im)
+
+        axes[i].imshow(im, cmap='gray')
+        axes[i].set_title(f"AES: {aes:.4f}", fontsize=14)
+        axes[i].axis('off')
+
+    plt.tight_layout()
+
+    # 🔹 High-DPI save paths
+    save_path_std = os.path.join(output_dir, f"{name}_all_slices.png")
+    save_path_high = os.path.join(output_dir, f"{name}_all_slices_highres.png")
+
+    # Save standard figure
+    plt.savefig(save_path_std, bbox_inches='tight', pad_inches=0.1, dpi=200)
+
+    # Save high-resolution figure (publication-ready)
+    plt.savefig(save_path_high, bbox_inches='tight', pad_inches=0.05, dpi=600)
+
+    # plt.show()
+
+    print(f"✅ Saved standard figure: {save_path_std}")
+    print(f"🖼️  Saved high-resolution figure: {save_path_high}")
+
+
+def unsharp_mask(volume, sigma=1.0, amount=1.0):
+    """
+    Apply unsharp masking to a 3D volume.
+    Args:
+        volume (np.ndarray): 3D input volume.
+        sigma (float): Gaussian blur sigma.
+        amount (float): Strength of sharpening.
+    Returns:
+        np.ndarray: Sharpened volume.
+    """
+    blurred = gaussian_filter(volume, sigma=sigma)
+    mask = volume - blurred
+    sharpened = volume + amount * mask
+    return np.clip(sharpened, 0, 1)  # assuming normalized input
 
 im = np.expand_dims(im, axis=0)  # (1, H, W, D)
 print("Final LF input shape:", im.shape)
+
+trial1 = False
+trail2 = True
+unsharp_mask_ = True
+
+if trial1:
+    model_name = 'residual_srr_unet_l1_l2_ssim_mse_ssim_edge'
+    folder_path = "Output_patch"
+else:
+    model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
+    folder_path = "Output_patch_noise"
+
+if unsharp_mask_ and trial1:   
+    output_dir='outputs_355281/trail11_unsharp_masked'
+elif unsharp_mask_ and not trial1:
+    output_dir='outputs_355281/trail22_unsharp_masked'
+elif not unsharp_mask_ and trial1:
+    output_dir='outputs_355281/trail11_pred1_only'
+else:
+    output_dir='outputs_355281/trail22_pred1_only'
 
 im = im.astype(np.float32)
 
@@ -462,69 +585,111 @@ results, pred1, pred2, model1, model2 = evaluate_model(
     visualize_slices=[15]
 )
 
-visualize_volume(pred1, title="Shifted + Rotated")
-visualize_volume(pred2, title="Shifted + Rotated")
-
 print("Evaluation Results:after Stage 2 Refinement")
 
 im = np.squeeze(im, axis=0)
+visualize_slice(im, 'Original', output_dir=output_dir)
 
-# Visualize slices 26 to 32 in large format
-start_slice, end_slice = 23, 30
-fig, axes = plt.subplots(1, end_slice - start_slice + 1, figsize=(3 * (end_slice - start_slice + 1), 6))
-for i, slice_idx in enumerate(range(start_slice, end_slice + 1)):
-    axes[i].imshow(im[:, :, slice_idx], cmap='gray')
-    axes[i].set_title(f'Slice {slice_idx}', fontsize=14)
-    axes[i].axis('off')
-plt.tight_layout()
-plt.show()
+if unsharp_mask_:
+    pred1 = unsharp_mask(pred1, sigma=1.0, amount=1.0)
+    pred2 = unsharp_mask(pred2, sigma=1.0, amount=1.0)
+    
+visualize_slice(pred1, 'pred1', output_dir=output_dir)
+visualize_slice(pred2, 'pred2', output_dir=output_dir)
 
-# # Apply morphological operation to im
-# cleaned_im, mask = extract_head_mask(im, threshold=0.1, dilation_iter=1, erosion_iter=1)
-# print(f"After morphological cleanup: shape={cleaned_im.shape}, mask sum={mask.sum()}")
+def resize_volume_cv2(volume, scale_factor=2, interpolation=cv2.INTER_CUBIC):
+    """
+    Resize a 3D volume using cv2.resize for each slice along the z-axis.
+    Args:
+        volume (np.ndarray): 3D array (H, W, D)
+        scale_factor (float): Scaling factor for H and W
+        interpolation: cv2 interpolation method
+    Returns:
+        np.ndarray: Resized 3D volume
+    """
+    H, W, D = volume.shape
+    new_H, new_W = int(H * scale_factor), int(W * scale_factor)
+    resized = np.zeros((new_H, new_W, D), dtype=volume.dtype)
+    for i in range(D):
+        resized[:, :, i] = cv2.resize(volume[:, :, i], (new_W, new_H), interpolation=interpolation)
+    return resized
 
-# visualize_volume(cleaned_im, title="Morphologically Cleaned")
+# Remove batch axis if present
+im_up = resize_volume_cv2(im if im.ndim == 3 else np.squeeze(im, axis=0), scale_factor=2)
+pred1_up = resize_volume_cv2(pred1, scale_factor=2)
+pred2_up = resize_volume_cv2(pred2, scale_factor=2)
 
-# im = cleaned_im
-for i in range(6):
-    # ---- Stage 2 Refinement ----
-    pred2 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
+print("Upsampled shapes:", im_up.shape, pred1_up.shape, pred2_up.shape)
 
-    # Visualize slices 26 to 32 in large format
-    start_slice, end_slice = 23, 30
-    fig, axes = plt.subplots(1, end_slice - start_slice + 1, figsize=(3 * (end_slice - start_slice + 1), 6))
-    for i, slice_idx in enumerate(range(start_slice, end_slice + 1)):
-        axes[i].imshow(pred2[:, :, slice_idx], cmap='gray')
-        axes[i].set_title(f'Slice {slice_idx}', fontsize=14)
-        axes[i].axis('off')
-    plt.tight_layout()
-    plt.show()
-
-    im = pred2
-    aes = compute_aes(im)
-    print(f"AES after iteration: {aes:.4f}")
-
-# # Apply morphological operation to im
-# cleaned_im, mask = extract_head_mask(im, threshold=0.1, dilation_iter=1, erosion_iter=1)
-# print(f"After morphological cleanup: shape={cleaned_im.shape}, mask sum={mask.sum()}")
-
-# visualize_volume(cleaned_im, title="Morphologically Cleaned")
-# im = cleaned_im
+visualize_slice(im_up, 'Original_up2x', output_dir=output_dir)
+visualize_slice(pred1_up, 'pred1_up2x', output_dir=output_dir)
+visualize_slice(pred2_up, 'pred2_up2x', output_dir=output_dir)
 
 # # ---- Stage 2 Refinement ----
-# pred2 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
-# # visualize_volume(pred2, title="Shifted + Rotated")
+# pred1 = predict_volume(model1, pred1, patch_size=(64,64,32), overlap=0.5)
+# if unsharp_mask_:
+#     pred1 = unsharp_mask(pred1, sigma=1.0, amount=1.0)
+# visualize_slice(pred1,'pred12', output_dir=output_dir)
 
-# # Visualize slices 26 to 32 in large format
-# start_slice, end_slice = 23, 30
-# fig, axes = plt.subplots(1, end_slice - start_slice + 1, figsize=(3 * (end_slice - start_slice + 1), 6))
-# for i, slice_idx in enumerate(range(start_slice, end_slice + 1)):
-#     axes[i].imshow(pred2[:, :, slice_idx], cmap='gray')
-#     axes[i].set_title(f'Slice {slice_idx}', fontsize=14)
-#     axes[i].axis('off')
-# plt.tight_layout()
-# plt.show()
+# # ---- Stage 2 Refinement ----
+# pred1 = predict_volume(model1, pred1, patch_size=(64,64,32), overlap=0.5)
+# if unsharp_mask_:
+#     pred1 = unsharp_mask(pred1, sigma=1.0, amount=1.0)
+# visualize_slice(pred1, 'pred13', output_dir=output_dir)
 
-# im = pred2
+# # # ---- Stage 2 Refinement ----
+
+# print("Evaluation Results:after Stage 2 Refinement")
+
+# # ---- Stage 2 Refinement ----
+# pred21 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
+# if unsharp_mask_:
+#     pred21 = unsharp_mask(pred21, sigma=1.0, amount=1.0)
+# visualize_slice(pred21, 'im_pred21', output_dir=output_dir)
+
+# im = pred21
+# aes = compute_aes(im)
+# print(f"AES after iteration: {aes:.4f}")
+
+# # ---- Stage 2 Refinement ----
+# print('Stage 2')
+# pred22 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
+# if unsharp_mask_:
+#     pred22 = unsharp_mask(pred22, sigma=1.0, amount=1.0)
+# visualize_slice(pred22, 'im_pred22', output_dir=output_dir)
+
+# im = pred22
+# aes = compute_aes(im)
+# print(f"AES after iteration: {aes:.4f}")
+
+# # ---- Stage 2 Refinement ----
+# pred21 = predict_volume(model2, pred2, patch_size=(64,64,32), overlap=0.5)
+# if unsharp_mask_:
+#     pred21 = unsharp_mask(pred21, sigma=1.0, amount=1.0)
+# visualize_slice(pred21, 'pred21', output_dir=output_dir)
+
+# im = pred21
+# aes = compute_aes(im)
+# print(f"AES after iteration: {aes:.4f}")
+
+# # ---- Stage 2 Refinement ----
+# print('Stage 2')
+# pred22 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
+# if unsharp_mask_:
+#     pred22 = unsharp_mask(pred22, sigma=1.0, amount=1.0)
+# visualize_slice(pred22, 'pred22', output_dir=output_dir)
+
+# im = pred22
+# aes = compute_aes(im)
+# print(f"AES after iteration: {aes:.4f}")
+
+# # ---- Stage 2 Refinement ----
+# print('Stage 2')
+# pred22 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
+# if unsharp_mask_:
+#     pred22 = unsharp_mask(pred22, sigma=1.0, amount=1.0)
+# visualize_slice(pred22, 'pred23', output_dir=output_dir)
+
+# im = pred22
 # aes = compute_aes(im)
 # print(f"AES after iteration: {aes:.4f}")
