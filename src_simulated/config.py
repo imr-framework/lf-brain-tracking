@@ -27,7 +27,7 @@ class Config:
     # -----------------------------
     patch_xy = 64
     patch_z = 16
-    input_shape = (64,64,32,1)
+    input_shape = (64,64,16,1)
     batch_size = 64
     steps_per_epoch = 24
     epochs = 500
@@ -40,7 +40,7 @@ class Config:
     retrain_loss_type = "mse_ssim_edge"
     retrain_batch_size = 64
     retrain_steps_per_epoch = 24
-    retrain_epochs = 700
+    retrain_epochs = 50
     visualize = False
 
     # -----------------------------

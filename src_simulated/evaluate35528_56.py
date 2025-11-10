@@ -396,7 +396,7 @@ def compute_aes(image):
 # Load and resample LF volume
 # ------------------------------------------------------------
 model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
-folder_path = "Output_patch_noise"
+folder_path = "Output_patch_noise_updated"
 data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
 subjects = ["26184"]
 test_days = [3]
@@ -416,6 +416,7 @@ visualize_volume(im, title="Resampled LF")
 
 im = rot90_3d(im, k=1, axes=(0, 1))
 print(f"Rotated LF volume: {im.shape}, range=({im.min():.4f}, {im.max():.4f})")
+
 # ============================================================
 # 🔹 5. Example Workflow
 # ============================================================
@@ -426,25 +427,6 @@ visualize_volume(im, title="Shifted + Rotated")
 print("Original shape:", im.shape)
 subject = '35528_1'
 slice_indices = [24,25,26,27,28]  # Slices to display
-num_slices = len(slice_indices)
-
-fig = plt.figure(figsize=(23, 5))
-
-# Parameters to control overlap (fraction of figure width per slice)
-slice_width = 1.0 / num_slices
-overlap = 0.1  # 0 = no overlap, 0.1 = 10% overlap
-
-for idx, slice_idx in enumerate(slice_indices):
-    # Left position of each axis
-    left = idx * slice_width - idx * slice_width * overlap
-    ax = fig.add_axes([left, 0, slice_width, 1])  # [left, bottom, width, height]
-    ax.imshow(np.rot90(np.rot90(im[:, :, slice_idx])), cmap='gray', origin='lower')
-    ax.set_title(f"Slice {slice_idx}", fontsize=10)
-    ax.axis('off')
-
-plt.suptitle(f"Head Extracted Slices for Subject {subject}", fontsize=16, y=1.05)
-plt.savefig(f'Data/{subject}_head_extracted_slices_overlap.png', dpi=500, bbox_inches='tight', pad_inches=0)
-plt.show()
 
 # # Morphological analysis: threshold, fill holes, dilation, erosion, masking
 # cleaned_im, mask = extract_head_mask(im_shift_rot, threshold=0.091, dilation_iter=1, erosion_iter=1)
@@ -529,11 +511,10 @@ def visualize_slice(pred2, name='image', output_dir='outputs_59228/trail1'):
     # Save high-resolution figure (publication-ready)
     plt.savefig(save_path_high, bbox_inches='tight', pad_inches=0.05, dpi=600)
 
-    # plt.show()
+    plt.show()
 
     print(f"✅ Saved standard figure: {save_path_std}")
     print(f"🖼️  Saved high-resolution figure: {save_path_high}")
-
 
 def unsharp_mask(volume, sigma=1.0, amount=1.0):
     """
@@ -563,6 +544,8 @@ if trial1:
 else:
     model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
     folder_path = "Output_patch_noise"
+    print("Using model:", model_name)
+    print("Using folder:", folder_path)
 
 if unsharp_mask_ and trial1:   
     output_dir='outputs_355281/trail11_unsharp_masked'
@@ -574,6 +557,10 @@ else:
     output_dir='outputs_355281/trail22_pred1_only'
 
 im = im.astype(np.float32)
+
+# apply gaussian smoothing to mimic LF blurring
+# lf_sigma = 1.0
+# im = np.array([gaussian_filter(im[i], sigma=lf_sigma) for i in range(len(im))])
 
 results, pred1, pred2, model1, model2 = evaluate_model(
     folder_path=folder_path,
@@ -597,33 +584,89 @@ if unsharp_mask_:
 visualize_slice(pred1, 'pred1', output_dir=output_dir)
 visualize_slice(pred2, 'pred2', output_dir=output_dir)
 
-def resize_volume_cv2(volume, scale_factor=2, interpolation=cv2.INTER_CUBIC):
+
+import os
+import matplotlib.pyplot as plt
+import numpy as np
+
+def visualize_comparison(im, pred1, pred2, name='comparison', output_dir='outputs_59228/trial1'):
     """
-    Resize a 3D volume using cv2.resize for each slice along the z-axis.
-    Args:
-        volume (np.ndarray): 3D array (H, W, D)
-        scale_factor (float): Scaling factor for H and W
-        interpolation: cv2 interpolation method
-    Returns:
-        np.ndarray: Resized 3D volume
+    Display corresponding slices from original (im), pred1, and pred2 volumes
+    in a single figure: rows = versions, columns = slices.
+    Saves both standard and high-resolution images.
     """
-    H, W, D = volume.shape
-    new_H, new_W = int(H * scale_factor), int(W * scale_factor)
-    resized = np.zeros((new_H, new_W, D), dtype=volume.dtype)
-    for i in range(D):
-        resized[:, :, i] = cv2.resize(volume[:, :, i], (new_W, new_H), interpolation=interpolation)
-    return resized
+    os.makedirs(output_dir, exist_ok=True)
 
-# Remove batch axis if present
-im_up = resize_volume_cv2(im if im.ndim == 3 else np.squeeze(im, axis=0), scale_factor=2)
-pred1_up = resize_volume_cv2(pred1, scale_factor=2)
-pred2_up = resize_volume_cv2(pred2, scale_factor=2)
+    # Define slice range
+    start_slice, end_slice = 24, 27
+    slice_indices = range(start_slice, end_slice + 1)
+    num_slices = len(slice_indices)
 
-print("Upsampled shapes:", im_up.shape, pred1_up.shape, pred2_up.shape)
+    # Figure with 3 rows (im, pred1, pred2) × num_slices columns
+    fig, axes = plt.subplots(3, num_slices, figsize=(5 * num_slices, 12))
 
-visualize_slice(im_up, 'Original_up2x', output_dir=output_dir)
-visualize_slice(pred1_up, 'pred1_up2x', output_dir=output_dir)
-visualize_slice(pred2_up, 'pred2_up2x', output_dir=output_dir)
+    # Ensure 2D grayscale slices
+    def get_slice(volume, idx):
+        if volume.ndim == 4:
+            volume = np.squeeze(volume)
+        return volume[:, :, idx]
+
+    titles = ['Original (im)', 'Prediction 1 (pred1)', 'Prediction 2 (pred2)']
+
+    # Plot each version per slice
+    for col, idx in enumerate(slice_indices):
+        for row, (vol, label) in enumerate(zip([im, pred1, pred2], titles)):
+            ax = axes[row, col]
+            sl = get_slice(vol, idx)
+            ax.imshow(sl, cmap='gray')
+            if col == 0:
+                ax.set_ylabel(label, fontsize=14)
+            if row == 0:
+                ax.set_title(f"Slice {idx}", fontsize=14)
+            ax.axis('off')
+
+    plt.tight_layout()
+
+    # Save high and standard resolution
+    save_path_std = os.path.join(output_dir, f"{name}_comparison.png")
+    save_path_high = os.path.join(output_dir, f"{name}_comparison_highres.png")
+
+    plt.savefig(save_path_std, bbox_inches='tight', pad_inches=0.1, dpi=200)
+    plt.savefig(save_path_high, bbox_inches='tight', pad_inches=0.05, dpi=600)
+    plt.show()
+
+    print(f"✅ Saved standard figure: {save_path_std}")
+    print(f"🖼️  Saved high-resolution figure: {save_path_high}")
+
+visualize_comparison(im, pred1, pred2, name='trial_comparison', output_dir='outputs_59228/trial1')
+
+# def resize_volume_cv2(volume, scale_factor=2, interpolation=cv2.INTER_CUBIC):
+#     """
+#     Resize a 3D volume using cv2.resize for each slice along the z-axis.
+#     Args:
+#         volume (np.ndarray): 3D array (H, W, D)
+#         scale_factor (float): Scaling factor for H and W
+#         interpolation: cv2 interpolation method
+#     Returns:
+#         np.ndarray: Resized 3D volume
+#     """
+#     H, W, D = volume.shape
+#     new_H, new_W = int(H * scale_factor), int(W * scale_factor)
+#     resized = np.zeros((new_H, new_W, D), dtype=volume.dtype)
+#     for i in range(D):
+#         resized[:, :, i] = cv2.resize(volume[:, :, i], (new_W, new_H), interpolation=interpolation)
+#     return resized
+
+# # Remove batch axis if present
+# im_up = resize_volume_cv2(im if im.ndim == 3 else np.squeeze(im, axis=0), scale_factor=2)
+# pred1_up = resize_volume_cv2(pred1, scale_factor=2)
+# pred2_up = resize_volume_cv2(pred2, scale_factor=2)
+
+# print("Upsampled shapes:", im_up.shape, pred1_up.shape, pred2_up.shape)
+
+# visualize_slice(im_up, 'Original_up2x', output_dir=output_dir)
+# visualize_slice(pred1_up, 'pred1_up2x', output_dir=output_dir)
+# visualize_slice(pred2_up, 'pred2_up2x', output_dir=output_dir)
 
 # # ---- Stage 2 Refinement ----
 # pred1 = predict_volume(model1, pred1, patch_size=(64,64,32), overlap=0.5)
@@ -639,10 +682,8 @@ visualize_slice(pred2_up, 'pred2_up2x', output_dir=output_dir)
 
 # # # ---- Stage 2 Refinement ----
 
-# print("Evaluation Results:after Stage 2 Refinement")
-
 # # ---- Stage 2 Refinement ----
-# pred21 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
+# pred21 = predict_volume(model2, im, patch_size=(64,64,16), overlap=0.5)
 # if unsharp_mask_:
 #     pred21 = unsharp_mask(pred21, sigma=1.0, amount=1.0)
 # visualize_slice(pred21, 'im_pred21', output_dir=output_dir)

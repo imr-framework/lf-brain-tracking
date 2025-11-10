@@ -162,7 +162,7 @@ import numpy as np
 # ------------------------------------------------
 if __name__ == "__main__":
     # Paths
-    folder_path = "Output"
+    folder_path = "Output_patch_noise_updated"
 
     # Loop through all items in the folder
     for item in os.listdir(folder_path):

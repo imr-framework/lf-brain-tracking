@@ -14,18 +14,19 @@ from demo_read_data import read_lf_data
 import json
 
 # Define a dictionary mapping subject IDs to their corresponding lists
+
 subject_data = {
     # Predefined subfolder sequences for specific subjects
-    26184 : ["3DTSE/6", "3DTSE/9", "3DTSE/10", "3DTSE/8", "3DTSE/10"],
-    30366 : ["3DTSE/4", "3DTSE/6", "3DTSE/8", "3DTSE/2", "3DTSE/8"],
-    59175 : ["3DTSE/2", "3DTSE/4", "3DTSE/1", "3DTSE/9", "3DTSE/6"],
-    34507 : ["3DTSE/4", "3DTSE/4", "3DTSE/3", "3DTSE/3", "3DTSE/13"],
-    35547 : ["3DTSE/7", "3DTSE/4", "3DTSE/5", "3DTSE/14", "3DTSE/5"],
-    59228 : ["3DTSE/8", "3DTSE/13", "3DTSE/12", "3DTSE/9", "3DTSE/13"],
-    59877 : ["3DTSE/2", "3DTSE/2", "3DTSE/2", "3DTSE/2", "3DTSE/8"], # Bad quality data
-    59081 : ["3DTSE/2", "3DTSE/4", "3DTSE/7", "3DTSE/6", "3DTSE/1"], # 1,2,3, 5 --
-    35528 : ["3DTSE/4", "3DTSE/2", "3DTSE/3", "3DTSE/7", "3DTSE/4"],
-    59233 : ["3DTSE/10", "3DTSE/6", "3DTSE/2", "3DTSE/10", "3DTSE/13"]
+    26184 : ["3DTSE/6", "3DTSE/9", "3DTSE/10", "3DTSE/8", "3DTSE/10"],  # 3
+    30366 : ["3DTSE/5", "3DTSE/5", "3DTSE/8", "3DTSE/2", "3DTSE/8"],    # 3, 
+    59175 : ["3DTSE/2", "3DTSE/4", "3DTSE/5", "3DTSE/9", "3DTSE/6"],    # 3, 4
+    34507 : ["3DTSE/4", "3DTSE/4", "3DTSE/3", "3DTSE/4", "3DTSE/13"],   # 4,
+    35547 : ["3DTSE/7", "3DTSE/4", "3DTSE/5", "3DTSE/14", "3DTSE/5"],   # 3
+    59228 : ["3DTSE/8", "3DTSE/13", "3DTSE/12", "3DTSE/9", "3DTSE/13"], # 3, 4
+    59877 : ["3DTSE/2", "3DTSE/2", "3DTSE/1", "3DTSE/2", "3DTSE/8"],    # Bad quality data
+    59081 : ["3DTSE/2", "3DTSE/4", "3DTSE/7", "3DTSE/6", "3DTSE/2"],    # 3,4,5  --
+    35528 : ["3DTSE/4", "3DTSE/2", "3DTSE/3", "3DTSE/8", "3DTSE/3"],    # v4, v5
+    59233 : ["3DTSE/10", "3DTSE/6", "3DTSE/1", "3DTSE/10", "3DTSE/13"]  # Visit 3 near bright, visit 4 bad t2
 }
 
 # Access using variable
@@ -92,19 +93,19 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
 
                         im, im_props = read_lf_data(data_folder, output_folder, subject, sub_folder, name)
                         
-                        if im_props is not None:
-                            fov_im = [im_props.res_dim1 * im.shape[0],  im_props.res_dim2 * im.shape[1], im_props.res_dim3 * im.shape[2]]
-                            if wrap_around > 0 and fix_wrap:
-                                # Fix wrap-around slices if needed
-                                num_wrap_slices = int(im.shape[2] / wrap_around)
-                                im = np.roll(im, -int(num_wrap_slices), axis=2)
-                                print(f"Fixed wrap-around for {subject}, {Visit_id}, {sub_folder}")
+                        # if im_props is not None:
+                        #     fov_im = [im_props.res_dim1 * im.shape[0],  im_props.res_dim2 * im.shape[1], im_props.res_dim3 * im.shape[2]]
+                        #     if wrap_around > 0 and fix_wrap:
+                        #         # Fix wrap-around slices if needed
+                        #         num_wrap_slices = int(im.shape[2] / wrap_around)
+                        #         im = np.roll(im, -int(num_wrap_slices), axis=2)
+                        #         print(f"Fixed wrap-around for {subject}, {Visit_id}, {sub_folder}")
 
-                            # Check if the field of view is greater than 3T, if so, skip the number of slices to ensure FOV is constant across both fields
-                            if  fov_im[2] > fov_3T[2]:
-                                num_slices_to_skip = int((fov_im[2] - fov_3T[2]) / im_props.res_dim3)
-                                im = im[:, :, num_slices_to_skip:] # skips the lower two slices closer to the throat of the monkey - matching 3T
-                                print(f"Skipped {num_slices_to_skip} slices for {subject}, {Visit_id}, {sub_folder}")
+                        #     # Check if the field of view is greater than 3T, if so, skip the number of slices to ensure FOV is constant across both fields
+                        #     if  fov_im[2] > fov_3T[2]:
+                        #         num_slices_to_skip = int((fov_im[2] - fov_3T[2]) / im_props.res_dim3)
+                        #         im = im[:, :, num_slices_to_skip:] # skips the lower two slices closer to the throat of the monkey - matching 3T
+                        #         print(f"Skipped {num_slices_to_skip} slices for {subject}, {Visit_id}, {sub_folder}")
                             
                         print(f"Loaded data for {subject}, {Visit_id}, {sub_folder}")
                         print(sub_list[visit-1])
@@ -148,29 +149,29 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                             print("Skipping due to read error.")
                             continue
 
-                        # print(np.max(np.abs(im)))
-                        # print("Min value:", np.min(np.abs(im)))
-                        # print("Data type of np.abs(im):", np.abs(im).dtype)
-                        # print("Shape of im:", im.shape)
+                        print(np.max(np.abs(im)))
+                        print("Min value:", np.min(np.abs(im)))
+                        print("Data type of np.abs(im):", np.abs(im).dtype)
+                        print("Shape of im:", im.shape)
                         
-                        # num_slices = im.shape[2]
-                        # fig, axes = plt.subplots(2, 8, figsize=(20, 8))
-                        # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
-                        # axes = axes.flatten()
+                        num_slices = im.shape[2]
+                        fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+                        fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+                        axes = axes.flatten()
 
-                        # for i in range(16):
-                        #     if i < num_slices:
-                        #         slice_img = np.flipud(np.abs(im[:, :, i]).T)
-                        #         axes[i].imshow(slice_img, cmap='gray')
-                        #         axes[i].set_title(f'Slice {i + 1}')
-                        #         axes[i].axis('off')
-                        #     else:
-                        #         axes[i].axis('off')
+                        for i in range(16):
+                            if i < num_slices:
+                                slice_img = np.flipud(np.abs(im[:, :, i]).T)
+                                axes[i].imshow(slice_img, cmap='gray')
+                                axes[i].set_title(f'Slice {i + 1}')
+                                axes[i].axis('off')
+                            else:
+                                axes[i].axis('off')
 
-                        # plt.tight_layout()
-                        # plt.savefig(f'Figures/{subject}/{fig_name}')
-                        # plt.show()
-                        # plt.close()
+                        plt.tight_layout()
+                        plt.savefig(f'Figures/{subject}/{fig_name}')
+                        plt.show()
+                        plt.close()
 
     return lf_dataset
 
@@ -577,8 +578,12 @@ def predict_and_evaluate(
 if __name__ == "__main__":
     
     subjects = ['26184']
+    subjects = os.listdir('Data/IRF_3T')
+    #print subjects
 
-    for subject in subjects:
+    print(subjects)   
+
+    for subject in subjects[9:]:
         
         lf_dataset = process_subject(subject=subject)  # Returns list of 3D volumes (e.g., 5 timepoints)
 
@@ -594,76 +599,76 @@ if __name__ == "__main__":
         print(f"Height (H): {h}, Width (W): {w}, Depth (D): {d}")
         # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=26)  #26184
         # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=-9)  #30366
-        head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=-6)  #26184
-        # head = np.abs(head)
-        # Visualize the four slices by start and end to display and save in high dpi
+        # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=-6)  #26184
+        # # head = np.abs(head)
+        # # Visualize the four slices by start and end to display and save in high dpi
 
-        #print the shape of head
-        print("Head shape:", head.shape)
+        # #print the shape of head
+        # print("Head shape:", head.shape)
 
-        # discard slices to make shape 32, 128,128
-        lf_input_volume = head[3:36, :, :]
-        print("Head shape after discarding slices:", head.shape)
+        # # discard slices to make shape 32, 128,128
+        # lf_input_volume = head[3:36, :, :]
+        # print("Head shape after discarding slices:", head.shape)
 
-        #load model
-        # Define the path to the IRF_3T folder (High Field Data)
-        nhp_base_path = './Data/IRF_3T'
-        model_type = 'residual_srr_unet5_subjects_1500_d1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
-        model_case = 'single_encoder_unet'
-        multi_subject_train = True
+        # #load model
+        # # Define the path to the IRF_3T folder (High Field Data)
+        # nhp_base_path = './Data/IRF_3T'
+        # model_type = 'residual_srr_unet5_subjects_1500_d1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
+        # model_case = 'single_encoder_unet'
+        # multi_subject_train = True
 
-        day_idx = 3
-        # unet4 as att resor resunet
-        # 20184,30366,35528,59081,59228
-        subject = '26184'  # Example subject number, adjust as needed 
-        # '59233' visit 1 can be evaluation
-        subject_train = '59228'
-        subject_train = '59228'
+        # day_idx = 3
+        # # unet4 as att resor resunet
+        # # 20184,30366,35528,59081,59228
+        # subject = '26184'  # Example subject number, adjust as needed 
+        # # '59233' visit 1 can be evaluation
+        # subject_train = '59228'
+        # subject_train = '59228'
 
-        if multi_subject_train == False:
-            output_path = f'./Data/Results/{model_type}/{subject_train}'
-            predictions_dir = os.path.join(output_path, 'predictions')
-            model_name = f'{model_type}_model_checkpoint_day2.keras'
-            model_path = os.path.join(output_path, model_name)
-        else:
-            output_path_model = f'./Data/Results/{model_type}/{subject_train}'
-            # predictions_dir = os.path.join(output_path, 'predictions')
-            output_path = f'./Data/Results/{model_type}'
-            predictions_d = os.path.join(output_path, 'predictions')
-            predictions_dir = f'{predictions_d}/{subject}'
-            model_name = f'{model_type}_model_checkpoint_day2.keras'
-            model_path = os.path.join(output_path_model, model_name)
+        # if multi_subject_train == False:
+        #     output_path = f'./Data/Results/{model_type}/{subject_train}'
+        #     predictions_dir = os.path.join(output_path, 'predictions')
+        #     model_name = f'{model_type}_model_checkpoint_day2.keras'
+        #     model_path = os.path.join(output_path, model_name)
+        # else:
+        #     output_path_model = f'./Data/Results/{model_type}/{subject_train}'
+        #     # predictions_dir = os.path.join(output_path, 'predictions')
+        #     output_path = f'./Data/Results/{model_type}'
+        #     predictions_d = os.path.join(output_path, 'predictions')
+        #     predictions_dir = f'{predictions_d}/{subject}'
+        #     model_name = f'{model_type}_model_checkpoint_day2.keras'
+        #     model_path = os.path.join(output_path_model, model_name)
 
         
-        df_metrics = predict_and_evaluate(
-                            model_path=model_path,
-                            volumes_hf_d1=lf_input_volume,        # dict or list with HF volumes
-                            volumes_lf=lf_input_volume,     # dict or list with LF volumes
-                            volumes_hf=lf_input_volume,          # dict or list with HF volumes
-                            predictions_dir=predictions_dir,
-                            visualize_fn=None                   # optional visualization function, if you have one
-                            )
-        print("\nEvaluation complete. Metrics:")
-        print(df_metrics)
+        # df_metrics = predict_and_evaluate(
+        #                     model_path=model_path,
+        #                     volumes_hf_d1=lf_input_volume,        # dict or list with HF volumes
+        #                     volumes_lf=lf_input_volume,     # dict or list with LF volumes
+        #                     volumes_hf=lf_input_volume,          # dict or list with HF volumes
+        #                     predictions_dir=predictions_dir,
+        #                     visualize_fn=None                   # optional visualization function, if you have one
+        #                     )
+        # print("\nEvaluation complete. Metrics:")
+        # print(df_metrics)
 
-        slice_indices = [5,6,7,8,9]  # Slices to display
+        # slice_indices = [5,6,7,8,9]  # Slices to display
 
-        num_slices = len(slice_indices)
+        # num_slices = len(slice_indices)
 
-        fig = plt.figure(figsize=(23, 5))
+        # fig = plt.figure(figsize=(23, 5))
 
-        # Parameters to control overlap (fraction of figure width per slice)
-        slice_width = 1.0 / num_slices
-        overlap = 0.1  # 0 = no overlap, 0.1 = 10% overlap
+        # # Parameters to control overlap (fraction of figure width per slice)
+        # slice_width = 1.0 / num_slices
+        # overlap = 0.1  # 0 = no overlap, 0.1 = 10% overlap
 
-        for idx, slice_idx in enumerate(slice_indices):
-            # Left position of each axis
-            left = idx * slice_width - idx * slice_width * overlap
-            ax = fig.add_axes([left, 0, slice_width, 1])  # [left, bottom, width, height]
-            ax.imshow(head[slice_idx, :,: ].T, cmap='gray', origin='lower')
-            ax.set_title(f"Slice {slice_idx}", fontsize=10)
-            ax.axis('off')
+        # for idx, slice_idx in enumerate(slice_indices):
+        #     # Left position of each axis
+        #     left = idx * slice_width - idx * slice_width * overlap
+        #     ax = fig.add_axes([left, 0, slice_width, 1])  # [left, bottom, width, height]
+        #     ax.imshow(head[slice_idx, :,: ].T, cmap='gray', origin='lower')
+        #     ax.set_title(f"Slice {slice_idx}", fontsize=10)
+        #     ax.axis('off')
 
-        plt.suptitle(f"Head Extracted Slices for Subject {subject}", fontsize=16, y=1.05)
-        plt.savefig(f'Data/{subject}_head_extracted_slices_overlap.png', dpi=500, bbox_inches='tight', pad_inches=0)
-        plt.show()
+        # plt.suptitle(f"Head Extracted Slices for Subject {subject}", fontsize=16, y=1.05)
+        # plt.savefig(f'Data/{subject}_head_extracted_slices_overlap.png', dpi=500, bbox_inches='tight', pad_inches=0)
+        # plt.show()

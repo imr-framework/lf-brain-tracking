@@ -536,7 +536,7 @@ if trial1:
     folder_path = "Output_patch"
 else:
     model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
-    folder_path = "Output_patch_noise"
+    folder_path = "Output_patch_noise_updated"
 
 if unsharp_mask_ and trial1:   
     output_dir='outputs_592281/trail11_unsharp_masked'
@@ -554,7 +554,7 @@ results, pred1, pred2, model1, model2 = evaluate_model(
     model_name=model_name,
     X_test=im,
     y_test=im,
-    patch_size=(64, 64, 32),
+    patch_size=(64, 64, 16),
     overlap=0.5,
     visualize_slices=[15]
 )

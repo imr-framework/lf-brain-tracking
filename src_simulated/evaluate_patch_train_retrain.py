@@ -143,8 +143,8 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
     # ------------------------------------------------------------
     # 🔹 Define model paths
     # ------------------------------------------------------------
-    model_path_train = os.path.join(folder_path, f"{model_name}_checkpoint.keras")
-    model_path_retrained = os.path.join(folder_path, f"{model_name}_retrained_checkpoint.keras")
+    model_path_train = os.path.join(folder_path, f"{model_name}_final.keras")
+    model_path_retrained = os.path.join(folder_path, f"{model_name}_retrained_final.keras")
 
     # model_path_train = 'Output_patch_noise/residual_srr_unet_l1_l2_ssim_l2_ssim_edge_checkpoint.keras'
     # model_path_retrained = 'Output_patch/residual_srr_unet_l1_l2_ssim_mse_ssim_edge_retrained_checkpoint.keras'
@@ -245,6 +245,7 @@ def normalize_dataset(X, y, method='minmax'):
 # ------------------------------------------------
 
 if __name__ == "__main__":
+    
     # ------------------------------------------------------------
     # 🔹 Model list and paths
     # ------------------------------------------------------------
@@ -255,7 +256,7 @@ if __name__ == "__main__":
         # 'residual_srr_unet_l2_ssim_l2_ssim'
         # 'residual_srr_unet_l2_ssim_mse_ssim_edge'
     ]
-    folder_path = "Output_patch_noise"
+    folder_path = "Output_patch_noise_updated"
 
     # ------------------------------------------------------------
     # 🔹 Load test data once
@@ -286,6 +287,7 @@ if __name__ == "__main__":
     #gaussian smoothing to reduce noise X_test
     from scipy.ndimage import gaussian_filter
     X_test = np.array([gaussian_filter(vol, sigma=1) for vol in X_test])
+    # X_test = np.array([gaussian_filter(vol, sigma=1) for vol in X_test])
     print("✅ Test data normalized.")
 
     # ------------------------------------------------------------
@@ -301,20 +303,20 @@ if __name__ == "__main__":
             model_name=model_name,
             X_test=X_test,       # evaluate on subset for speed
             y_test=y_test,
-            patch_size=(64, 64, 32),
+            patch_size=(64, 64, 16),
             overlap=0.5,
             visualize_slices=[15]
         )
 
         # Optional: save results as CSV
         import pandas as pd
-        results_path = os.path.join('Output_patch/results', f"results_test_day{test_days}_{model_name}.csv")
+        results_path = os.path.join(f'{folder_path}', f"results_test_day{test_days}_{model_name}.csv")
         pd.DataFrame(results).to_csv(results_path, index=False)
         print(f"💾 Results saved: {results_path}")
 
     print("\n✅ All models evaluated successfully.")
-
-        # # Print summary
-        # avg_psnr = np.mean([r['psnr'] for r in results])
-        # avg_ssim = np.mean([r['ssim'] for r in results])
-        # print(f"\n✅ Evaluation Complete. Mean PSNR: {avg_psnr:.3f}, Mean SSIM: {avg_ssim:.4f}")
+    
+    # Print summary
+    # avg_psnr = np.mean([r['psnr'] for r in results])
+    # avg_ssim = np.mean([r['ssim'] for r in results])
+    # print(f"\n✅ Evaluation Complete. Mean PSNR: {avg_psnr:.3f}, Mean SSIM: {avg_ssim:.4f}")

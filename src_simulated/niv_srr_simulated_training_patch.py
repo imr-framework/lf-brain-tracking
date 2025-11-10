@@ -499,13 +499,13 @@ def run_training(lf_train, hf_train, lf_val, hf_val,
 # -----------------------------
 # GENERATE PSEUDO-ENHANCED INPUTS
 # -----------------------------
-def predict_refined_inputs(model, lf_volumes, patch_size=(64,64,32), overlap=0.5):
+def predict_refined_inputs(model, lf_volumes, patch_size=config.input_shape, overlap=0.5):
     """Apply model prediction volume-wise to generate refined inputs."""
     refined_vols = []
     for i, lf in enumerate(lf_volumes):
         print(f"🔁 Predicting refined input for volume {i+1}/{len(lf_volumes)} ...")
         H, W, D = lf.shape
-        px, py, pz = patch_size
+        px, py, pz,_ = patch_size
 
         sx = max(1, int(px*(1-overlap)))
         sy = max(1, int(py*(1-overlap)))
@@ -558,7 +558,6 @@ def show_refinement_slices(originals, refined, n=3, axis=2):
 
     plt.tight_layout()
     plt.show()
-
 
 def run_retraining(checkpoint_path,
                    refined_model_name,
@@ -725,10 +724,7 @@ if __name__ == "__main__":
         X_val, y_val     = normalize_dataset(X_val, y_val)
         X_test, y_test   = normalize_dataset(X_test, y_test)
 
-
         # apply gaussian smoothing to X_test for visualization
-
-
 
         if visualize:
             for i in range(len(X_test)):
@@ -741,12 +737,13 @@ if __name__ == "__main__":
         
         # Apply slight Gaussian smoothing to simulated LF images to mimic real-world blurring
         # print("🔧 Applying Gaussian smoothing to simulated LF images ...")
-        # apply Gaussian smoothin to X_train, X_val, X_test
+        # apply Gaussian smoothing to X_train, X_val, X_test
         lf_sigma = 1.0
         X_train = np.array([gaussian_filter(X_train[i], sigma=lf_sigma) for i in range(len(X_train))])
         X_val = np.array([gaussian_filter(X_val[i], sigma=lf_sigma) for i in range(len(X_val))])
         X_test = np.array([gaussian_filter(X_test[i], sigma=lf_sigma) for i in range(len(X_test))])
 
+        
         # -----------------------------
         # Print shapes for confirmation
         # -----------------------------
@@ -759,24 +756,24 @@ if __name__ == "__main__":
         print(f"📦 Total validation volumes: {len(X_val)}")
         print(f"📦 Total testing volumes: {len(X_test)}\n")        
         
-        # -----------------------------
-        # Train model
-        trained_model, history = run_training(
-            lf_train=X_train,
-            hf_train=y_train,
-            lf_val=X_val,
-            hf_val=y_val,
-            output_path=config.output_path,
-            model_type=residual_srr_unet,
-            model_name=config.model_name,
-            loss_type=config.loss_type_denoise,
-            patch_xy=config.patch_xy,
-            patch_z=config.patch_z,
-            batch_size=config.batch_size,
-            steps_per_epoch=config.steps_per_epoch,
-            epochs=config.epochs,
-            gaussian_blur=True
-        )
+        # # -----------------------------
+        # # Train model
+        # trained_model, history = run_training(
+        #     lf_train=X_train,
+        #     hf_train=y_train,
+        #     lf_val=X_val,
+        #     hf_val=y_val,
+        #     output_path=config.output_path,
+        #     model_type=residual_srr_unet,
+        #     model_name=config.model_name,
+        #     loss_type=config.loss_type_denoise,
+        #     patch_xy=config.patch_xy,
+        #     patch_z=config.patch_z,
+        #     batch_size=config.batch_size,
+        #     steps_per_epoch=config.steps_per_epoch,
+        #     epochs=config.epochs,
+        #     gaussian_blur=True
+        # )
 
         # Refinement (2nd pass)
         refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
@@ -797,6 +794,95 @@ if __name__ == "__main__":
             gaussian_blur=False
         )
         
+        config.checkpoint_path = config.refined_model_name
+        config.refined_model_name = f"{config.checkpoint_path}_retrained"
+
+        # Refinement (2nd pass)
+        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
+            checkpoint_path=config.checkpoint_path,
+            refined_model_name=config.refined_model_name,
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            output_path=config.output_path,
+            batch_size=config.retrain_batch_size,
+            loss_type=config.retrain_loss_type,
+            patch_xy=config.patch_xy,
+            patch_z=config.patch_z,
+            steps_per_epoch=config.retrain_steps_per_epoch,
+            epochs=config.retrain_epochs,
+            visualize=config.visualize,
+            gaussian_blur=False
+        )
+
+
+        config.checkpoint_path = config.refined_model_name
+        config.refined_model_name = f"{config.checkpoint_path}_retrained"
+
+        # Refinement (2nd pass)
+        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
+            checkpoint_path=config.checkpoint_path,
+            refined_model_name=config.refined_model_name,
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            output_path=config.output_path,
+            batch_size=config.retrain_batch_size,
+            loss_type=config.retrain_loss_type,
+            patch_xy=config.patch_xy,
+            patch_z=config.patch_z,
+            steps_per_epoch=config.retrain_steps_per_epoch,
+            epochs=config.retrain_epochs,
+            visualize=config.visualize,
+            gaussian_blur=False
+        )
+
+        config.checkpoint_path = config.refined_model_name
+        config.refined_model_name = f"{config.checkpoint_path}_retrained"
+
+        # Refinement (2nd pass)
+        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
+            checkpoint_path=config.checkpoint_path,
+            refined_model_name=config.refined_model_name,
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            output_path=config.output_path,
+            batch_size=config.retrain_batch_size,
+            loss_type=config.retrain_loss_type,
+            patch_xy=config.patch_xy,
+            patch_z=config.patch_z,
+            steps_per_epoch=config.retrain_steps_per_epoch,
+            epochs=config.retrain_epochs,
+            visualize=config.visualize,
+            gaussian_blur=False
+        )
+
+        config.checkpoint_path = config.refined_model_name
+        config.refined_model_name = f"{config.checkpoint_path}_retrained"
+
+        # Refinement (2nd pass)
+        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
+            checkpoint_path=config.checkpoint_path,
+            refined_model_name=config.refined_model_name,
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            output_path=config.output_path,
+            batch_size=config.retrain_batch_size,
+            loss_type=config.retrain_loss_type,
+            patch_xy=config.patch_xy,
+            patch_z=config.patch_z,
+            steps_per_epoch=config.retrain_steps_per_epoch,
+            epochs=config.retrain_epochs,
+            visualize=config.visualize,
+            gaussian_blur=False
+        )
+
         refined_model_name = config.refined_model_name
         refined_checkpoint_path = os.path.join(config.output_path, f"{refined_model_name}_checkpoint.keras")
         print(f"📥 Loading base model from checkpoint: {refined_checkpoint_path}")

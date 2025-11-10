@@ -6,8 +6,9 @@
 # Visualize results and create comparison plots
 # Make different folder structures for different experiments
 
+# Domain adaptation; Denoising; Super-resolution
 
-# denoising/Total variation
+# Denoising/Total variation
 # ZSSR (inplane super-resolution)
 # Diffusion based denoising
 # Transformer based super-resolution
