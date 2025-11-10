@@ -171,6 +171,9 @@ src_simulated/simulated_outputs/
 *.keras
 *.csv
 *.png
+*.nii.gz
+Niftymic_related/*.zip
+Niftymic_related/*.nii.gz
 # Data
 Data/
 ./Data/
