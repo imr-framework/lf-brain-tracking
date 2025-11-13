@@ -1,0 +1,68 @@
+{
+    "alpha": 0.02,
+    "alpha-first": 0.2,
+    "bias-field-correction": 0,
+    "boundary-stacks": [
+        10,
+        10,
+        0
+    ],
+    "date": "2025-11-11 20:13:04",
+    "dilation-radius": 3,
+    "extra-frame-target": 10,
+    "filenames": [
+        "axial_redo.nii.gz",
+        "cor_redo.nii.gz",
+        "sag_redo.nii.gz"
+    ],
+    "filenames-masks": [
+        "axial_mask_redo.nii.gz",
+        "cor_mask_redo.nii.gz",
+        "sag_mask_redo.nii.gz"
+    ],
+    "intensity-correction": 1,
+    "interleave": 3,
+    "isotropic-resolution": 2.0,
+    "iter-max": 10,
+    "iter-max-first": 5,
+    "iterations": 15,
+    "log-config": 1,
+    "metric": "Correlation",
+    "metric-radius": 10,
+    "multiresolution": 0,
+    "outlier-rejection": 0,
+    "output": "srr_1cycle_2mm_Huber_test2.nii.gz",
+    "reconstruction-type": "HuberL2",
+    "reference": null,
+    "reference-mask": null,
+    "s2v-hierarchical": false,
+    "sda": false,
+    "search-angle": 45,
+    "shrink-factors": [
+        3,
+        2,
+        1
+    ],
+    "sigma": 1,
+    "slice-thicknesses": null,
+    "smoothing-sigmas": [
+        1.5,
+        1,
+        0
+    ],
+    "subfolder-motion-correction": "motion_correction",
+    "suffix-mask": "_mask",
+    "target-stack": null,
+    "threshold": 0.7,
+    "threshold-first": 0.5,
+    "transforms-history": 0,
+    "two-step-cycles": 1,
+    "use-masks-srr": 0,
+    "user": "unknown_login @ 7bd50ce57468 (Python 3.6.9, Linux, 6.8.0-87-generic, #88~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Tue Oct 14 14:03:14 UTC 2, x86_64, )",
+    "v2v-method": "RegAladin",
+    "v2v-robust": false,
+    "verbose": 1,
+    "version": "0.9",
+    "viewer": "itksnap",
+    "write-motion-correction": 1
+}

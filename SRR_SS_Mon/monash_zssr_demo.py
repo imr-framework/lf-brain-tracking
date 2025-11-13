@@ -67,10 +67,10 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 viewing = False
 ds_to_process = 4
-target_resolution_fact = [1, 1, 4]
+target_resolution_fact = [1, 1, 2]
 scale_factor = target_resolution_fact[2]  # Z-axis scaling factor
 snr_component = False
- 
+
 max_iters = 3000
 min_iters = 256
 # Define parameter options
@@ -174,15 +174,11 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
         # Ensure all images are in the same dynamic range 0 - 1
         im_lf_sim_zssr_yz = im_lf_sim_zssr / np.max(im_lf_sim_zssr)
 
-        
-
-
         print(Fore.GREEN + "Shape of im_lf_sim_zssr_yz:" + str(im_lf_sim_zssr_yz.shape) + Style.RESET_ALL)
 
         # Now let us switch the two axes to also perform ZSSR in the other plane
         img_data_xz = np.swapaxes(img_data, 0, 1)
         print(Fore.GREEN + "Shape of img_data_xz:" + str(img_data_xz.shape) + Style.RESET_ALL)
-
 
         # Run ZSSR on the swapped axes
         im_lf_sim_zssr_xz = do_ZSSR_steps(

@@ -78,7 +78,7 @@ crop_sizes = [128, 256]
 noise_stds = [0.0, 0.2]
 
 # Load dataset
-training_path = "Data/ULC_img_enhancement/Training data"
+training_path = "Data/ULC_img enhancement/Training data"
 dataset = PairedMRI(training_path)
 
 # List subjects
@@ -153,8 +153,9 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
 
         # Run ZSSR
         print('Passing through ZSSR ..........')
+
         im_lf_sim_zssr = np.zeros((subject_HF_data.shape[0], subject_HF_data.shape[1], subject_HF_data.shape[2]), dtype=float)
-        for slice_num in range(112, img_data.shape[0]):
+        for slice_num in range(1, img_data.shape[0]):
             print(Fore.MAGENTA + f"Processing slice {slice_num+1}/{img_data.shape[0]}" + Style.RESET_ALL)
             input2zssr_slice = img_data[slice_num, :, :]
             input2zssr_gt_slice = subject_HF_data[slice_num, :, :]
@@ -170,12 +171,10 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
 
             im_lf_sim_zssr_slice = ZSSR.ZSSR(input_img=input_zssr_slice, conf=recon_config,
                                              ground_truth=None, kernels=None).run()
-
             
             # Rescale enhanced coefficients back to original range and add back mean
             # im_lf_sim_zssr_slices_edges = im_lf_sim_zssr_slices_edges * (input_zssr_edges_max - input_zssr_edges_min) + input_zssr_edges_min
             # im_lf_sim_zssr_slices = im_lf_sim_zssr_slices * (input_zssr_ap_coef_max - input_zssr_ap_coef_min) + input_zssr_ap_coef_min
-
 
             im_lf_sim_zssr[slice_num, :, :] = im_lf_sim_zssr_slice[:, :, 0]
             viewing = True
@@ -195,6 +194,7 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
                 axes[3].axis('off')
                 plt.tight_layout()
                 plt.show()
+            
             # Compute metrics for the current slice
             monash_slice = subject_LF_Monash.get_fdata()[slice_num, :, :]
             hf_slice = subject_HF.get_fdata()[slice_num, :, :]

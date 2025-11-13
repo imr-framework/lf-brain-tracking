@@ -30,14 +30,13 @@ def do_mask_image(img:np.ndarray=None):
 def do_ZSSR_steps(img:np.ndarray=None, recon_conf:configs.Config=None,
                     num_cols:int=5, num_rows:int=5,
                     fname_zssr:str=None, fspec:str='', scale_fact:int=2, dims:int=1, ground_truth:np.ndarray=None, kernel=None):
+    
     fext='.nii.gz'
     # Convert to mosaic
     input2zssr = mosaic_all_slices(img, debug=False,
                                     filename=fname_zssr +'_input.png', savefig=True,
                                     num_cols=num_cols, num_rows=num_rows) # adds a 90 degree rotation
 
-
-    
     if ground_truth is not None:
         print('Ground truth provided ...')
         input2zssr_gt = mosaic_all_slices(ground_truth, debug=False,
@@ -54,6 +53,7 @@ def do_ZSSR_steps(img:np.ndarray=None, recon_conf:configs.Config=None,
     # OrthoSlicer3D(vol_check).show()
     # plt.show()
     # # Perform collage ZSSR - in 1 dimension, say x direction
+    
     recon_conf.scale_factors = [[1, np.sqrt(scale_fact)]]
     im_collage_x = do_collage_ZSSR_nhp(low_res_im=input2zssr, recon_conf=recon_conf, 
                             debug_mode=False, fname_file_save=fname_zssr + fspec + fext, 

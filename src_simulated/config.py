@@ -19,18 +19,18 @@ class Config:
     # -----------------------------
     model_name = "residual_srr_unet"
     # model_type = residual_srr_unet  # symbolic name; loaded dynamically if needed
-    output_path = "Output_patch_noise_updated"
+    output_path = "src_simulated/outputs/Output_patch_noise_transformer"
     os.makedirs(output_path, exist_ok=True)
     
     # -----------------------------
     # ⚙️ TRAINING PARAMETERS
     # -----------------------------
     patch_xy = 64
-    patch_z = 16
-    input_shape = (64,64,16,1)
-    batch_size = 64
+    patch_z = 32
+    input_shape = (64,64,32,1)
+    batch_size = 32
     steps_per_epoch = 24
-    epochs = 500
+    epochs = 1
     learning_rate = 0.001
     loss_type_denoise = "l1_l2_ssim"
 
@@ -38,9 +38,9 @@ class Config:
     # 🔁 REFINEMENT PARAMETERS
     # -----------------------------
     retrain_loss_type = "mse_ssim_edge"
-    retrain_batch_size = 64
+    retrain_batch_size = 8
     retrain_steps_per_epoch = 24
-    retrain_epochs = 50
+    retrain_epochs = 2
     visualize = False
 
     # -----------------------------

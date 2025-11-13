@@ -6,7 +6,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from src_niv.metrics import psnr, ssim, mse, composite_loss
 from src_niv.utils import visualize_pair
-from src_simulated.niv_srr_simulated_training_patch import (
+from src_simulated.train_scripts.niv_srr_simulated_training_patch import (
     load_data_for_days,
     normalize_dataset,
     srr_batch_generator,

@@ -91,8 +91,7 @@ class ZSSR:
         # We keep the input file name to save the output with a similar name. If array was given rather than path
         # then we use default provided by the configs
         self.file_name = input_img if type(input_img) is str else conf.name
-
-    
+ 
     def run(self):
         # Run gradually on all scale factors (if only one jump then this loop only happens once)
         for self.sf_ind, (sf, self.kernel) in enumerate(zip(self.conf.scale_factors, self.kernels)):
