@@ -189,3 +189,5 @@ Data/
 *.png
 SRR_r21/output_nifty/*
 Output/
+Figures/
+motion_correction/
