@@ -159,18 +159,27 @@ class ZSSR:
             for l in range(meta.depth - 1):
                 self.layers_t[l + 1] = tf.compat.v1.nn.relu(tf.nn.conv2d(self.layers_t[l], self.filters_t[l],
                                                                [1, 1, 1, 1], "SAME", name='layer_%d' % (l + 1)))
-                
+
             # Last conv layer (Separate because no ReLU here)
             l = meta.depth - 1
             self.layers_t[-1] = tf.compat.v1.nn.conv2d(self.layers_t[l], self.filters_t[l],
                                              [1, 1, 1, 1], "SAME", name='layer_%d' % (l + 1))
             
+
+            # # === DEBUG SHAPE PRINT MUST BE HERE ===
+            # shape_last = tf.shape(self.layers_t[-1])
+            # shape_lr = tf.shape(self.lr_son_t)
+
+            # print_op = tf.compat.v1.print("DEBUG >> SHAPES:",
+            #                             "layers_t[-1] =", shape_last,
+            #                             "lr_son_t =", shape_lr,
+            #                             "learn_residual =", self.conf.learn_residual,
+            #                             output_stream=sys.stdout)
+
             # Output image (Add last conv layer result to input, residual learning with global skip connection)
             self.net_output_t = self.layers_t[-1] + self.conf.learn_residual * self.lr_son_t
 
             # Final loss (L1 loss between label and output layer)
-
-
 
             # L1 loss   
             # Sobel edge loss

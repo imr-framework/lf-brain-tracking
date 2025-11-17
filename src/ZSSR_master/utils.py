@@ -278,6 +278,7 @@ def random_augment(ims,
     shift_back_from_center = np.array([[1, 0, im.shape[1] / 2.0],
                                        [0, 1, im.shape[0] / 2.0],
                                        [0, 0, 1]])
+    
     # Keeping the transform interpolation free means only shifting by integers
     if mode != 'affine':
         shift_to_center_mat = np.round(shift_to_center_mat)

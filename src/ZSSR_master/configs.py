@@ -10,7 +10,7 @@ class Config:
     max_iters = 3000
     min_iters = 256
     min_learning_rate = 9e-9  # this tells the algorithm when to stop (specify lower than the last learning-rate)
-    width = 64
+    width = 32
     depth = 12
     output_flip = True  # geometric self-ensemble (see paper)
     downscale_method = 'lanczos3'  # a string ('cubic', 'linear'...), has no meaning if kernel given

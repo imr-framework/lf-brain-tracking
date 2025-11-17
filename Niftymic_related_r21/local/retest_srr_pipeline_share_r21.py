@@ -124,11 +124,30 @@ plot_anatomy_raw(im_srr, clim=[0, 2048])
 print('Passing through ZSSR ..........')
 
 img = nib.load('srr_1cycle_2mm_Huber_test2.nii.gz')
-im_srr = img.get_fdata()
-affine = img.affine
 
-X, Y, Z = im_srr.shape
-print("Input shape:", im_srr.shape)
+
+im_srr = img.get_fdata()
+
+img_new = im_srr
+img_new = np.zeros((im_srr.shape[0] + 2, im_srr.shape[1] , im_srr.shape[2]))
+img_new[:-2, :,:] = im_srr
+# plot_anatomy_raw(img_new, clim=[0, 2048])
+
+# # Pad only the second axis (Y axis)
+# img_pad = np.pad(
+#     im_srr,
+#     pad_width=((0, 0),   # axis 0: no padding
+#                (0, 1),   # axis 1: pad 1 voxel at the end
+#                (0, 0)),  # axis 2: no padding
+#     mode='constant',
+#     constant_values=0
+# )
+# print(img_pad.shape)
+
+# # affine = img_pad.affine
+
+X, Y, Z = img_new.shape
+print("Input shape:", img_new.shape)
 
 
 # ============================================================
@@ -168,7 +187,6 @@ def upscale_x(volume, recon_config):
         out[x, :, :] = sr_slice[:, :, 0]
 
     return out
-
 
 # ============================================================
 # 2. PASS y — Upscale x only
@@ -213,12 +231,12 @@ def run_xyz_progressive_zssr(im_srr, recon_config):
     print("\n==============================")
     print("Step 1: Upscaling X (×2)")
     print("==============================")
-    vol_x2 = upscale_x(im_srr, recon_config)
+    # vol_x2 = upscale_x(im_srr, recon_config)
 
     print("\n==============================")
     print("Step 2: Upscaling Y (×2)")
     print("==============================")
-    vol_xy2 = upscale_y(vol_x2, recon_config)
+    vol_xy2 = upscale_y(im_srr, recon_config)
 
     print("\n==============================")
     print("Step 3: Upscaling Z (×2)")
@@ -239,13 +257,13 @@ recon_config.scale_factors = [[1, 2]]
 recon_config.max_iters = 50
 recon_config.min_iters = 20
 recon_config.width = 32
-recon_config.depth = 4
+recon_config.depth = 12
 recon_config.noise_std = 0.0
 recon_config.crop_size = 32
 num_rows = 16
 num_cols = 14
 
-vol_xz = run_xyz_progressive_zssr(im_srr, recon_config)
+vol_xz = run_xyz_progressive_zssr(img_new, recon_config)
 
 # -------------------------------------------------------------
 # Final 3D SR output
@@ -297,6 +315,4 @@ if viewing:
 
     plt.tight_layout()
     plt.show()
-
-
 
