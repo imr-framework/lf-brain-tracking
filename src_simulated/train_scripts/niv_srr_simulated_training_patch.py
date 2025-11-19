@@ -285,8 +285,8 @@ def compile_model(model, lr=0.001, loss_type='l1_l2_ssim'):
         loss_fn = l2_ssim_edge_loss
     elif loss_type == 'l1_l2_ssim_edge':
         loss_fn = l1_l2_ssim_edge_loss
-    elif loss_type == 'gram_loss':
-        loss_fn = gram_matrix
+    elif loss_type == 'l2_edge_gram_matrix_loss':
+        loss_fn = l2_edge_gram_matrix_loss
     else:
         raise ValueError("❌ Invalid loss_type. Choose from: ['l1', 'l2', 'ssim', 'l1_ssim', 'l2_ssim', 'l1_l2_ssim', 'mse_ssim_edge'].")
 
@@ -690,7 +690,7 @@ if __name__ == "__main__":
     #     ]
     
     selected_combinations = [
-        ("l1_l2_ssim", "l2_ssim_edge"),
+        ("l2_edge_gram_matrix_loss", "l2_ssim_edge"),
         ]
     # 🌀 Iterate over chosen combinations
     for loss_denoise, loss_retrain in selected_combinations:
