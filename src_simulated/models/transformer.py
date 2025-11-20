@@ -26,11 +26,11 @@ class TransformerBlock(layers.Layer):
 
 def build_3d_transformer_srr(
     input_shape=(64,64,16,1),
-    patch_size=(4,4,2),
-    embed_dim=64,
-    depth=4,
-    num_heads=8,
-    mlp_dim=512,
+    patch_size=(8,8,4),
+    embed_dim=128,
+    depth=3,
+    num_heads=4,
+    mlp_dim=256,
     dropout=0.0,
     upsample_scale=(1,1,1),
     output_channels=1
@@ -98,13 +98,13 @@ def build_3d_transformer_srr(
 # Build and test
 model = build_3d_transformer_srr(
     input_shape=(64,64,32,1),
-    patch_size=(4,4,2),
+    patch_size=(8,8,4),
     embed_dim=256,
     depth=6,
     num_heads=8,
     mlp_dim=512,
     dropout=0.0,
-    upsample_scale=(2,2,2),
+    upsample_scale=(1,1,1),
     output_channels=1
 )
 

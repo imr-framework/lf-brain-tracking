@@ -38,7 +38,7 @@ class Config:
     # 🔁 REFINEMENT PARAMETERS
     # -----------------------------
     retrain_loss_type = "mse_ssim_edge"
-    retrain_batch_size = 8
+    retrain_batch_size = 2
     retrain_steps_per_epoch = 24
     retrain_epochs = 2
     visualize = False
