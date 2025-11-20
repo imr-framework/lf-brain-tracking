@@ -16,7 +16,7 @@ import pydicom
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
+# matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
 from tensorflow.keras import layers, models, Input
 import ants
 import nibabel as nib

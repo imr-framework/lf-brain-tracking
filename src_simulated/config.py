@@ -1,7 +1,7 @@
 # config.py
-from src_niv.models.ResUNet import residual_srr_unet
-from src_niv.models.DenseUNet import build_dense_unet_3d
-from src_niv.models.Inception import build_res_inception_unet_3d
+# from src_niv.models.ResUNet import residual_srr_unet
+# from src_niv.models.DenseUNet import build_dense_unet_3d
+# from src_niv.models.Inception import build_res_inception_unet_3d
 import os
 
 class Config:
@@ -30,7 +30,7 @@ class Config:
     input_shape = (64,64,32,1)
     batch_size = 32
     steps_per_epoch = 24
-    epochs = 1
+    epochs = 3
     learning_rate = 0.001
     loss_type_denoise = "l1_l2_ssim"
 
