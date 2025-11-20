@@ -44,7 +44,7 @@ def build_3d_transformer_srr(
     n_wp = W // pW
     n_dp = D // pD
     n_tokens = n_hp * n_wp * n_dp
-
+    tf.print("I am inside transformer")
     inp = Input(shape=input_shape)
 
     # Patch embedding
@@ -93,6 +93,7 @@ def build_3d_transformer_srr(
         out = layers.Add(name="final_residual")([out, inp])
 
     model = Model(inp, out, name="3D_Patch_Transformer_SRR")
+    model.summary()
     return model
 
 # Build and test
@@ -108,4 +109,3 @@ model = build_3d_transformer_srr(
     output_channels=1
 )
 
-model.summary()
