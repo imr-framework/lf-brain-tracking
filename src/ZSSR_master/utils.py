@@ -347,21 +347,21 @@ def random_augment(ims,
 
     # Apply transformation to image and return the transformed image clipped between 0-1
     transformed_im = warpPerspective(im, transform_mat, (crop_size, crop_size), flags=INTER_CUBIC)
-    attempts = 0
-    while np.mean(transformed_im) <= 0.2 and attempts < 10:
-        # Redo augmentation
-        # print('Black image, redoing augmentation: ' + str(attempts))
-        transformed_im = random_augment(ims,
-                                        base_scales=base_scales,
-                                        leave_as_is_probability=leave_as_is_probability,
-                                        no_interpolate_probability=no_interpolate_probability,
-                                        min_scale=min_scale,
-                                        max_scale=max_scale,
-                                        allow_rotation=allow_rotation,
-                                        scale_diff_sigma=scale_diff_sigma,
-                                        shear_sigma=shear_sigma,
-                                        crop_size=crop_size)
-        attempts += 1
+    # attempts = 0
+    # while np.mean(transformed_im) <= 0.05 and attempts < 2:
+    #     # Redo augmentation
+    #     # print('Black image, redoing augmentation: ' + str(attempts))
+    #     transformed_im = random_augment(ims,
+    #                                     base_scales=base_scales,
+    #                                     leave_as_is_probability=leave_as_is_probability,
+    #                                     no_interpolate_probability=no_interpolate_probability,
+    #                                     min_scale=min_scale,
+    #                                     max_scale=max_scale,
+    #                                     allow_rotation=allow_rotation,
+    #                                     scale_diff_sigma=scale_diff_sigma,
+    #                                     shear_sigma=shear_sigma,
+    #                                     crop_size=crop_size)
+    #     attempts += 1
 
     # Apply unsharp masking to enhance edges for better SRR performance
 

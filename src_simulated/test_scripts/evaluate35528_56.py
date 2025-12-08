@@ -51,7 +51,6 @@ from src_simulated.evaluate_niv_lf_test import evaluate_model, predict_volume
 from src_niv.metrics import psnr, ssim, mse, composite_loss
 from src_niv.utils import visualize_pair
 
-
 def resample_volume_numpy(im, current_spacing=(2.0, 2.0, 5.0), new_spacing=(1.0, 1.0, 2.0), order=3):
     """
     Resample a 3D numpy volume to the desired voxel spacing.
@@ -147,8 +146,6 @@ def normalize_dataset(X, y, method='minmax'):
     y_norm = np.array([normalize_volume(vol, method) for vol in y])
     return X_norm, y_norm
 
-
-
 # ============================================================
 # 🔹 1. Intensity-Based Centering
 # ============================================================
@@ -166,7 +163,6 @@ def circshift_center_intensity(image):
         shifted = np.roll(shifted, shift[axis], axis=axis)
 
     return shifted, com, geom_center, shift
-
 
 # ============================================================
 # 🔹 2. Fractional Shift + Rotation
@@ -219,7 +215,6 @@ def circshift_up(image, fraction=0.3):
     shifted = np.roll(shifted, -shift_y, axis=0)
     return shifted
 
-
 # ============================================================
 # 🔹 4. Visualization Utility
 # ============================================================
@@ -243,7 +238,6 @@ def visualize_volume(volume, title="Volume", rows=3, cmap='gray'):
 
     plt.tight_layout()
     plt.show()
-
 
 def pad_or_crop_volume_to_shape(volume, target_shape=(144, 144, 40)):
     """
@@ -309,8 +303,6 @@ def pad_or_crop_volume_to_shape(volume, target_shape=(144, 144, 40)):
 
     return padded, pad_info
 
-
-
 def rot90_3d(volume, k=1, axes=(0, 1)):
     """
     Apply 90° rotation (k times) to all slices in a 3D volume.
@@ -327,7 +319,6 @@ def rot90_3d(volume, k=1, axes=(0, 1)):
     for i in range(volume.shape[2]):
         rotated[:, :, i] = np.rot90(volume[:, :, i], k=k, axes=axes)
     return rotated
-
 
 def extract_head_mask(volume, threshold=0.1, min_size=5000, dilation_iter=2, erosion_iter=1):
     """
@@ -384,7 +375,6 @@ def extract_head_mask(volume, threshold=0.1, min_size=5000, dilation_iter=2, ero
 
     return cleaned, mask
 
-
 # # Compute Average Edge Strength (AES)
 def compute_aes(image):
     # Compute gradients using Sobel filter
@@ -401,7 +391,6 @@ def compute_aes(image):
     # Average Edge Strength
     aes_value = np.mean(grad_mag)
     return aes_value
-
 
 # Global flag to ensure deletion happens only once
 _pngs_deleted = False
@@ -459,7 +448,6 @@ def visualize_slice(pred2, name='', output_dir='outputs_59228/trail1'):
     plt.show()
 
     print(f"🖼️  Saved high-resolution figure: {save_path_high}")
-
 
 def _to_numpy(x):
     if x is None:

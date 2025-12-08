@@ -7,6 +7,7 @@ from nibabel.viewers import OrthoSlicer3D
 import os
 import glob
 import pydicom
+from kea2nifti import make_nifti
 # import re
 from tensorflow.keras.models import load_model
 
@@ -18,7 +19,7 @@ import json
 subject_data = {
     # Predefined subfolder sequences for specific subjects
     26184 : ["3DTSE/6", "3DTSE/9", "3DTSE/10", "3DTSE/8", "3DTSE/10"],  # 3
-    30366 : ["3DTSE/5", "3DTSE/5", "3DTSE/8", "3DTSE/2", "3DTSE/8"],    # 3, 
+    30366 : ["3DTSE/4", "3DTSE/5", "3DTSE/8", "3DTSE/2", "3DTSE/8"],    # 3, 
     59175 : ["3DTSE/2", "3DTSE/4", "3DTSE/5", "3DTSE/9", "3DTSE/6"],    # 3, 4
     34507 : ["3DTSE/4", "3DTSE/4", "3DTSE/3", "3DTSE/4", "3DTSE/13"],   # 4,
     35547 : ["3DTSE/7", "3DTSE/4", "3DTSE/5", "3DTSE/14", "3DTSE/5"],   # 3
@@ -81,6 +82,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                 three_dtse_folders = [f for f in os.listdir(data_folder) if '3DTSE' in f and os.path.isdir(os.path.join(data_folder, f))]
                 for t_folder in three_dtse_folders:
                     t_folder_path = os.path.join(data_folder, t_folder)
+                    print(f"Processing Subject: {subject}, Visit: {visit}, Subfolder: {sf}, 3DTSE Folder: {t_folder}")
                     subfolders_3dtse = [subf for subf in os.listdir(t_folder_path) if os.path.isdir(os.path.join(t_folder_path, subf))]
                     subfolders_3dtse.sort()
                     for subf in subfolders_3dtse:
@@ -88,24 +90,25 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                         sub_folder = os.path.join(t_folder, subf)
                         Visit_id = f'V{visit:02d}'
                         
-                        name = '&'.join([irf_folder, sf, Visit_id, t_folder, subf]) + '.nii'
+                        name = '&'.join([irf_folder, sf, Visit_id, t_folder, subf]) + '.nii.gz'
                         fig_name = '&'.join([irf_folder, sf, Visit_id, t_folder, subf]) + '.png'
-
+                        print(f"Reading data for {name}...")
                         im, im_props = read_lf_data(data_folder, output_folder, subject, sub_folder, name)
                         
-                        # if im_props is not None:
-                        #     fov_im = [im_props.res_dim1 * im.shape[0],  im_props.res_dim2 * im.shape[1], im_props.res_dim3 * im.shape[2]]
-                        #     if wrap_around > 0 and fix_wrap:
-                        #         # Fix wrap-around slices if needed
-                        #         num_wrap_slices = int(im.shape[2] / wrap_around)
-                        #         im = np.roll(im, -int(num_wrap_slices), axis=2)
-                        #         print(f"Fixed wrap-around for {subject}, {Visit_id}, {sub_folder}")
+                        if im_props is not None:
+                            fov_im = [im_props.res_dim1 * im.shape[0],  im_props.res_dim2 * im.shape[1], im_props.res_dim3 * im.shape[2]]
+                            print(f"Field of View (mm): {fov_im}")
+                            if wrap_around > 0 and fix_wrap:
+                                # Fix wrap-around slices if needed
+                                num_wrap_slices = int(im.shape[2] / wrap_around)
+                                im = np.roll(im, -int(num_wrap_slices), axis=2)
+                                print(f"Fixed wrap-around for {subject}, {Visit_id}, {sub_folder}")
 
-                        #     # Check if the field of view is greater than 3T, if so, skip the number of slices to ensure FOV is constant across both fields
-                        #     if  fov_im[2] > fov_3T[2]:
-                        #         num_slices_to_skip = int((fov_im[2] - fov_3T[2]) / im_props.res_dim3)
-                        #         im = im[:, :, num_slices_to_skip:] # skips the lower two slices closer to the throat of the monkey - matching 3T
-                        #         print(f"Skipped {num_slices_to_skip} slices for {subject}, {Visit_id}, {sub_folder}")
+                            # Check if the field of view is greater than 3T, if so, skip the number of slices to ensure FOV is constant across both fields
+                            if  fov_im[2] > fov_3T[2]:
+                                num_slices_to_skip = int((fov_im[2] - fov_3T[2]) / im_props.res_dim3)
+                                im = im[:, :, num_slices_to_skip:] # skips the lower two slices closer to the throat of the monkey - matching 3T
+                                print(f"Skipped {num_slices_to_skip} slices for {subject}, {Visit_id}, {sub_folder}")
                             
                         print(f"Loaded data for {subject}, {Visit_id}, {sub_folder}")
                         print(sub_list[visit-1])
@@ -132,7 +135,21 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                             }
                             
                             lf_dataset.append(im)
-                        
+
+                            # Make nifti in case of need for further inputs to other software
+                            
+                            subject_folder = os.path.join('Data/LFMRI_DATA_IRF_wrap1', subject)
+                            if not os.path.exists(subject_folder):
+                                os.makedirs(subject_folder)
+
+                            fname_nii = os.path.join(subject_folder, name)
+                            make_nifti(
+                                im,
+                                fname=fname_nii,
+                                mask=False,
+                                res=[im_props.res_dim1,  im_props.res_dim2, im_props.res_dim3],
+                                dim_info=[0, 1, 2]
+                            )
                             # Load existing config or create new
                             if os.path.exists(config_path):
                                 with open(config_path, 'r') as f:
@@ -154,24 +171,27 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                         print("Data type of np.abs(im):", np.abs(im).dtype)
                         print("Shape of im:", im.shape)
                         
-                        num_slices = im.shape[2]
-                        fig, axes = plt.subplots(2, 8, figsize=(20, 8))
-                        fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
-                        axes = axes.flatten()
+                        # save im in npy format
+                        # np.save(f'./data/{subject}_{Visit_id}_{sub_folder}.npy', im)
 
-                        for i in range(16):
-                            if i < num_slices:
-                                slice_img = np.flipud(np.abs(im[:, :, i]).T)
-                                axes[i].imshow(slice_img, cmap='gray')
-                                axes[i].set_title(f'Slice {i + 1}')
-                                axes[i].axis('off')
-                            else:
-                                axes[i].axis('off')
+                        # num_slices = im.shape[2]
+                        # fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+                        # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+                        # axes = axes.flatten()
 
-                        plt.tight_layout()
-                        plt.savefig(f'Figures/{subject}/{fig_name}')
-                        plt.show()
-                        plt.close()
+                        # for i in range(16):
+                        #     if i < num_slices:
+                        #         slice_img = np.flipud(np.abs(im[:, :, i]).T)
+                        #         axes[i].imshow(slice_img, cmap='gray')
+                        #         axes[i].set_title(f'Slice {i + 1}')
+                        #         axes[i].axis('off')
+                        #     else:
+                        #         axes[i].axis('off')
+
+                        # plt.tight_layout()
+                        # plt.savefig(f'Figures/{subject}/{fig_name}')
+                        # plt.show()
+                        # plt.close()
 
     return lf_dataset
 
@@ -260,7 +280,6 @@ def shift_volume_circular(volume, shift_x=0, shift_y=0):
     transformed = np.roll(volume, shift=shift_y, axis=0)  # vertical shift
     transformed = np.roll(transformed, shift=shift_x, axis=1)  # horizontal shift
     return transformed
-
 
 def rotate_volume_circular(volume, angle_deg):
     """Rotate 3D volume slice-wise without losing pixels (wrap-around)."""
@@ -577,27 +596,29 @@ def predict_and_evaluate(
 
 if __name__ == "__main__":
     
-    subjects = ['26184']
+    # subjects = ['30366']
     subjects = os.listdir('Data/IRF_3T')
     #print subjects
 
-    print(subjects)   
+    print(subjects)
 
-    for subject in subjects[9:]:
+    for subject in subjects:
         
         lf_dataset = process_subject(subject=subject)  # Returns list of 3D volumes (e.g., 5 timepoints)
 
-        print(f"Total timepoints loaded: {len(lf_dataset)}")
-        for i, volume in enumerate(lf_dataset):
-            print(f"Timepoint {i+1} shape: {volume.shape}")
+        # print(f"Total timepoints loaded: {len(lf_dataset)}")
+        # for i, volume in enumerate(lf_dataset):
+        #     print(f"Timepoint {i+1} shape: {volume.shape}")
 
-        # Extract the third timepoint (index 2)
-        first_tp = lf_dataset[2]
+        # # Extract the third timepoint (index 2)
+        # first_tp = lf_dataset[2]
 
-        print("Shape:", first_tp.shape)
-        h, w, d = first_tp.shape
-        print(f"Height (H): {h}, Width (W): {w}, Depth (D): {d}")
-        # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=26)  #26184
+        # print("Shape:", first_tp.shape)
+        # h, w, d = first_tp.shape
+        # print(f"Height (H): {h}, Width (W): {w}, Depth (D): {d}")
+
+        
+        head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=26)  #26184
         # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=-9)  #30366
         # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=-6)  #26184
         # # head = np.abs(head)

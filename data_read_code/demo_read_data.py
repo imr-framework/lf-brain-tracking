@@ -7,7 +7,7 @@ import os
 
 def read_lf_data(
     data_folder='Data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240709/34507_D_minus28',
-    output_folder='/home/ajay/Documents/lf-brain-tracking/Data/LFMRI_DATA_IRF_nifti',
+    output_folder='/Data/LFMRI_DATA_IRF_nifti',
     subject="34507",
     sub_folder='3DTSE/3',
     file_name='20240829_day2_3DTSC_12.nii'
@@ -23,7 +23,11 @@ def read_lf_data(
         if not os.path.exists(subject_folder):
             os.makedirs(subject_folder)
 
-        fname_nii = os.path.join(subject_folder, '20240829_day2_3DTSC_12.nii')
+        # print(f"Reading LF-MRI data for subject {subject} from {data_folder}/{sub_folder}...")
+
+        fname_nii = os.path.join(subject_folder, file_name)
+        print(f"Output NIfTI file will be saved as: {fname_nii}")
+
         sample_data = kea3d(data_folder=data_folder, sub_folder=sub_folder)
         kspace = sample_data.kspace_gauss_filter
         im = np.abs(np.fft.fftshift(np.fft.fftn((np.fft.fftshift(kspace)))))

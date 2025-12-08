@@ -34,7 +34,7 @@ from src_simulated.config import config
 
 print(config.model_name)
 
-data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
+data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
 subjects = ["26184", "30366", "35528","34507", "35547", "59228", "59877","59233"]
 train_day = 1
 val_day = 2
@@ -804,7 +804,6 @@ if __name__ == "__main__":
         print(f"   checkpoint_path:  {config.checkpoint_path} ")
         print("------------------------------------------------------\n")
 
-
         # Load Data
         X_train, y_train = load_data_for_days(config.subjects, [config.train_day])
         X_val, y_val     = load_data_for_days(config.subjects, [config.val_day])
@@ -814,9 +813,9 @@ if __name__ == "__main__":
         X_val, y_val     = normalize_dataset(X_val, y_val)
         X_test, y_test   = normalize_dataset(X_test, y_test)
 
-        # -----------------------------
+        # -------------------------------
         # Print shapes for confirmation
-        # -----------------------------
+        # -------------------------------
 
         print("\n✅ Dataset normalization complete.")
         print(f"🧩 X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
@@ -826,40 +825,42 @@ if __name__ == "__main__":
         print(f"📦 Total validation volumes: {len(X_val)}")
         print(f"📦 Total testing volumes: {len(X_test)}\n")
 
-        # Train model
-        trained_model, history = run_training(
-            lf_train=X_train,
-            hf_train=y_train,
-            lf_val=X_val,
-            hf_val=y_val,
-            output_path=config.output_path,
-            model_type=residual_srr_unet,
-            model_name=config.model_name,
-            loss_type=config.loss_type_denoise,
-            patch_xy=config.patch_xy,
-            patch_z=config.patch_z,
-            batch_size=config.batch_size,
-            steps_per_epoch=config.steps_per_epoch,
-            epochs=config.epochs
-        )
+        # Save into .npy files seperately
+        
+        # # Train model
+        # trained_model, history = run_training(
+        #     lf_train=X_train,
+        #     hf_train=y_train,
+        #     lf_val=X_val,
+        #     hf_val=y_val,
+        #     output_path=config.output_path,
+        #     model_type=residual_srr_unet,
+        #     model_name=config.model_name,
+        #     loss_type=config.loss_type_denoise,
+        #     patch_xy=config.patch_xy,
+        #     patch_z=config.patch_z,
+        #     batch_size=config.batch_size,
+        #     steps_per_epoch=config.steps_per_epoch,
+        #     epochs=config.epochs
+        # )
 
-        # Refinement (2nd pass)
-        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
-            checkpoint_path=config.checkpoint_path,
-            refined_model_name=config.refined_model_name,
-            X_train=X_train,
-            y_train=y_train,
-            X_val=X_val,
-            y_val=y_val,
-            output_path=config.output_path,
-            batch_size=config.retrain_batch_size,
-            loss_type=config.retrain_loss_type,
-            patch_xy=config.patch_xy,
-            patch_z=config.patch_z,
-            steps_per_epoch=config.retrain_steps_per_epoch,
-            epochs=config.retrain_epochs,
-            visualize=config.visualize
-        )
+        # # Refinement (2nd pass)
+        # refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
+        #     checkpoint_path=config.checkpoint_path,
+        #     refined_model_name=config.refined_model_name,
+        #     X_train=X_train,
+        #     y_train=y_train,
+        #     X_val=X_val,
+        #     y_val=y_val,
+        #     output_path=config.output_path,
+        #     batch_size=config.retrain_batch_size,
+        #     loss_type=config.retrain_loss_type,
+        #     patch_xy=config.patch_xy,
+        #     patch_z=config.patch_z,
+        #     steps_per_epoch=config.retrain_steps_per_epoch,
+        #     epochs=config.retrain_epochs,
+        #     visualize=config.visualize
+        # )
         
         # refined_model_name = config.refined_model_name
         # refined_checkpoint_path = os.path.join(config.output_path, f"{refined_model_name}_checkpoint.keras")

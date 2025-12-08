@@ -82,7 +82,7 @@ make_nifti(data=im_cor_mask, fname='cor_mask_redo.nii.gz', mask=True,
                res=[2, 2, 2], dim_info=[2, 1, 0])  # phase, freq, slice
 
 # Visualize the image and mask to confirm correctness
-plot_anatomy_raw(im_cor, clim=[0, 2048])
+# plot_anatomy_raw(im_cor, clim=[0, 2048])
 
 # # Run the docker NiftyMIC SRR command to generate SRR output
 # print("Running NiftyMIC SRR via Docker...")
@@ -114,7 +114,7 @@ plot_anatomy_raw(im_cor, clim=[0, 2048])
 
 # Output: SRR
 im_srr = nib.load('srr_1cycle_2mm_Huber_test2.nii.gz').get_fdata()
-plot_anatomy_raw(im_srr, clim=[0, 2048])
+# plot_anatomy_raw(im_srr, clim=[0, 2048])
 
 # ZSSR implementation in all directions by factor of 2
 
@@ -125,12 +125,12 @@ print('Passing through ZSSR ..........')
 
 img = nib.load('srr_1cycle_2mm_Huber_test2.nii.gz')
 
-
 im_srr = img.get_fdata()
+print("Input shape:", im_srr.shape)
 
-img_new = im_srr
-img_new = np.zeros((im_srr.shape[0] + 2, im_srr.shape[1] , im_srr.shape[2]))
-img_new[:-2, :,:] = im_srr
+# img_new = im_srr
+# img_new = np.zeros((im_srr.shape[0] + 2, im_srr.shape[1] , im_srr.shape[2]))
+# img_new[:-2, :,:] = im_srr
 # plot_anatomy_raw(img_new, clim=[0, 2048])
 
 # # Pad only the second axis (Y axis)
@@ -143,20 +143,19 @@ img_new[:-2, :,:] = im_srr
 #     constant_values=0
 # )
 # print(img_pad.shape)
+# X, Y, Z = img_new.shape
+# print("Input shape:", img_new.shape)
 
-# # affine = img_pad.affine
-
-X, Y, Z = img_new.shape
-print("Input shape:", img_new.shape)
-
+# affine = im_srr.affine
 
 # ============================================================
 # 0. Slice-based ZSSR Runner
 # ============================================================
 def run_zssr_slice(slice2d, recon_config):
     """Run ZSSR on a single 2D slice with normalization."""
-    minv, maxv = slice2d.min(), slice2d.max()
-    s = (slice2d - minv) / (maxv - minv + 1e-8)
+    # minv, maxv = slice2d.min(), slice2d.max()
+    # s = (slice2d - minv) / (maxv - minv + 1e-8)
+    s = slice2d
     s3 = np.stack([s, s, s], axis=-1)
 
     out = ZSSR(
@@ -165,7 +164,7 @@ def run_zssr_slice(slice2d, recon_config):
         ground_truth=None,
         kernels=None
     ).run()
-
+    # Undo the normalization before passing it back so that brain intensities are maintained
     return out
 
 
@@ -181,10 +180,12 @@ def upscale_x(volume, recon_config):
     for x in range(X):
         print(f"[Upscale X] Slice {x+1}/{X}")
         slice_yz = volume[x, :, :]        # shape (Y, Z)
-        sr_slice = run_zssr_slice(slice_yz, recon_config)
-
-        # replicate along the X dimension
-        out[x, :, :] = sr_slice[:, :, 0]
+        if np.sum(slice_yz) == 0:
+            out[x, :, :] = 0
+        else:
+            sr_slice = run_zssr_slice(slice_yz, recon_config)
+            # replicate along the X dimension
+            out[x, :, :] = sr_slice[:, :, 0]
 
     return out
 
@@ -199,7 +200,7 @@ def upscale_y(volume, recon_config):
 
     for y in range(Y):
         print(f"[Upscale Y] Slice {y+1}/{Y}")
-        slice_xz = volume[:, y, :]      # shape (X, Z)
+        slice_xz = np.squeeze(volume[:, y, :])      # shape (X, Z)
         sr_slice = run_zssr_slice(slice_xz, recon_config)
 
         out[:, y, :] = sr_slice[:, :, 0]
@@ -231,15 +232,15 @@ def run_xyz_progressive_zssr(im_srr, recon_config):
     print("\n==============================")
     print("Step 1: Upscaling X (×2)")
     print("==============================")
-    # vol_x2 = upscale_x(im_srr, recon_config)
+    vol_x2 = upscale_x(im_srr, recon_config)
 
     print("\n==============================")
-    print("Step 2: Upscaling Y (×2)")
+    print("Step 2: Upscaling Y (*2)")
     print("==============================")
-    vol_xy2 = upscale_y(im_srr, recon_config)
+    vol_xy2 = upscale_y(vol_x2, recon_config)
 
     print("\n==============================")
-    print("Step 3: Upscaling Z (×2)")
+    print("Step 3: Upscaling Z (*2)")
     print("==============================")
     vol_xyz2 = upscale_z(vol_xy2, recon_config)
 
@@ -254,8 +255,8 @@ def run_xyz_progressive_zssr(im_srr, recon_config):
 recon_config = configs.Config()
 # recon_config.scale_factors = [[np.sqrt(target_resolution_fact[0]), 1]]
 recon_config.scale_factors = [[1, 2]]
-recon_config.max_iters = 50
-recon_config.min_iters = 20
+recon_config.max_iters = 3000
+recon_config.min_iters = 300
 recon_config.width = 32
 recon_config.depth = 12
 recon_config.noise_std = 0.0
@@ -263,56 +264,38 @@ recon_config.crop_size = 32
 num_rows = 16
 num_cols = 14
 
-vol_xz = run_xyz_progressive_zssr(img_new, recon_config)
+# Normalize im_srr with min-max normalization
+min_val, max_val = im_srr.min(), im_srr.max()
+im_srr = (im_srr - min_val) / (max_val - min_val + 1e-8)
 
-# -------------------------------------------------------------
-# Final 3D SR output
-# -------------------------------------------------------------
-im_srr_3d_zssr = vol_xz
-print("\nFinal SR shape:", im_srr_3d_zssr.shape)
+# Run the full progressive ZSSR pipeline
 
-# -------------------------------------------------------------
-# Save NIfTI with corrected voxel spacing
-# (halving voxel spacing because resolution doubled)
-# -------------------------------------------------------------
-new_affine = affine.copy()
-new_affine[:3, :3] /= 2   # voxel spacing becomes half = ×2 SR
+# vol_xz = run_xyz_progressive_zssr(im_srr, recon_config)
 
-out_img = nib.Nifti1Image(im_srr_3d_zssr.astype(np.float32), new_affine)
-nib.save(out_img, "srr_zssr_3D_full.nii.gz")
+# # -------------------------------------------------------------
+# # Final 3D SR output
+# # -------------------------------------------------------------
+# im_srr_3d_zssr = vol_xz
+# print("\nFinal SR shape:", im_srr_3d_zssr.shape)
+# #  Visualize the image and mask to confirm correctness
+# # plot_anatomy_raw(im_srr_3d_zssr, clim=[0, 512])
+# # -------------------------------------------------------------
+# # Save NIfTI with corrected voxel spacing
+# # (halving voxel spacing because resolution doubled)
+# # -------------------------------------------------------------
+# # new_affine = affine.copy()
+# # new_affine[:3, :3] /= 2   # voxel spacing becomes half = ×2 SR
+# make_nifti(data=im_srr_3d_zssr, fname='srr_zssr_3D_full.nii.gz', mask=False,
+#                res=[1, 1, 1], dim_info=[0, 1, 2])  # phase, freq, slice
+
+# # out_img = nib.Nifti1Image(im_srr_3d_zssr.astype(np.float32))
+# # nib.save(out_img, "srr_zssr_3D_full.nii.gz")
 
 print("\nSaved: srr_zssr_3D_full.nii.gz")
-  
-viewing = True
 
-if viewing:
-    # Choose middle slice index
-    mid_x = im_srr.shape[0] // 2
-    mid_y = im_srr.shape[1] // 2
-    mid_z = im_srr.shape[2] // 2
+img = nib.load('srr_zssr_3D_full.nii.gz')
 
-    # Create figure
-    fig, axes = plt.subplots(1, 4, figsize=(18, 4))
+im_srr = img.get_fdata()
+print("Input shape:", im_srr.shape)
 
-    # 1. Original SRR middle axial slice
-    axes[0].imshow(im_srr[:, :, mid_z], cmap='gray')
-    axes[0].set_title('Original SRR (input)')
-    axes[0].axis('off')
-
-    # 2. Final 3D ZSSR axial slice
-    axes[1].imshow(im_srr_3d_zssr[:, :, mid_z*2], cmap='gray')
-    axes[1].set_title('3D ZSSR Output (final)')
-    axes[1].axis('off')
-
-    # 3. Sagittal comparison
-    axes[2].imshow(im_srr[mid_x, :, :].T, cmap='gray')
-    axes[2].set_title('Original Sagittal')
-    axes[2].axis('off')
-
-    axes[3].imshow(im_srr_3d_zssr[mid_x*2, :, :].T, cmap='gray')
-    axes[3].set_title('ZSSR Sagittal')
-    axes[3].axis('off')
-
-    plt.tight_layout()
-    plt.show()
-
+plot_anatomy_raw(im_srr, clim=[0, 2048])
