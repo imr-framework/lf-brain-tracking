@@ -191,3 +191,7 @@ SRR_r21/output_nifty/*
 Output/
 Figures/
 motion_correction/
+*.h5
+*.mat
+*.fig
+*.keras
