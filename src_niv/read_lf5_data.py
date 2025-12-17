@@ -174,24 +174,24 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                         # save im in npy format
                         # np.save(f'./data/{subject}_{Visit_id}_{sub_folder}.npy', im)
 
-                        # num_slices = im.shape[2]
-                        # fig, axes = plt.subplots(2, 8, figsize=(20, 8))
-                        # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
-                        # axes = axes.flatten()
+                        num_slices = im.shape[2]
+                        fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+                        fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+                        axes = axes.flatten()
 
-                        # for i in range(16):
-                        #     if i < num_slices:
-                        #         slice_img = np.flipud(np.abs(im[:, :, i]).T)
-                        #         axes[i].imshow(slice_img, cmap='gray')
-                        #         axes[i].set_title(f'Slice {i + 1}')
-                        #         axes[i].axis('off')
-                        #     else:
-                        #         axes[i].axis('off')
+                        for i in range(16):
+                            if i < num_slices:
+                                slice_img = np.flipud(np.abs(im[:, :, i]).T)
+                                axes[i].imshow(slice_img, cmap='gray')
+                                axes[i].set_title(f'Slice {i + 1}')
+                                axes[i].axis('off')
+                            else:
+                                axes[i].axis('off')
 
-                        # plt.tight_layout()
-                        # plt.savefig(f'Figures/{subject}/{fig_name}')
-                        # plt.show()
-                        # plt.close()
+                        plt.tight_layout()
+                        plt.savefig(f'Figures/{subject}/{fig_name}')
+                        plt.show()
+                        plt.close()
 
     return lf_dataset
 
@@ -596,8 +596,8 @@ def predict_and_evaluate(
 
 if __name__ == "__main__":
     
-    # subjects = ['30366']
-    subjects = os.listdir('Data/IRF_3T')
+    subjects = ['35528', '59228']
+    # subjects = os.listdir('Data/IRF_3T')
     #print subjects
 
     print(subjects)
@@ -618,7 +618,7 @@ if __name__ == "__main__":
         # print(f"Height (H): {h}, Width (W): {w}, Depth (D): {d}")
 
         
-        head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=26)  #26184
+        # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=26)  #26184
         # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=-9)  #30366
         # head = process_and_visualize(first_tp, shift_x=12, shift_y=0, angle_deg=-6)  #26184
         # # head = np.abs(head)

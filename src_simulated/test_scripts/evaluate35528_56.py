@@ -470,7 +470,7 @@ def visualize_comparison(
     affine=None,
     slice_range=(24, 27),
     expose_individual_png_paths=True,
-    view_orthoslices=True
+    view_orthoslices=False
 ):
     """
     Display corresponding slices from original (im), pred1 (denoiser), and pred2 (srr)
@@ -693,9 +693,86 @@ print("Final LF input shape:", im.shape)
 
 im = im.astype(np.float32)
 
+# apply total variation filtering to reduce noise
+import numpy as np
+from skimage.restoration import denoise_tv_chambolle
+
+def tv_denoise_lf_mri(volume, weight=0.03, n_iter=200, normalize=True):
+    """
+    3D Total Variation denoising for very low-field MRI.
+
+    Parameters
+    ----------
+    volume : np.ndarray
+        Input LF-MRI volume (D, H, W)
+    weight : float
+        TV regularization strength (default 0.03 for LF-MRI)
+    n_iter : int
+        Number of iterations
+    normalize : bool
+        Normalize volume to [0, 1] before TV filtering
+
+    Returns
+    -------
+    np.ndarray
+        TV-denoised volume (same shape as input)
+    """
+    vol = volume.astype(np.float32)
+
+    # Normalize intensity (important for TV stability)
+    if normalize:
+        vmin, vmax = vol.min(), vol.max()
+        vol = (vol - vmin) / (vmax - vmin + 1e-8)
+
+    # 3D TV denoising
+    tv_vol = denoise_tv_chambolle(
+        vol,
+        weight=weight,
+        max_num_iter=n_iter,
+        channel_axis=None
+    )
+
+    # Restore original intensity range
+    if normalize:
+        tv_vol = tv_vol * (vmax - vmin) + vmin
+
+    return tv_vol
+
 # apply gaussian smoothing to mimic LF blurring
-# lf_sigma = 1.0
-# im = np.array([gaussian_filter(im[i], sigma=lf_sigma) for i in range(len(im))])
+# im = np.array([tv_denoise_lf_mri(im[i], weight=0.03, n_iter=200) for i in range(len(im))])
+
+import numpy as np
+from scipy.ndimage import convolve
+
+def lowpass_2x2x2(volume):
+    
+    """
+    Apply a 2x2x2 low-pass (averaging) filter to a 3D volume.
+
+    Parameters
+    ----------
+    volume : np.ndarray
+        Input volume (D, H, W)
+
+    Returns
+    -------
+    np.ndarray
+        Smoothed volume
+    """
+
+    kernel = np.ones((2, 2, 2), dtype=np.float32) / 8.0
+    volume = volume.astype(np.float32)
+
+    filtered = convolve(volume, kernel, mode='reflect')
+
+    return filtered
+
+# Applying low-pass filtering
+print("Applying post-processing low-pass filtering...")
+# apply total variation filtering on pred1 to reduce noise
+# pred2 = lowpass_2x2x2(im)
+# im = np.array([gaussian_filter(im[i], sigma=1) for i in range(len(im))])
+print("✅ Test data pre-processed.")
 
 results, pred1, pred2, model1, model2 = evaluate_model(
     folder_path=folder_path,
@@ -717,146 +794,66 @@ if unsharp_mask_:
 
 visualize_comparison(im, pred1, pred2, name='trial_comparison', output_dir=output_dir)
 
+# ------------------------------------------------------------
+# 3D Total Variation Denoising Function
+# ------------------------------------------------------------
+
+# print("Applying post-processing denoising...")
+# # apply total variation filtering on pred1 to reduce noise
+# pred1 = tv_denoise_lf_mri(pred1, weight=0.03, n_iter=200)
+# visualize_slice(pred1, 'SRR_Output', output_dir=output_dir)
+
+# Applying low-pass filtering
+print("Applying post-processing low-pass filtering...")
+# apply total variation filtering on pred1 to reduce noise
+pred2 = lowpass_2x2x2(pred2)
+visualize_slice(pred2, 'SRR_Output', output_dir=output_dir)
+
 visualize_slice(im, 'Original', output_dir=output_dir)
 
-#Working on the High-field Data
+# Working on the High-field Data
 
-data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
-subjects = ["35528"]
-test_days = [5]
+# data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
+# subjects = ["35528"]
+# test_days = [5]
 
-def load_subject_day_data(subject, day):
-    path = os.path.join(data_folder, f"{subject}_day{day}_train_data.npy")
-    if not os.path.exists(path):
-        return None
-    data = np.load(path, allow_pickle=True).item()
-    return data["x_train"].astype(np.float32), data["y_train"].astype(np.float32)
+# def load_subject_day_data(subject, day):
+#     path = os.path.join(data_folder, f"{subject}_day{day}_train_data.npy")
+#     if not os.path.exists(path):
+#         return None
+#     data = np.load(path, allow_pickle=True).item()
+#     return data["x_train"].astype(np.float32), data["y_train"].astype(np.float32)
 
-X_test, y_test = [], []
-for subj in subjects:
-    for day in test_days:
-        d = load_subject_day_data(subj, day)
-        if d is not None:
-            X_test.append(d[0])
-            y_test.append(d[1])
+# X_test, y_test = [], []
+# for subj in subjects:
+#     for day in test_days:
+#         d = load_subject_day_data(subj, day)
+#         if d is not None:
+#             X_test.append(d[0])
+#             y_test.append(d[1])
 
-X_test, y_test = np.array(X_test), np.array(y_test)
-print(f"📦 Loaded {len(X_test)} test volumes.")
-X_test, y_test = normalize_dataset(X_test, y_test, method='minmax')
+# X_test, y_test = np.array(X_test), np.array(y_test)
+# print(f"📦 Loaded {len(X_test)} test volumes.")
+# X_test, y_test = normalize_dataset(X_test, y_test, method='minmax')
 
-#gaussian smoothing to reduce noise X_test
-from scipy.ndimage import gaussian_filter
-X_test = np.array([gaussian_filter(vol, sigma=1) for vol in X_test])
+# #gaussian smoothing to reduce noise X_test
+# from scipy.ndimage import gaussian_filter
 # X_test = np.array([gaussian_filter(vol, sigma=1) for vol in X_test])
-print("✅ Test data normalized.")
+# # X_test = np.array([gaussian_filter(vol, sigma=1) for vol in X_test])
+# print("✅ Test data normalized.")
 
-# ------------------------------------------------------------
-# 🔹 Evaluate each model sequentially
-# ------------------------------------------------------------
+# # ------------------------------------------------------------
+# # 🔹 Evaluate each model sequentially
+# # ------------------------------------------------------------
 
-results, pred1, pred2, model1, model2 = evaluate_model(
-    folder_path=folder_path,
-    model_name=model_name,
-    X_test=X_test[1:2],       # evaluate on subset for speed
-    y_test=y_test[1:2],
-    patch_size=(64, 64, 32),
-    overlap=0.5,
-    visualize_slices=[15]
-)
+# results, pred1, pred2, model1, model2 = evaluate_model(
+#     folder_path=folder_path,
+#     model_name=model_name,
+#     X_test=X_test[1:2],       # evaluate on subset for speed
+#     y_test=y_test[1:2],
+#     patch_size=(64, 64, 32),
+#     overlap=0.5,
+#     visualize_slices=[15]
+# )
 
-visualize_comparison(X_test[1:2], pred1, pred2, name='trial_HF_comparison', output_dir=output_dir)
-
-# def resize_volume_cv2(volume, scale_factor=2, interpolation=cv2.INTER_CUBIC):
-#     """
-#     Resize a 3D volume using cv2.resize for each slice along the z-axis.
-#     Args:
-#         volume (np.ndarray): 3D array (H, W, D)
-#         scale_factor (float): Scaling factor for H and W
-#         interpolation: cv2 interpolation method
-#     Returns:
-#         np.ndarray: Resized 3D volume
-#     """
-#     H, W, D = volume.shape
-#     new_H, new_W = int(H * scale_factor), int(W * scale_factor)
-#     resized = np.zeros((new_H, new_W, D), dtype=volume.dtype)
-#     for i in range(D):
-#         resized[:, :, i] = cv2.resize(volume[:, :, i], (new_W, new_H), interpolation=interpolation)
-#     return resized
-
-# # Remove batch axis if present
-# im_up = resize_volume_cv2(im if im.ndim == 3 else np.squeeze(im, axis=0), scale_factor=2)
-# pred1_up = resize_volume_cv2(pred1, scale_factor=2)
-# pred2_up = resize_volume_cv2(pred2, scale_factor=2)
-
-# print("Upsampled shapes:", im_up.shape, pred1_up.shape, pred2_up.shape)
-
-# visualize_slice(im_up, 'Original_up2x', output_dir=output_dir)
-# visualize_slice(pred1_up, 'pred1_up2x', output_dir=output_dir)
-# visualize_slice(pred2_up, 'pred2_up2x', output_dir=output_dir)
-
-# # ---- Stage 2 Refinement ----
-# pred1 = predict_volume(model1, pred1, patch_size=(64,64,32), overlap=0.5)
-# if unsharp_mask_:
-#     pred1 = unsharp_mask(pred1, sigma=1.0, amount=1.0)
-# visualize_slice(pred1,'pred12', output_dir=output_dir)
-
-# # ---- Stage 2 Refinement ----
-# pred1 = predict_volume(model1, pred1, patch_size=(64,64,32), overlap=0.5)
-# if unsharp_mask_:
-#     pred1 = unsharp_mask(pred1, sigma=1.0, amount=1.0)
-# visualize_slice(pred1, 'pred13', output_dir=output_dir)
-
-# # # ---- Stage 2 Refinement ----
-
-# # ---- Stage 2 Refinement ----
-# pred21 = predict_volume(model2, im, patch_size=(64,64,16), overlap=0.5)
-# if unsharp_mask_:
-#     pred21 = unsharp_mask(pred21, sigma=1.0, amount=1.0)
-# visualize_slice(pred21, 'im_pred21', output_dir=output_dir)
-
-# im = pred21
-# aes = compute_aes(im)
-# print(f"AES after iteration: {aes:.4f}")
-
-# # ---- Stage 2 Refinement ----
-# print('Stage 2')
-# pred22 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
-# if unsharp_mask_:
-#     pred22 = unsharp_mask(pred22, sigma=1.0, amount=1.0)
-# visualize_slice(pred22, 'im_pred22', output_dir=output_dir)
-
-# im = pred22
-# aes = compute_aes(im)
-# print(f"AES after iteration: {aes:.4f}")
-
-# # ---- Stage 2 Refinement ----
-# pred21 = predict_volume(model2, pred2, patch_size=(64,64,32), overlap=0.5)
-# if unsharp_mask_:
-#     pred21 = unsharp_mask(pred21, sigma=1.0, amount=1.0)
-# visualize_slice(pred21, 'pred21', output_dir=output_dir)
-
-# im = pred21
-# aes = compute_aes(im)
-# print(f"AES after iteration: {aes:.4f}")
-
-# # ---- Stage 2 Refinement ----
-# print('Stage 2')
-# pred22 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
-# if unsharp_mask_:
-#     pred22 = unsharp_mask(pred22, sigma=1.0, amount=1.0)
-# visualize_slice(pred22, 'pred22', output_dir=output_dir)
-
-# im = pred22
-# aes = compute_aes(im)
-# print(f"AES after iteration: {aes:.4f}")
-
-# # ---- Stage 2 Refinement ----
-# print('Stage 2')
-# pred22 = predict_volume(model2, im, patch_size=(64,64,32), overlap=0.5)
-# if unsharp_mask_:
-#     pred22 = unsharp_mask(pred22, sigma=1.0, amount=1.0)
-# visualize_slice(pred22, 'pred23', output_dir=output_dir)
-
-# im = pred22
-# aes = compute_aes(im)
-# print(f"AES after iteration: {aes:.4f}")
+# visualize_comparison(X_test[1:2], pred1, pred2, name='trial_HF_comparison', output_dir=output_dir)

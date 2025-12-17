@@ -7,9 +7,9 @@ from src_niv.utils import srr_generator, display_pred, load_and_preprocess_hf, l
 from src_niv.prep_lf import normalize, resize_mri_volume
 from src_niv.zssr import  zero_shot_super_resolution, extract_brain, extract_lf_volumes
 from src_niv.niv_srr_main_single import train
-from src_niv.models.ResUNet import residual_srr_unet, residual_att_unet_3d
+from src_niv.models.ResUNet import residual_srr_unet
 from src_niv.models.DenseUNet import build_dense_unet_3d
-from src_niv.models.Inception import build_inception_unet_3d
+# from src_niv.models.Inception import build_inception_unet_3d
 from demo_read_data import read_lf_data
 from src_niv.prep_lf import register_to_hf
 
@@ -22,7 +22,7 @@ import tensorflow as tf
 import pydicom
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')  # or 'Qt5Agg' depending on what's installed
+matplotlib.use('TkAgg')  # or 'Qt5Agg' depending on what's installed
 import matplotlib.pyplot as plt
 import ants
 import nibabel as nib
@@ -37,7 +37,7 @@ subjects1 = ['59228'] # 59228
 
 # Define the path to the IRF_3T folder (High Field Data)
 nhp_base_path = './Data/IRF_3T'
-day_idx = 3
+day_idx = 5
 visualize = True
 visualize_pairs = True
 padding = False
@@ -61,6 +61,8 @@ for subject in subjects1:
         print(f"\n=============================== HF_MRI data processing started .............")
         resampled_volume_hf_norm = load_and_preprocess_hf(subject, day_idx, visualize)
         day_1_norm = resampled_volume_hf_norm
+
+        print("HF volume shape:", resampled_volume_hf_norm.shape)
         # ----- Load LF data -----
         print(f"\n=============================== LF_MRI data processing started .............")
         resampled_volume_lf_be_norm = load_and_preprocess_lf(subject, day_idx, visualize)

@@ -1,6 +1,3 @@
-# https://youtube/VzIO5_R9XEM
-# https://youtube/2MSGnkir9ew
-
 """
 cycleGAN model
 
@@ -40,6 +37,9 @@ from matplotlib import pyplot
 #After the last layer, conv to 1-dimensional output, followed by a Sigmoid function.
 # The “axis” argument is set to -1 for instance norm. to ensure that features are normalized per feature map.
 
+import tensorflow as tf
+from tensorflow.keras.layers import Layer
+
 class InstanceNormalization(Layer):
     def __init__(self, axis=-1, epsilon=1e-5, **kwargs):
         super().__init__(**kwargs)
@@ -63,7 +63,9 @@ class InstanceNormalization(Layer):
         super().build(input_shape)
 
     def call(self, inputs):
-        mean, var = tf.nn.moments(inputs, axes=[1, 2], keepdims=True)
+        # Compute mean/variance over spatial dimensions (H,W,D)
+        axes = [i for i in range(1, len(inputs.shape)) if i != self.axis]
+        mean, var = tf.nn.moments(inputs, axes=axes, keepdims=True)
         normalized = (inputs - mean) / tf.math.sqrt(var + self.epsilon)
         return self.gamma * normalized + self.beta
 
@@ -238,7 +240,7 @@ def generate_fake_samples(g_model, dataset, patch_shape):
 	return X, y
 
 
-def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan1'):
+def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan_t1_t2'):
     # create directory if not exists
     os.makedirs(output_path, exist_ok=True)
 
@@ -265,7 +267,7 @@ def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/out
     print(f"> Updated latest models: {latest_AtoB}  AND  {latest_BtoA}")
 
 # periodically generate images using the save model and plot input and output images
-def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan1'):
+def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan_t1_t2'):
 	# select a sample of input images
 	X_in, _ = generate_real_samples(trainX, n_samples, 0)
 	# generate translated images
@@ -312,87 +314,6 @@ def update_image_pool(pool, images, max_size=50):
 			pool[ix] = image
 	return asarray(selected)
 
-# # train cyclegan models
-# def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
-#           c_model_AtoB, c_model_BtoA, dataset, epochs=1):
-
-#     # define properties of the training run
-#     n_epochs, n_batch = epochs, 1  # batch size fixed to 1
-#     n_patch = d_model_A.output_shape[1]
-
-#     # unpack dataset
-#     trainA, trainB = dataset
-
-#     # prepare image pool for fake images
-#     poolA, poolB = list(), list()
-
-#     # calculate iterations
-#     bat_per_epo = int(len(trainA) / n_batch)
-#     n_steps = bat_per_epo * n_epochs
-
-#     # enumerate epochs
-#     for i in range(n_steps):
-
-#         # -----------------------------
-#         # 1. REAL SAMPLES
-#         # -----------------------------
-#         X_realA, y_realA = generate_real_samples(trainA, n_batch, n_patch)
-#         X_realB, y_realB = generate_real_samples(trainB, n_batch, n_patch)
-
-#         # -----------------------------
-#         # 2. FAKE SAMPLES
-#         # -----------------------------
-#         X_fakeA, y_fakeA = generate_fake_samples(g_model_BtoA, X_realB, n_patch)
-#         X_fakeB, y_fakeB = generate_fake_samples(g_model_AtoB, X_realA, n_patch)
-
-#         # update images in pool (buffer of 50 images)
-#         X_fakeA = update_image_pool(poolA, X_fakeA)
-#         X_fakeB = update_image_pool(poolB, X_fakeB)
-
-#         # -----------------------------
-#         # 3. TRAIN GENERATORS
-#         # -----------------------------
-#         g_loss2, _, _, _, _ = c_model_BtoA.train_on_batch(
-#             [X_realB, X_realA],
-#             [y_realA, X_realA, X_realB, X_realA]
-#         )
-
-#         g_loss1, _, _, _, _ = c_model_AtoB.train_on_batch(
-#             [X_realA, X_realB],
-#             [y_realB, X_realB, X_realA, X_realB]
-#         )
-
-#         # -----------------------------
-#         # 4. TRAIN DISCRIMINATORS
-#         # -----------------------------
-#         dA_loss1 = d_model_A.train_on_batch(X_realA, y_realA)
-#         dA_loss2 = d_model_A.train_on_batch(X_fakeA, y_fakeA)
-
-#         dB_loss1 = d_model_B.train_on_batch(X_realB, y_realB)
-#         dB_loss2 = d_model_B.train_on_batch(X_fakeB, y_fakeB)
-
-#         # -----------------------------
-#         # 5. LOG PROGRESS
-#         # -----------------------------
-#         if (i + 1) % 10 == 0:
-#             print(
-#                 'Iteration>%d, dA[%.3f, %.3f] dB[%.3f, %.3f] g[%.3f, %.3f]' %
-#                 (i + 1, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2)
-#             )
-
-#         # -----------------------------
-#         # 6. PERIODIC PERFORMANCE CHECK
-#         # -----------------------------
-#         if (i + 1) % (bat_per_epo * 10) == 0:
-#             summarize_performance(i, g_model_AtoB, trainA, 'AtoB')
-#             summarize_performance(i, g_model_BtoA, trainB, 'BtoA')
-
-#         # -----------------------------
-#         # 7. PERIODIC MODEL SAVE
-#         # -----------------------------
-#         if (i + 1) % (bat_per_epo * 5) == 0:
-#             save_models(i, g_model_AtoB, g_model_BtoA,
-#                         output_path ='src_simulated/outputs/cyclegan1')
 
 
 # train cyclegan models
@@ -493,13 +414,12 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         if (i + 1) % (bat_per_epo * 5) == 0:
             save_models(i, g_model_AtoB, g_model_BtoA,
-                        output_path='src_simulated/outputs/cyclegan1')
-
+                        output_path='src_simulated/outputs/cyclegan_t1_t2')
 
 ## Read dataset
 
-data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
-subjects = ["26184", "30366", "35528","34507", "35547", "59228", "59877","59233"]
+data_folder = "Data/Nipah IRF data/IRF_3T_NIFTI"
+subjects = ["26184", "30366","34507", "35547", "59877","59233"]
 train_day = [1,2,3,4,5]
 
 # monet2photo
@@ -558,77 +478,86 @@ def crop_or_pad_depth(vol, target_d=35):
         vol = np.pad(vol, ((0,0),(0,0),(pad_before, pad_after)), mode='constant')
     return vol
 
-def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,1), add_channel=False):
+import os
+import nibabel as nib
+import numpy as np
+from scipy.ndimage import zoom
 
+def load_nii_volumes(path, target_spacing=(1,1,2), add_channel=False, 
+                     target_h=140, target_w=140, target_d=35, 
+                     substring=None, rotate=False, test=False):
     """
-    Load NIfTI volumes, resample by voxel spacing only,
-    ensure H=W=128 or discard, crop/pad D→35, normalize to [-1,1].
+    Load NIfTI volumes, optionally filter by substring in filename,
+    resample to target voxel spacing, accept only target in-plane resolution,
+    fix depth, normalize, optionally add channel dimension.
+    
+    Parameters:
+    - test : bool : if True, load only 5 volumes to save time
     """
-
-    TARGET_H = 128
-    TARGET_W = 128
-    TARGET_D = 35
-
     volumes = []
 
-    for fname in os.listdir(path):
-        if not fname.endswith((".nii", ".nii.gz")):
-            continue
+    # Recursively find NIfTI files
+    nii_files = []
+    for dirpath, dirnames, filenames in os.walk(path):
+        dirnames.sort()
+        filenames.sort()
+        for fname in filenames:
+            if fname.endswith((".nii", ".nii.gz")) and (substring is None or substring in fname):
+                nii_files.append(os.path.join(dirpath, fname))
 
-        fpath = os.path.join(path, fname)
+    nii_files.sort(key=lambda x: (os.path.dirname(x), os.path.basename(x)))
+
+    # Limit number of files if test mode is on
+    if test:
+        nii_files = nii_files[:5]
+
+    for fpath in nii_files:
         nii = nib.load(fpath)
-        vol = nii.get_fdata().astype(np.float32)
+        vol = np.abs(nii.get_fdata().astype(np.float32))  # fix negatives
+        header = nii.header
+        current_spacing = header.get_zooms()[:3]  # get voxel size
 
-        # 0. Fix LF-MRI negative values
-        vol = np.abs(vol)
-
-        # -------------------------------------------------------
-        # 1. RESAMPLE ONLY USING SPACING (NO SHAPE-BASED RESIZE)
-        # -------------------------------------------------------
+        # Resample to target voxel size
         zoom_factors = (
             current_spacing[0] / target_spacing[0],
             current_spacing[1] / target_spacing[1],
             current_spacing[2] / target_spacing[2]
         )
-
         vol_iso = zoom(vol, zoom_factors, order=1)
         vol_iso = np.ascontiguousarray(vol_iso)
-
         h, w, d = vol_iso.shape
-        print(f"[INFO] Volume {fname} resampled → {vol_iso.shape}")
+        print(f"[INFO] {os.path.basename(fpath)} resampled → {vol_iso.shape} (target spacing {target_spacing})")
 
-        # -------------------------------------------------------
-        # 2. ACCEPT ONLY 128×128 IN-PLANE RESOLUTION
-        # -------------------------------------------------------
-        if h != TARGET_H or w != TARGET_W:
-            print(f"[SKIP] {fname} skipped — incorrect size: {vol_iso.shape}")
+        # Check in-plane resolution
+        if h != target_h or w != target_w:
+            print(f"[SKIP] {os.path.basename(fpath)} skipped — incorrect in-plane size: {vol_iso.shape}")
             continue
 
-        # -------------------------------------------------------
-        # 3. FIX DEPTH TO 35 WITHOUT DISTORTION
-        # -------------------------------------------------------
-        vol_fixed = crop_or_pad_depth(vol_iso, TARGET_D)
+        # Crop/pad depth
+        vol_fixed = crop_or_pad_depth(vol_iso, target_d)
 
-        # -------------------------------------------------------
-        # 4. Normalize to [-1,1] (CycleGAN requirement)
-        # -------------------------------------------------------
-        #convert to grayscale
+        # Normalize to [-1,1]
         vol_fixed = normalize_volume(vol_fixed)
 
-        # -------------------------------------------------------
-        # 5. Optional channel dimension
-        # -------------------------------------------------------
-        if add_channel:
-            vol_fixed = vol_fixed[..., None]   # (H,W,D,1)
+        # Rotate 90° counter-clockwise in-plane (H x W)
+        if rotate:
+            vol_fixed = np.rot90(vol_fixed, k=3, axes=(0, 1))
 
-        print(f"[LOAD] {fname}: final shape {vol_fixed.shape}")
+        # Optional channel dimension
+        if add_channel:
+            vol_fixed = vol_fixed[..., None]  # (H,W,D,1)
+
+        print(f"[LOAD] {os.path.basename(fpath)}: final shape {vol_fixed.shape}")
         volumes.append(vol_fixed)
 
+        # Stop early if test mode
+        if test and len(volumes) >= 5:
+            break
+
     if not volumes:
-        raise ValueError("No valid volumes loaded. Check dimensions and input path.")
-
+        raise ValueError("No valid volumes loaded. Check dimensions, substring, and input path.")
+    
     return np.stack(volumes, axis=0)
-
 
 # -----------------------------
 # DATA LOADING
@@ -678,25 +607,70 @@ def visualize_slices(volume, n_cols=5):
     plt.tight_layout()
     plt.show()
 
-# dataset path
-path = 'Data/Low_field_data_DA/'
 
-# load dataset A - Monet paintings
-dataA_all = load_nii_volumes(path + 'test_da_lf/')
-print('Loaded dataA: ', dataA_all.shape)
+import numpy as np
+from scipy.ndimage import zoom
+
+def resample_volume(volume, current_spacing=(1,1,2), target_spacing=(1,1,1), order=3):
+    """
+    Resample a 3D volume to new voxel spacing.
+
+    Parameters:
+    volume : np.ndarray
+        3D volume (D, H, W)
+    current_spacing : tuple
+        Original voxel spacing (z, y, x)
+    target_spacing : tuple
+        Desired voxel spacing (z, y, x)
+    order : int
+        Interpolation order:
+        0 = nearest (labels)
+        1 = linear
+        3 = cubic (recommended for MRI)
+
+    Returns:
+    resampled_volume : np.ndarray
+    """
+
+    zoom_factors = (
+        current_spacing[0] / target_spacing[0],
+        current_spacing[1] / target_spacing[1],
+        current_spacing[2] / target_spacing[2],
+    )
+
+    resampled_volume = zoom(volume, zoom_factors, order=order)
+    return resampled_volume
+
+# dataset path
+
+# Example usage
+data_path = "Data/Nipah IRF data/IRF_3T_NIFTI"
+substring_filter = "T1_n100__00001"
+
+dataA_all = load_nii_volumes(
+    path=data_path,
+    target_spacing=(1,1,2),
+    add_channel=False,
+    target_h=140,
+    target_w=140,
+    target_d=35,
+    substring=substring_filter,
+    rotate=True,
+    test=True
+)
+
+print("Loaded volumes shape:", dataA_all.shape)
+
 
 from sklearn.utils import resample
-#To get a subset of all images, for faster training during demonstration
-dataA = resample(dataA_all,
-                 replace=False,
-                 n_samples=40,
-                 random_state=42)
 
-dataA = dataA[:, :, :, 3:-2]   # new depth = 30
+# take first 40 samples from dataA_all
+dataA = dataA_all[:40]
+print('Loaded dataA: ', dataA.shape)
 
 # convert to grayscale
-dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
-# visualize_slices(dataA[1, :, :, :])
+# dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
+visualize_slices(dataA[1, :, :, :])
 # visualize_slices(dataA[2, :, :, :])
 # visualize_slices(dataA[3, :, :, :])
 # visualize_slices(dataA[4, :, :, :])
@@ -710,27 +684,57 @@ dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(
 # display range , min and max
 print("DataA range: ", np.min(dataA), np.max(dataA))
 
-# Load Data
-X_train, y_train = load_data_for_days(subjects, train_day)
+# Example usage
+substring_filter = "T2_n100"
 
-dataB = X_train
+dataB_all = load_nii_volumes(
+    path=data_path,
+    target_spacing=(1,1,2),
+    add_channel=False,
+    target_h=140,
+    target_w=140,
+    target_d=35,
+    substring=substring_filter,
+    rotate=True,
+    test=True
+)
+
+print("Loaded volumes shape:", dataB_all.shape)
+
+from sklearn.utils import resample
+
+# take first 40 samples from dataB_all
+dataB = dataB_all[:40]
 print('Loaded dataB: ', dataB.shape)
-dataB = np.abs(dataB)
 
-# convert to grayscale
-dataB = np.array([cv2.cvtColor(dataB[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataB))])
-# Normalize dataB to [-1, 1]
+# Load Data
 
+# resampled_dataB = []
+
+# for i in range(dataB.shape[0]):
+#     vol = dataB[i]  # shape: (140, 140, 35)
+#     vol_resampled = resample_volume(
+#         vol,
+#         current_spacing=(1,1,2),
+#         target_spacing=(1,1,1),
+#         order=3
+#     )  # shape: (140, 140, 70)
+#     resampled_dataB.append(vol_resampled)
+
+# # resampled_dataB is a list of 40 arrays, each 140x140x70
+# dataB = np.array(resampled_dataB)
+
+# print('Resampled dataB: ', dataB.shape)
 # Normalize dataB to [-1, 1] volume-wise
-for i in range(dataB.shape[0]):
-	dataB[i] = normalize_volume(dataB[i])
+# for i in range(dataB.shape[0]):
+# 	dataB[i] = normalize_volume(dataB[i])
 
-# Crop dataB to match dataA height and width if needed
-dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
+# # Crop dataB to match dataA height and width if needed
+# dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
 
-dataB = dataB[:, :, :, :-5]
+# dataB = dataB[:, :, :, :-10]
 
-# visualize_slices(dataB[1, :, :, :])
+visualize_slices(dataB[1, :, :, :])
 # visualize_slices(dataB[2, :, :, :])
 # visualize_slices(dataB[3, :, :, :])
 # visualize_slices(dataB[4, :, :, :])
@@ -749,6 +753,17 @@ print("DataB range: ", np.min(dataB), np.max(dataB))
 # load image data
 data = [dataA, dataB]
 
+import numpy as np
+
+# Assuming data = [dataA, dataB]
+for i in range(len(data)):
+    # Rotate 90° counter-clockwise in-plane (H x W)
+    data[i] = np.rot90(data[i], k=1, axes=(0, 1))
+
+# Now data contains the rotated volumes
+print("Rotated volumes shapes:", [d.shape for d in data])
+
+
 print('Loaded', data[0].shape, data[1].shape)
 
 # ----------------------------
@@ -758,7 +773,7 @@ A_slices = []
 for i in range(dataA.shape[0]):          # number of volumes
     for z in range(dataA.shape[3]):      # number of slices
         slice_2d = dataA[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
+        slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
         A_slices.append(slice_2d)
 
 A_2D = np.array(A_slices)
@@ -771,7 +786,7 @@ B_slices = []
 for i in range(dataB.shape[0]):
     for z in range(dataB.shape[3]):
         slice_2d = dataB[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
+        slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
         B_slices.append(slice_2d)
 
 B_2D = np.array(B_slices)
@@ -864,7 +879,7 @@ c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, ima
 from datetime import datetime
 start1 = datetime.now()
 # train models
-train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset, epochs=800)
+train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset, epochs=500)
 
 stop1 = datetime.now()
 #Execution time of the model
@@ -872,79 +887,3 @@ execution_time = stop1-start1
 print("Execution time is: ", execution_time)
 
 ############################################
-
-# # Use the saved cyclegan models for image translation
-# # from instancenormalization import InstanceNormalization
-# from keras.models import load_model
-# from matplotlib import pyplot
-# from numpy.random import randint
-# import nibabel as nib
-
-# # select a random sample of images from the dataset
-# def select_sample(dataset, n_samples):
-# 	# choose random instances
-# 	ix = randint(0, dataset.shape[0], n_samples)
-# 	# retrieve selected images
-# 	X = dataset[ix]
-# 	return X
-
-# # plot the image, its translation, and the reconstruction
-# def show_plot(imagesX, imagesY1, imagesY2):
-# 	images = vstack((imagesX, imagesY1, imagesY2))
-# 	titles = ['Real', 'Generated', 'Reconstructed']
-# 	# scale from [-1,1] to [0,1]
-# 	images = (images + 1) / 2.0
-# 	# plot images row by row
-# 	for i in range(len(images)):
-# 		# define subplot
-# 		pyplot.subplot(1, len(images), 1 + i)
-# 		# turn off axis
-# 		pyplot.axis('off')
-# 		# plot raw pixel data
-# 		pyplot.imshow(images[i])
-# 		# title
-# 		pyplot.title(titles[i])
-# 	pyplot.show()
-
-# # load dataset
-# A_data = resample(,
-#                  replace=False,
-#                  n_samples=50,
-#                  random_state=42) # reproducible results
-
-# B_data = resample(dataB_all,
-#                  replace=False,
-#                  n_samples=50,
-#                  random_state=42) # reproducible results
-
-# A_data = (A_data - 127.5) / 127.5
-# B_data = (B_data - 127.5) / 127.5
-
-
-# # load the models
-# cust = {'InstanceNormalization': InstanceNormalization}
-# model_AtoB = load_model('monet2photo_models/g_model_AtoB_005935.h5', cust)
-# model_BtoA = load_model('monet2photo_models/g_model_BtoA_005935.h5', cust)
-
-# # plot A->B->A (Monet to photo to Monet)
-# A_real = select_sample(A_data, 1)
-# B_generated  = model_AtoB.predict(A_real)
-# A_reconstructed = model_BtoA.predict(B_generated)
-# show_plot(A_real, B_generated, A_reconstructed)
-# # plot B->A->B (Photo to Monet to Photo)
-# B_real = select_sample(B_data, 1)
-# A_generated  = model_BtoA.predict(B_real)
-# B_reconstructed = model_AtoB.predict(A_generated)
-# show_plot(B_real, A_generated, B_reconstructed)
-
-# ##########################
-# #Load a single custom image
-# test_image = load_img('monet2photo/sunset256.jpg')
-# test_image = img_to_array(test_image)
-# test_image_input = np.array([test_image])  # Convert single image to a batch.
-# test_image_input = (test_image_input - 127.5) / 127.5
-
-# # plot B->A->B (Photo to Monet to Photo)
-# monet_generated  = model_BtoA.predict(test_image_input)
-# photo_reconstructed = model_AtoB.predict(monet_generated)
-# show_plot(test_image_input, monet_generated, photo_reconstructed)

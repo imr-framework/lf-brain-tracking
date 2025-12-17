@@ -73,6 +73,7 @@ def load_and_preprocess_hf(subject, day_idx, visualize=True):
     new_spacing = [2, 1.09, 1.09] # z=2mm, y=1mm, x=1mm
     resampled_volume_hf = resample_volume(volume_26184, voxel_sizes_26184, new_spacing)
     resampled_volume_hf_norm = normalize_volume(resampled_volume_hf)
+    
     if visualize == True:
         visualize_resampled(resampled_volume_hf_norm)
     print("High-field volume shape:", resampled_volume_hf_norm.shape)
@@ -562,39 +563,59 @@ def visualize_hf_slices(all_volumes, voxel_sizes=None):
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
-def visualize_resampled(resampled_volume):
-    
-    if resampled_volume is not None:
-        print(f"\n==============================Displaying slices from the resampled volume (shape: {resampled_volume.shape})...")
+import math
+import numpy as np
+import matplotlib.pyplot as plt
 
-        depth, height, width = resampled_volume.shape
-        num_slices_to_show = min(16, depth)
+def visualize_resampled(resampled_volume, cols=5, figsize_scale=2, overlap=True):
+    """
+    Visualize all slices of a 3D volume in a tight grid (5 columns).
+    Number of rows is computed automatically.
+    No intensity scaling is applied.
+    """
 
-        if num_slices_to_show > 0:
-            step = max(1, depth // num_slices_to_show)
-            slice_indices_to_show = list(range(0, depth, step))[:num_slices_to_show]
+    if resampled_volume is None:
+        print("Resampled volume variable not found.")
+        return
 
-            # Increase figsize so each slice is wider
-            fig_width = num_slices_to_show * 2   # 2 inches per slice
-            fig_height = 4
-            fig, axes = plt.subplots(1, num_slices_to_show, figsize=(fig_width, fig_height))
-            fig.suptitle("Slices from Resampled Volume", fontsize=16)
+    if len(resampled_volume.shape) != 3:
+        raise ValueError("Expected a 3D volume (D, H, W)")
 
-            if num_slices_to_show == 1:
-                axes = [axes]
+    depth, height, width = resampled_volume.shape
 
-            for i, slice_idx in enumerate(slice_indices_to_show):
-                ax = axes[i]
-                ax.imshow(resampled_volume[slice_idx, :, :], cmap='gray')
-                ax.set_title(f"Slice {slice_idx}")
-                ax.axis('off')
+    # 🔑 compute rows automatically
+    rows = math.ceil(depth / cols)
 
-            plt.tight_layout(rect=[0, 0, 1, 0.95])
-            plt.show()
-        else:
-            print("Resampled volume has no slices to display.")
+    print(f"Displaying volume with {depth} slices → Grid: {rows} rows × {cols} columns")
+
+    fig, axes = plt.subplots(
+        rows, cols,
+        figsize=(cols * figsize_scale, rows * figsize_scale)
+    )
+
+    axes = np.array(axes).reshape(-1)
+
+    for i in range(depth):
+        axes[i].imshow(
+            resampled_volume[i],
+            cmap="gray",
+            interpolation="nearest"
+        )
+        axes[i].axis("off")
+
+    # Hide unused axes
+    for j in range(depth, len(axes)):
+        axes[j].axis("off")
+
+    # Remove spacing / overlap
+    if overlap:
+        plt.subplots_adjust(wspace=-0.1, hspace=-0.1)
     else:
-        print("Resampled volume variable not found. Please run the resampling cell first.")
+        plt.subplots_adjust(wspace=0, hspace=0)
+
+    plt.show()
+
+
 
 def visualize_lf_slices(all_volumes_lf):
     """

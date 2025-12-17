@@ -480,7 +480,7 @@ def visualize_comparison(
     name='comparison',
     output_dir='outputs_59228/trial1',
     affine=None,
-    slice_range=(24, 27),
+    slice_range=(32, 37),
     expose_individual_png_paths=True,
     view_orthoslices=True
 ):
@@ -671,6 +671,39 @@ visualize_volume(im, title="Normalized LF")
 # print("Processed shape:", im_fixed.shape)
 # print("Pad/Crop info:", pad_info)
 # visualize_volume(im_fixed, title="paded")
+# apply gaussian filter
+# im = np.array([gaussian_filter(im[i], sigma=1) for i in range(len(im))])
+
+import numpy as np
+from scipy.ndimage import convolve
+
+def lowpass_2x2x2(volume):
+    
+    """
+    Apply a 2x2x2 low-pass (averaging) filter to a 3D volume.
+
+    Parameters
+    ----------
+    volume : np.ndarray
+        Input volume (D, H, W)
+
+    Returns
+    -------
+    np.ndarray
+        Smoothed volume
+    """
+    
+    kernel = np.ones((2, 2, 2), dtype=np.float32) / 8.0
+    volume = volume.astype(np.float32)
+
+    filtered = convolve(volume, kernel, mode='reflect')
+
+    return filtered
+
+# Applying low-pass filtering
+print("Applying post-processing low-pass filtering...")
+# apply total variation filtering on pred1 to reduce noise
+pred2 = lowpass_2x2x2(im)
 
 im = np.expand_dims(im, axis=0)  # (1, H, W, D)
 print("Final LF input shape:", im.shape)
@@ -698,6 +731,7 @@ else:
     output_dir='src_simulated/outputs/outputs_59228/trail22_pred1_only'
 
 im = im.astype(np.float32)
+
 
 
 results, pred1, pred2, model1, model2 = evaluate_model(

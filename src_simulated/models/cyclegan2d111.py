@@ -238,7 +238,7 @@ def generate_fake_samples(g_model, dataset, patch_shape):
 	return X, y
 
 
-def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan1'):
+def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan111'):
     # create directory if not exists
     os.makedirs(output_path, exist_ok=True)
 
@@ -265,7 +265,7 @@ def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/out
     print(f"> Updated latest models: {latest_AtoB}  AND  {latest_BtoA}")
 
 # periodically generate images using the save model and plot input and output images
-def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan1'):
+def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan111'):
 	# select a sample of input images
 	X_in, _ = generate_real_samples(trainX, n_samples, 0)
 	# generate translated images
@@ -493,13 +493,12 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         if (i + 1) % (bat_per_epo * 5) == 0:
             save_models(i, g_model_AtoB, g_model_BtoA,
-                        output_path='src_simulated/outputs/cyclegan1')
-
+                        output_path='src_simulated/outputs/cyclegan111')
 
 ## Read dataset
 
 data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
-subjects = ["26184", "30366", "35528","34507", "35547", "59228", "59877","59233"]
+subjects = ["26184", "30366","34507", "35547", "59877","59233"]
 train_day = [1,2,3,4,5]
 
 # monet2photo
@@ -567,7 +566,7 @@ def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,1), add_
 
     TARGET_H = 128
     TARGET_W = 128
-    TARGET_D = 35
+    TARGET_D = 70
 
     volumes = []
 
@@ -628,7 +627,6 @@ def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,1), add_
         raise ValueError("No valid volumes loaded. Check dimensions and input path.")
 
     return np.stack(volumes, axis=0)
-
 
 # -----------------------------
 # DATA LOADING
@@ -692,10 +690,10 @@ dataA = resample(dataA_all,
                  n_samples=40,
                  random_state=42)
 
-dataA = dataA[:, :, :, 3:-2]   # new depth = 30
+dataA = dataA[:, :, :, 6:-4]   # new depth = 30
 
 # convert to grayscale
-dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
+# dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
 # visualize_slices(dataA[1, :, :, :])
 # visualize_slices(dataA[2, :, :, :])
 # visualize_slices(dataA[3, :, :, :])
@@ -718,9 +716,59 @@ print('Loaded dataB: ', dataB.shape)
 dataB = np.abs(dataB)
 
 # convert to grayscale
-dataB = np.array([cv2.cvtColor(dataB[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataB))])
+# dataB = np.array([cv2.cvtColor(dataB[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataB))])
 # Normalize dataB to [-1, 1]
 
+import numpy as np
+from scipy.ndimage import zoom
+
+def resample_volume(volume, current_spacing=(1,1,2), target_spacing=(1,1,1), order=3):
+    """
+    Resample a 3D volume to new voxel spacing.
+
+    Parameters:
+    volume : np.ndarray
+        3D volume (D, H, W)
+    current_spacing : tuple
+        Original voxel spacing (z, y, x)
+    target_spacing : tuple
+        Desired voxel spacing (z, y, x)
+    order : int
+        Interpolation order:
+        0 = nearest (labels)
+        1 = linear
+        3 = cubic (recommended for MRI)
+
+    Returns:
+    resampled_volume : np.ndarray
+    """
+
+    zoom_factors = (
+        current_spacing[0] / target_spacing[0],
+        current_spacing[1] / target_spacing[1],
+        current_spacing[2] / target_spacing[2],
+    )
+
+    resampled_volume = zoom(volume, zoom_factors, order=order)
+    return resampled_volume
+
+
+resampled_dataB = []
+
+for i in range(dataB.shape[0]):
+    vol = dataB[i]  # shape: (140, 140, 35)
+    vol_resampled = resample_volume(
+        vol,
+        current_spacing=(1,1,2),
+        target_spacing=(1,1,1),
+        order=3
+    )  # shape: (140, 140, 70)
+    resampled_dataB.append(vol_resampled)
+
+# resampled_dataB is a list of 40 arrays, each 140x140x70
+dataB = np.array(resampled_dataB)
+
+print('Resampled dataB: ', dataB.shape)
 # Normalize dataB to [-1, 1] volume-wise
 for i in range(dataB.shape[0]):
 	dataB[i] = normalize_volume(dataB[i])
@@ -728,7 +776,7 @@ for i in range(dataB.shape[0]):
 # Crop dataB to match dataA height and width if needed
 dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
 
-dataB = dataB[:, :, :, :-5]
+dataB = dataB[:, :, :, :-10]
 
 # visualize_slices(dataB[1, :, :, :])
 # visualize_slices(dataB[2, :, :, :])
