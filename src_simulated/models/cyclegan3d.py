@@ -343,7 +343,7 @@ def train_3d(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         # 3. TRAIN GENERATORS (via composite)
         # -----------------------------
-        
+
         g_model_AtoB.trainable = True
         g_model_BtoA.trainable = True
         d_model_A.trainable = False
@@ -451,6 +451,7 @@ def normalize_volume(vol):
 
 def crop_or_pad_depth(vol, target_d=35):
     """Crop or pad depth to target size."""
+    
     h, w, d = vol.shape
     if d > target_d:
         start = (d - target_d) // 2
