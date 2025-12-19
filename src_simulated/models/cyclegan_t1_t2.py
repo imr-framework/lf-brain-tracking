@@ -239,7 +239,6 @@ def generate_fake_samples(g_model, dataset, patch_shape):
 	y = zeros((len(X), patch_shape, patch_shape, 1))
 	return X, y
 
-
 def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan_t1_t2'):
     # create directory if not exists
     os.makedirs(output_path, exist_ok=True)
@@ -268,28 +267,28 @@ def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/out
 
 # periodically generate images using the save model and plot input and output images
 def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan_t1_t2'):
-	# select a sample of input images
-	X_in, _ = generate_real_samples(trainX, n_samples, 0)
-	# generate translated images
-	X_out, _ = generate_fake_samples(g_model, X_in, 0)
-	# scale all pixels from [-1,1] to [0,1]
-	X_in = (X_in + 1) / 2.0
-	X_out = (X_out + 1) / 2.0
-	# plot real images
-	for i in range(n_samples):
-		pyplot.subplot(2, n_samples, 1 + i)
-		pyplot.axis('off')
-		pyplot.imshow(X_in[i])
-	# plot translated image
-	for i in range(n_samples):
-		pyplot.subplot(2, n_samples, 1 + n_samples + i)
-		pyplot.axis('off')
-		pyplot.imshow(X_out[i])
-	# save plot to file
-	filename1 = '%s_generated_plot_%06d.png' % (name, (step+1))
-	filename1 = os.path.join(output_path, filename1)
-	pyplot.savefig(filename1)
-	pyplot.close()
+    # select a sample of input images
+    X_in, _ = generate_real_samples(trainX, n_samples, 0)
+    # generate translated images
+    X_out, _ = generate_fake_samples(g_model, X_in, 0)
+    # scale all pixels from [-1,1] to [0,1]
+    X_in = (X_in + 1) / 2.0
+    X_out = (X_out + 1) / 2.0
+    # plot real images
+    for i in range(n_samples):
+        pyplot.subplot(2, n_samples, 1 + i)
+        pyplot.axis('off')
+        pyplot.imshow(X_in[i].squeeze(), cmap='gray')
+    # plot translated image
+    for i in range(n_samples):
+        pyplot.subplot(2, n_samples, 1 + n_samples + i)
+        pyplot.axis('off')
+        pyplot.imshow(X_out[i].squeeze(), cmap='gray')
+    # save plot to file
+    filename1 = '%s_generated_plot_%06d.png' % (name, (step+1))
+    filename1 = os.path.join(output_path, filename1)
+    pyplot.savefig(filename1)
+    pyplot.close()
 
 # update image pool for fake images to reduce model oscillation
 # update discriminators using a history of generated images
@@ -656,7 +655,7 @@ dataA_all = load_nii_volumes(
     target_d=35,
     substring=substring_filter,
     rotate=True,
-    test=True
+    test=False
 )
 
 print("Loaded volumes shape:", dataA_all.shape)
@@ -696,7 +695,7 @@ dataB_all = load_nii_volumes(
     target_d=35,
     substring=substring_filter,
     rotate=True,
-    test=True
+    test=False
 )
 
 print("Loaded volumes shape:", dataB_all.shape)

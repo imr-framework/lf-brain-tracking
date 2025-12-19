@@ -70,28 +70,29 @@ def define_discriminator_3d(image_shape):
     in_image = Input(shape=image_shape)
     # C64: 4x4x4 kernel stride 2
     d = Conv3D(64, (4,4,4), strides=(2,2,2), padding='same', kernel_initializer=init)(in_image)
-    d = LeakyReLU(alpha=0.2)(d)
+    d = LeakyReLU(negative_slope=0.2)(d)
     # C128
     d = Conv3D(128, (4,4,4), strides=(2,2,2), padding='same', kernel_initializer=init)(d)
     d = InstanceNormalization(axis=-1)(d)
-    d = LeakyReLU(alpha=0.2)(d)
+    d = LeakyReLU(negative_slope=0.2)(d)
     # C256
     d = Conv3D(256, (4,4,4), strides=(2,2,2), padding='same', kernel_initializer=init)(d)
     d = InstanceNormalization(axis=-1)(d)
-    d = LeakyReLU(alpha=0.2)(d)
+    d = LeakyReLU(negative_slope=0.2)(d)
     # C512 (optional)
     d = Conv3D(512, (4,4,4), strides=(2,2,2), padding='same', kernel_initializer=init)(d)
     d = InstanceNormalization(axis=-1)(d)
-    d = LeakyReLU(alpha=0.2)(d)
+    d = LeakyReLU(negative_slope=0.2)(d)
     # second last (stride 1)
     d = Conv3D(512, (4,4,4), padding='same', kernel_initializer=init)(d)
     d = InstanceNormalization(axis=-1)(d)
-    d = LeakyReLU(alpha=0.2)(d)
+    d = LeakyReLU(negative_slope=0.2)(d)
     # patch output (single channel)
     patch_out = Conv3D(1, (4,4,4), padding='same', kernel_initializer=init)(d)
     model = Model(in_image, patch_out)
     # compile
     model.compile(loss='mse', optimizer=Adam(learning_rate=0.0002, beta_1=0.5), loss_weights=[0.5])
+    model.summary()
     return model
 
 # ----------------------------
@@ -256,7 +257,8 @@ def update_image_pool(pool, images, max_size=50):
 # -----------------------------
 # Save models
 # -----------------------------
-def save_models(step, g_model_AtoB, g_model_BtoA, output_path='outputs/cyclegan_3d'):
+def save_models(step, g_model_AtoB, g_model_BtoA, output_path='outputs/cyclegan3d_t1_t2'):
+    
     os.makedirs(output_path, exist_ok=True)
     latest_AtoB = os.path.join(output_path, "g_model_AtoB_latest.keras")
     latest_BtoA = os.path.join(output_path, "g_model_BtoA_latest.keras")
@@ -267,93 +269,209 @@ def save_models(step, g_model_AtoB, g_model_BtoA, output_path='outputs/cyclegan_
 # -----------------------------
 # Summarize performance (3D)
 # -----------------------------
-def summarize_performance(step, g_model, trainX, name, n_samples=3, output_path='outputs/cyclegan_3d'):
-    os.makedirs(output_path, exist_ok=True)
-    # select a sample
-    X_in, _ = generate_real_samples(trainX, n_samples, patch_shape=0)
-    # generate translated images
-    X_out, _ = generate_fake_samples(g_model, X_in, patch_shape=0)
-    # scale all pixels from [-1,1] to [0,1]
-    X_in = (X_in + 1) / 2.0
-    X_out = (X_out + 1) / 2.0
-    # plot middle slice of each volume along depth axis
-    for i in range(n_samples):
-        mid_slice = X_in.shape[3] // 2  # D // 2
-        plt.subplot(2, n_samples, 1 + i)
-        plt.axis('off')
-        plt.imshow(X_in[i, :, :, mid_slice, 0], cmap='gray')
-        plt.subplot(2, n_samples, 1 + n_samples + i)
-        plt.axis('off')
-        plt.imshow(X_out[i, :, :, mid_slice, 0], cmap='gray')
-    filename1 = os.path.join(output_path, f'{name}_generated_plot_{step+1:06d}.png')
-    plt.savefig(filename1)
+
+def summarize_performance(
+    step,
+    g_model,
+    trainX,
+    name,
+    patch_size=(64, 64, 32),
+    n_patches=5,
+    out_dir="outputs/cyclegan3d"
+):
+    """
+    Visualize patches from ONE 5D volume.
+    
+    trainX shape : (N, H, W, D, C)
+    """
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    ph, pw, pd = patch_size
+
+    # ---- pick ONE volume ----
+    idx = np.random.randint(len(trainX))
+    vol = trainX[idx]        # (H,W,D,C)
+    vol = vol[..., 0]        # (H,W,D)
+
+    H, W, D = vol.shape
+    mid = pd // 2
+
+    inputs, outputs = [], []
+
+    for _ in range(n_patches):
+        # random patch location
+        x = np.random.randint(0, H - ph + 1)
+        y = np.random.randint(0, W - pw + 1)
+        z = np.random.randint(0, D - pd + 1)
+
+        patch = vol[x:x+ph, y:y+pw, z:z+pd]
+
+        # model input
+        patch_in = patch[np.newaxis, ..., np.newaxis]
+        fake = g_model.predict(patch_in, verbose=0)[0, ..., 0]
+
+        inputs.append(patch[:, :, mid])
+        outputs.append(fake[:, :, mid])
+
+    inputs = np.array(inputs)
+    outputs = np.array(outputs)
+
+    # ---- Plot (no gaps) ----
+    fig, ax = plt.subplots(
+        2, n_patches,
+        figsize=(n_patches * 3, 6),
+        gridspec_kw={"wspace": 0, "hspace": 0}
+    )
+
+    for i in range(n_patches):
+        ax[0, i].imshow(inputs[i], cmap="gray")
+        ax[0, i].axis("off")
+
+        ax[1, i].imshow(outputs[i], cmap="gray")
+        ax[1, i].axis("off")
+
+    plt.subplots_adjust(0, 0, 1, 1)
+
+    filename = os.path.join(
+        out_dir, f"{name}_single_vol_patches_step_{step+1:06d}.png"
+    )
+    plt.savefig(filename, dpi=200, bbox_inches="tight", pad_inches=0)
     plt.close()
+
+    print(f"[Saved] {filename}")
+
+# -----------------------------
+# Extract aligned random patch from 5D volumes
+# -----------------------------
+def extract_random_patch_pair(volA, volB, patch_size):
+    """
+    volA, volB: 5D arrays (H,W,D,C)
+    patch_size: tuple (ph,pw,pd)
+    Returns aligned patches of shape (ph,pw,pd,C)
+    """
+    H, W, D, C = volA.shape
+    ph, pw, pd = patch_size
+
+    ph = min(ph, H)
+    pw = min(pw, W)
+    pd = min(pd, D)
+
+    x = np.random.randint(0, H - ph + 1)
+    y = np.random.randint(0, W - pw + 1)
+    z = np.random.randint(0, D - pd + 1)
+
+    patchA = volA[x:x+ph, y:y+pw, z:z+pd, :]
+    patchB = volB[x:x+ph, y:y+pw, z:z+pd, :]
+    return patchA, patchB
+
+
+# -----------------------------
+# Generate batch of random real patches
+# -----------------------------
+def generate_real_patches(trainA, trainB, n_batch, patch_size):
+    """
+    Generate batch of aligned patches from lists/arrays of 5D volumes.
+    Returns XA, XB of shape (n_batch, ph, pw, pd, C)
+    """
+    XA, XB = [], []
+
+    for _ in range(n_batch):
+        idx = np.random.randint(len(trainA))
+        volA = trainA[idx]
+        volB = trainB[idx]
+        pA, pB = extract_random_patch_pair(volA, volB, patch_size)
+        XA.append(pA)
+        XB.append(pB)
+
+    XA = np.array(XA)
+    XB = np.array(XB)
+    return XA, XB
+
+
+def generate_real_samples(X, n_patch):
+    """
+    X: batch of patches (B,H,W,D,C)
+    n_patch: tuple of PatchGAN output shape (H_out, W_out, D_out)
+    Returns X and PatchGAN labels of ones
+    """
+    y = np.ones((X.shape[0], *n_patch, 1), dtype='float32')
+    return X, y
+
+def generate_fake_samples(g_model, X, n_patch):
+    """
+    X: batch of real patches
+    g_model: generator model
+    n_patch: tuple of PatchGAN output shape (H_out, W_out, D_out)
+    Returns fake patches and PatchGAN labels of zeros
+    """
+    X_fake = g_model.predict(X, verbose=0)
+    y_fake = np.zeros((X_fake.shape[0], *n_patch, 1), dtype='float32')
+    return X_fake, y_fake
 
 
 # ----------------------------
 # Training loop (3D)
 # ----------------------------
 # train cyclegan models
-def train_3d(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
-             c_model_AtoB, c_model_BtoA, dataset, epochs=500):
+def train_3d(
+    d_model_A, d_model_B,
+    g_model_AtoB, g_model_BtoA,
+    c_model_AtoB, c_model_BtoA,
+    dataset,
+    patch_size=(64,64,32),
+    epochs=500,
+    n_batch=1,
+    n_samples_vis=3,
+    output_path='src_simulated/outputs/cyclegan3d_t1_t2'
+):
+    
+    # define properties of the training run
+    n_epochs, n_batch = epochs, 1  # batch size fixed to 1
+    n_patch = d_model_A.output_shape[1:-1]  # (H_out, W_out, D_out)
 
-    n_epochs, n_batch = epochs, 1
-
-    # Unpack dataset
     trainA, trainB = dataset
-
-    # Prepare image pools for fake images
     poolA, poolB = list(), list()
 
-    # Total iterations
     bat_per_epo = int(len(trainA) / n_batch)
-    n_steps = bat_per_epo * n_epochs
+    n_steps = bat_per_epo * epochs
 
     for i in range(n_steps):
 
-        # -----------------------------
-        # 1. REAL SAMPLES
-        # -----------------------------
-        X_realA, y_realA = generate_real_samples(trainA, n_batch, d_model_A)
-        X_realB, y_realB = generate_real_samples(trainB, n_batch, d_model_B)
+        # Real patches
+        X_realA, X_realB = generate_real_patches(trainA, trainB, n_batch=1, patch_size=patch_size)
 
-        # Ensure 5D (B,H,W,D,C)
-        if X_realA.ndim == 4: X_realA = np.expand_dims(X_realA, -1)
-        if X_realB.ndim == 4: X_realB = np.expand_dims(X_realB, -1)
+        # PatchGAN labels
+        X_realA, y_realA = generate_real_samples(X_realA, n_patch)
+        X_realB, y_realB = generate_real_samples(X_realB, n_patch)
 
-        # -----------------------------
-        # 2. FAKE SAMPLES
-        # -----------------------------
+        # Freeze generators, train discriminators
         g_model_AtoB.trainable = False
         g_model_BtoA.trainable = False
         d_model_A.trainable = True
         d_model_B.trainable = True
 
-        X_fakeA, y_fakeA = generate_fake_samples(g_model_BtoA, X_realB, d_model_A)
-        X_fakeB, y_fakeB = generate_fake_samples(g_model_AtoB, X_realA, d_model_B)
+        # Fake patches + PatchGAN labels
+        X_fakeA, y_fakeA = generate_fake_samples(g_model_BtoA, X_realB, n_patch)
+        X_fakeB, y_fakeB = generate_fake_samples(g_model_AtoB, X_realA, n_patch)
 
-        # Ensure 5D
-        if X_fakeA.ndim == 4: X_fakeA = np.expand_dims(X_fakeA, -1)
-        if X_fakeB.ndim == 4: X_fakeB = np.expand_dims(X_fakeB, -1)
-
-        # Update image pools
         X_fakeA = update_image_pool(poolA, X_fakeA)
         X_fakeB = update_image_pool(poolB, X_fakeB)
 
         # -----------------------------
-        # 3. TRAIN GENERATORS (via composite)
+        # 3. TRAIN GENERATORS (composite)
         # -----------------------------
-
         g_model_AtoB.trainable = True
         g_model_BtoA.trainable = True
         d_model_A.trainable = False
         d_model_B.trainable = False
 
-        g_loss2, _, _, _, _ = c_model_BtoA.train_on_batch(
+        g_loss_BtoA = c_model_BtoA.train_on_batch(
             [X_realB, X_realA],
             [y_realA, X_realA, X_realB, X_realA]
         )
-        g_loss1, _, _, _, _ = c_model_AtoB.train_on_batch(
+
+        g_loss_AtoB = c_model_AtoB.train_on_batch(
             [X_realA, X_realB],
             [y_realB, X_realB, X_realA, X_realB]
         )
@@ -361,42 +479,48 @@ def train_3d(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         # 4. TRAIN DISCRIMINATORS
         # -----------------------------
-        g_model_AtoB.trainable = False
-        g_model_BtoA.trainable = False
-        d_model_A.trainable = True
-        d_model_B.trainable = True
-
         dA_loss1 = d_model_A.train_on_batch(X_realA, y_realA)
         dA_loss2 = d_model_A.train_on_batch(X_fakeA, y_fakeA)
-
         dB_loss1 = d_model_B.train_on_batch(X_realB, y_realB)
         dB_loss2 = d_model_B.train_on_batch(X_fakeB, y_fakeB)
 
         # -----------------------------
         # 5. LOG PROGRESS
         # -----------------------------
-        if (i+1) % 10 == 0:
+        if (i + 1) % 10 == 0:
             print(
-                'Iteration>%d, dA[%.3f, %.3f] dB[%.3f, %.3f] g[%.3f, %.3f]' %
-                (i+1, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2)
+                f"Iteration>{i+1}, "
+                f"dA[{dA_loss1:.3f}, {dA_loss2:.3f}] "
+                f"dB[{dB_loss1:.3f}, {dB_loss2:.3f}] "
+                f"g[{g_loss_AtoB[0]:.3f}, {g_loss_BtoA[0]:.3f}]"
             )
 
-        # -----------------------------
-        # 6. PERFORMANCE CHECK
-        # -----------------------------
-        if (i+1) % (bat_per_epo * 10) == 0:
-            summarize_performance(i, g_model_AtoB, trainA, 'AtoB')
-            summarize_performance(i, g_model_BtoA, trainB, 'BtoA')
+        # # -----------------------------
+        # # 6. PERFORMANCE CHECK
+        # # -----------------------------
+        # if (i + 1) % (bat_per_epo * 10) == 0:
+        #     summarize_performance(
+        #         step=i,
+        #         g_model=g_model_AtoB,
+        #         trainX=trainA,
+        #         name='AtoB',
+        #         patch_size=patch_size,
+        #         output_path=output_path
+        #     )
+        #     summarize_performance(
+        #         step=i,
+        #         g_model=g_model_BtoA,
+        #         trainX=trainB,
+        #         name='BtoA',
+        #         patch_size=patch_size,
+        #         output_path=output_path
+        #     )
 
         # -----------------------------
         # 7. MODEL SAVE
         # -----------------------------
-        if (i+1) % (bat_per_epo * 5) == 0:
-            save_models(i, g_model_AtoB, g_model_BtoA,
-                        output_path='src_simulated/outputs/cyclegan3d_t1_t2')
-
-
-
+        if (i + 1) % (bat_per_epo * 5) == 0:
+            save_models(i, g_model_AtoB, g_model_BtoA, output_path=output_path)
 
 # ----------------------------
 ## Read dataset
@@ -451,7 +575,7 @@ def normalize_volume(vol):
 
 def crop_or_pad_depth(vol, target_d=35):
     """Crop or pad depth to target size."""
-    
+
     h, w, d = vol.shape
     if d > target_d:
         start = (d - target_d) // 2
@@ -590,7 +714,6 @@ def visualize_slices(volume, n_cols=5):
 
     plt.tight_layout()
     plt.show()
-
 
 import numpy as np
 from scipy.ndimage import zoom
@@ -785,53 +908,78 @@ data = [A_2D, B_2D]
 print("A_2D dtype:", A_2D.dtype)
 print("B_2D dtype:", B_2D.dtype)
 
-def inspect_domains(A, B, n_samples=20):
-	"""
-	Prints stats and displays 20 samples (top=A, bottom=B).
-	"""
+import numpy as np
+import matplotlib.pyplot as plt
 
-	# ------------------------- Helper: describe -------------------------
-	def describe(name, X):
-		print(f"\n{name} Dataset:")
-		print(f"  Shape         : {X.shape}")
-		print(f"  Min pixel     : {X.min():.4f}")
-		print(f"  Max pixel     : {X.max():.4f}")
-		print(f"  Mean pixel    : {X.mean():.4f}")
+def inspect_domains(A, B, n_samples=10):
+    """
+    Prints stats and displays n_samples subjects.
+    For multi-slice data, the middle slice is shown.
+    Top row = A, Bottom row = B
+    """
 
-	# ------------------------- Print stats -------------------------
-	describe("A", A)
-	describe("B", B)
+    # ------------------------- Helper: describe -------------------------
+    def describe(name, X):
+        print(f"\n{name} Dataset:")
+        print(f"  Shape         : {X.shape}")
+        print(f"  Min pixel     : {X.min():.4f}")
+        print(f"  Max pixel     : {X.max():.4f}")
+        print(f"  Mean pixel    : {X.mean():.4f}")
 
-	# ------------------------- Visualization -------------------------
-	print("\nDisplaying sample images...")
+    describe("A", A)
+    describe("B", B)
 
-	plt.figure(figsize=(20, 4))
-	n = min(n_samples, len(A), len(B))
+    # ------------------------- Slice extractor -------------------------
+    def get_middle_slice(x):
+        """
+        x: single sample
+        Supports:
+        - (H, W)
+        - (H, W, C)
+        - (H, W, D, C)
+        - (D, H, W, C)
+        """
 
-	for i in range(n):
+        if x.ndim == 2:        # (H, W)
+            return x
 
-		# ---------- TOP ROW (A) ----------
-		plt.subplot(2, n, 1 + i)
-		plt.axis("off")
-		imgA = (A[i] + 1) / 2
-		if imgA.shape[-1] == 1:
-			imgA = imgA[:, :, 0]
-			plt.imshow(imgA, cmap="gray")
-		else:
-			plt.imshow(imgA)
+        if x.ndim == 3:        # (H, W, C)
+            return x[..., 0] if x.shape[-1] == 1 else x
 
-		# ---------- BOTTOM ROW (B) ----------
-		plt.subplot(2, n, 1 + n + i)
-		plt.axis("off")
-		imgB = (B[i] + 1) / 2
-		if imgB.shape[-1] == 1:
-			imgB = imgB[:, :, 0]
-			plt.imshow(imgB, cmap="gray")
-		else:
-			plt.imshow(imgB)
+        if x.ndim == 4:
+            # Decide where depth dimension is
+            if x.shape[-1] in [1, 3]:     # (H, W, D, C)
+                mid = x.shape[2] // 2
+                return x[:, :, mid, 0]
+            else:                          # (D, H, W, C)
+                mid = x.shape[0] // 2
+                return x[mid, :, :, 0]
 
-	plt.tight_layout()
-	plt.show()
+        raise ValueError(f"Unsupported shape: {x.shape}")
+
+    # ------------------------- Visualization -------------------------
+    n = min(n_samples, len(A), len(B))
+    print(f"\nDisplaying middle slice of {n} samples...")
+
+    plt.figure(figsize=(2 * n, 4))
+
+    for i in range(n):
+        # ---------- A ----------
+        plt.subplot(2, n, i + 1)
+        plt.axis("off")
+        imgA = (A[i] + 1) / 2
+        imgA = get_middle_slice(imgA)
+        plt.imshow(imgA, cmap="gray")
+
+        # ---------- B ----------
+        plt.subplot(2, n, n + i + 1)
+        plt.axis("off")
+        imgB = (B[i] + 1) / 2
+        imgB = get_middle_slice(imgB)
+        plt.imshow(imgB, cmap="gray")
+
+    plt.tight_layout()
+    plt.show()
 
 dataset = data
 
@@ -839,8 +987,14 @@ inspect_domains(dataset[0], dataset[1], n_samples=20)
 
 # from cycleGAN_model import define_generator, define_discriminator, define_composite_model, train
 # define input shape based on the loaded dataset
-image_shape = dataset[0].shape[1:]
-print(image_shape)
+
+# Suppose you define a patch size
+patch_size = (64, 64, 32)  # (H, W, D)
+
+# Use patch size instead of full image shape
+image_shape = patch_size + (1,)  # add channel dimension
+print(image_shape)  # -> (64, 64, 32, 1)
+
 
 # generator: A -> B
 g_model_AtoB = define_generator_3d(image_shape)
@@ -864,5 +1018,3 @@ stop1 = datetime.now()
 #Execution time of the model
 execution_time = stop1-start1
 print("Execution time is: ", execution_time)
-
-############################################

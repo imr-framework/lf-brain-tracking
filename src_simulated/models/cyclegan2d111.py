@@ -237,7 +237,6 @@ def generate_fake_samples(g_model, dataset, patch_shape):
 	y = zeros((len(X), patch_shape, patch_shape, 1))
 	return X, y
 
-
 def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan111'):
     # create directory if not exists
     os.makedirs(output_path, exist_ok=True)
@@ -395,7 +394,7 @@ def update_image_pool(pool, images, max_size=50):
 #                         output_path ='src_simulated/outputs/cyclegan1')
 
 
-# train cyclegan models
+# Train CycleGan model
 def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
           c_model_AtoB, c_model_BtoA, dataset, epochs=500):
 
