@@ -27,7 +27,7 @@ from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input, Conv2D, Conv2DTranspose, LeakyReLU,
-    Activation, Concatenate, Add
+    Activation, Concatenate, Add, UpSampling2D
 )
 
 from matplotlib import pyplot
@@ -136,42 +136,93 @@ def resnet_block(n_filters, input_layer):
 #The network with 9 residual blocks consists of:
 #c7s1-64,d128,d256,R256,R256,R256,R256,R256,R256,R256,R256,R256,u128, u64,c7s1-3
 
+# def define_generator(image_shape, n_resnet=9):
+# 	# weight initialization
+# 	init = RandomNormal(stddev=0.02)
+# 	# image input
+# 	in_image = Input(shape=image_shape)
+# 	# c7s1-64
+# 	g = Conv2D(64, (7,7), padding='same', kernel_initializer=init)(in_image)
+# 	g = InstanceNormalization(axis=-1)(g)
+# 	g = Activation('relu')(g)
+# 	# d128
+# 	g = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+# 	g = InstanceNormalization(axis=-1)(g)
+# 	g = Activation('relu')(g)
+# 	# d256
+# 	g = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+# 	g = InstanceNormalization(axis=-1)(g)
+# 	g = Activation('relu')(g)
+# 	# R256
+# 	for _ in range(n_resnet):
+# 		g = resnet_block(256, g)
+# 	# u128
+# 	# g = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+# 	g = UpSampling2D(size=(2,2), interpolation='nearest')(g)
+#     g = Conv2D(128, (3,3), padding='same', kernel_initializer=init)(g)
+#     g = InstanceNormalization(axis=-1)(g)
+# 	g = Activation('relu')(g)
+# 	# u64
+# 	g = UpSampling2D(size=(2,2), interpolation='nearest')(g)
+# 	g = Conv2D(64, (3,3), padding='same', kernel_initializer=init)(g)
+# 	g = InstanceNormalization(axis=-1)(g)
+# 	g = Activation('relu')(g)
+# 	# c7s1-3
+# 	g = Conv2D(1, (7,7), padding='same', kernel_initializer=init)(g)
+# 	g = InstanceNormalization(axis=-1)(g)
+# 	out_image = Activation('tanh')(g)
+# 	# define model
+# 	model = Model(in_image, out_image)
+# 	model.summary()
+# 	return model
+
+
 def define_generator(image_shape, n_resnet=9):
-	# weight initialization
-	init = RandomNormal(stddev=0.02)
-	# image input
-	in_image = Input(shape=image_shape)
-	# c7s1-64
-	g = Conv2D(64, (7,7), padding='same', kernel_initializer=init)(in_image)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# d128
-	g = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# d256
-	g = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# R256
-	for _ in range(n_resnet):
-		g = resnet_block(256, g)
-	# u128
-	g = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# u64
-	g = Conv2DTranspose(64, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# c7s1-3
-	g = Conv2D(1, (7,7), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	out_image = Activation('tanh')(g)
-	# define model
-	model = Model(in_image, out_image)
-	model.summary()
-	return model
+    # weight initialization
+    init = RandomNormal(stddev=0.02)
+    
+    # image input
+    in_image = Input(shape=image_shape)
+    
+    # c7s1-64
+    g = Conv2D(64, (7,7), padding='same', kernel_initializer=init)(in_image)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # d128
+    g = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # d256
+    g = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # R256
+    for _ in range(n_resnet):
+        g = resnet_block(256, g)
+    
+    # u128 (upsample + conv)
+    g = UpSampling2D(size=(2,2), interpolation='nearest')(g)
+    g = Conv2D(128, (3,3), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # u64
+    g = UpSampling2D(size=(2,2), interpolation='nearest')(g)
+    g = Conv2D(64, (3,3), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # c7s1-3 (output)
+    g = Conv2D(1, (7,7), padding='same', kernel_initializer=init)(g)
+    out_image = Activation('tanh')(g)  # no instance norm here
+    
+    # define model
+    model = Model(in_image, out_image)
+    model.summary()
+    return model
 
 #We define a composite model that will be used to train each generator separately.
 def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
@@ -239,7 +290,7 @@ def generate_fake_samples(g_model, dataset, patch_shape):
 	y = zeros((len(X), patch_shape, patch_shape, 1))
 	return X, y
 
-def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan_t1_t2'):
+def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan_t1_t2_upsample'):
     # create directory if not exists
     os.makedirs(output_path, exist_ok=True)
 
@@ -266,7 +317,7 @@ def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/out
     print(f"> Updated latest models: {latest_AtoB}  AND  {latest_BtoA}")
 
 # periodically generate images using the save model and plot input and output images
-def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan_t1_t2'):
+def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan_t1_t2_upsample'):
     # select a sample of input images
     X_in, _ = generate_real_samples(trainX, n_samples, 0)
     # generate translated images
@@ -413,7 +464,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         if (i + 1) % (bat_per_epo * 5) == 0:
             save_models(i, g_model_AtoB, g_model_BtoA,
-                        output_path='src_simulated/outputs/cyclegan_t1_t2')
+                        output_path='src_simulated/outputs/cyclegan_t1_t2_upsample')
 
 ## Read dataset
 
@@ -669,7 +720,7 @@ print('Loaded dataA: ', dataA.shape)
 
 # convert to grayscale
 # dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
-visualize_slices(dataA[1, :, :, :])
+# visualize_slices(dataA[1, :, :, :])
 # visualize_slices(dataA[2, :, :, :])
 # visualize_slices(dataA[3, :, :, :])
 # visualize_slices(dataA[4, :, :, :])
@@ -733,7 +784,7 @@ print('Loaded dataB: ', dataB.shape)
 
 # dataB = dataB[:, :, :, :-10]
 
-visualize_slices(dataB[1, :, :, :])
+# visualize_slices(dataB[1, :, :, :])
 # visualize_slices(dataB[2, :, :, :])
 # visualize_slices(dataB[3, :, :, :])
 # visualize_slices(dataB[4, :, :, :])
@@ -772,24 +823,48 @@ A_slices = []
 for i in range(dataA.shape[0]):          # number of volumes
     for z in range(dataA.shape[3]):      # number of slices
         slice_2d = dataA[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
+        # slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
         A_slices.append(slice_2d)
 
 A_2D = np.array(A_slices)
 print("A_2D:", A_2D.shape)   # expected → (40*35, 256, 256)
 
-# ----------------------------
+# crop to 128, 128 of 140, 140 images
+A_2D_cropped = []
+for i in range(A_2D.shape[0]):
+    slice_2d = A_2D[i]
+    start_h = (140 - 128) // 2
+    start_w = (140 - 128) // 2
+    slice_cropped = slice_2d[start_h:start_h+128, start_w:start_w+128]
+    A_2D_cropped.append(slice_cropped)    
+A_2D = np.array(A_2D_cropped)
+print("A_2D cropped:", A_2D.shape)   # expected → (40*35, 128, 128)
+
+# ------------------------------
 # Convert Domain B → 2D (256x256)
-# ----------------------------
+# ------------------------------
+
 B_slices = []
 for i in range(dataB.shape[0]):
     for z in range(dataB.shape[3]):
         slice_2d = dataB[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
+        # slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
         B_slices.append(slice_2d)
 
 B_2D = np.array(B_slices)
 print("B_2D:", B_2D.shape)   # expected → (40*35, 256, 256)
+
+# crop to 128, 128 of 140, 140 images
+B_2D_cropped = []
+for i in range(B_2D.shape[0]):
+    slice_2d = B_2D[i]
+    start_h = (140 - 128) // 2
+    start_w = (140 - 128) // 2
+    slice_cropped = slice_2d[start_h:start_h+128, start_w:start_w+128]
+    B_2D_cropped.append(slice_cropped)
+B_2D = np.array(B_2D_cropped)
+print("B_2D cropped:", B_2D.shape)   # expected → (40*35, 128, 128)
+
 
 # Suppose A_2D.shape = (N, 256, 256)
 A_2D = A_2D[..., np.newaxis]   # (N, 256, 256, 1)
@@ -855,7 +930,7 @@ def inspect_domains(A, B, n_samples=20):
 
 dataset = data
 
-inspect_domains(dataset[0], dataset[1], n_samples=20)
+# inspect_domains(dataset[0], dataset[1], n_samples=20)
 
 # from cycleGAN_model import define_generator, define_discriminator, define_composite_model, train
 # define input shape based on the loaded dataset
