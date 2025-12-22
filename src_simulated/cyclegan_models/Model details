@@ -1,0 +1,6 @@
+T1_t2-2D 300 epochs trained
+
+CycleGAN_t1_t2_upsample1 ---- 70 epochs
+
+We train a conditional diffusion model using synthetically degraded high-field MRI to learn a probabilistic inverse mapping for low-field enhancement.
+“Compared to adversarial translation models (CycleGAN), diffusion models provide a more stable and physically consistent framework for low-field MRI enhancement, significantly reducing hallucination artifacts.”

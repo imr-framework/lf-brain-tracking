@@ -238,56 +238,56 @@ def generate_fake_samples(g_model, dataset, patch_shape):
 	return X, y
 
 
-def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan1'):
+def save_models(step, g_model_AtoB, g_model_BtoA, output_path='src_simulated/outputs/cyclegan2BA'):
     # create directory if not exists
     os.makedirs(output_path, exist_ok=True)
 
     # -----------------------------
     # 1. Save checkpoint models
     # -----------------------------
-    # if step % 100 == 0:
-	# 	ckpt_AtoB = os.path.join(output_path, f"g_model_AtoB_{step+1:09d}.keras")
-	# 	ckpt_BtoA = os.path.join(output_path, f"g_model_BtoA_{step+1:09d}.keras")
+    
+    ckpt_AtoB = os.path.join(output_path, f"g_model_AtoB_{step+1:09d}.keras")
+    ckpt_BtoA = os.path.join(output_path, f"g_model_BtoA_{step+1:09d}.keras")
 
-	# 	g_model_AtoB.save(ckpt_AtoB)
-	# 	g_model_BtoA.save(ckpt_BtoA)
+    g_model_AtoB.save(ckpt_AtoB)
+    g_model_BtoA.save(ckpt_BtoA)
 
     # -----------------------------
     # 2. Save "latest" models (overwrite)
     # -----------------------------
-    latest_AtoB = os.path.join(output_path, "g_model_AtoB_latest.keras")
-    latest_BtoA = os.path.join(output_path, "g_model_BtoA_latest.keras")
+    # latest_AtoB = os.path.join(output_path, "g_model_AtoB_latest.keras")
+    # latest_BtoA = os.path.join(output_path, "g_model_BtoA_latest.keras")
 
-    g_model_AtoB.save(latest_AtoB)
-    g_model_BtoA.save(latest_BtoA)
+    # g_model_AtoB.save(latest_AtoB)
+    # g_model_BtoA.save(latest_BtoA)
 
     # print(f"> Saved checkpoint: {ckpt_AtoB}  AND  {ckpt_BtoA}")
-    print(f"> Updated latest models: {latest_AtoB}  AND  {latest_BtoA}")
+    print(f"> Updated latest models: {ckpt_AtoB}  AND  {ckpt_BtoA}")
 
 # periodically generate images using the save model and plot input and output images
-def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan1'):
-	# select a sample of input images
-	X_in, _ = generate_real_samples(trainX, n_samples, 0)
-	# generate translated images
-	X_out, _ = generate_fake_samples(g_model, X_in, 0)
-	# scale all pixels from [-1,1] to [0,1]
-	X_in = (X_in + 1) / 2.0
-	X_out = (X_out + 1) / 2.0
-	# plot real images
-	for i in range(n_samples):
-		pyplot.subplot(2, n_samples, 1 + i)
-		pyplot.axis('off')
-		pyplot.imshow(X_in[i])
-	# plot translated image
-	for i in range(n_samples):
-		pyplot.subplot(2, n_samples, 1 + n_samples + i)
-		pyplot.axis('off')
-		pyplot.imshow(X_out[i])
-	# save plot to file
-	filename1 = '%s_generated_plot_%06d.png' % (name, (step+1))
-	filename1 = os.path.join(output_path, filename1)
-	pyplot.savefig(filename1)
-	pyplot.close()
+def summarize_performance(step, g_model, trainX, name, n_samples=5, output_path='src_simulated/outputs/cyclegan2BA'):
+    # select a sample of input images
+    X_in, _ = generate_real_samples(trainX, n_samples, 0)
+    # generate translated images
+    X_out, _ = generate_fake_samples(g_model, X_in, 0)
+    # scale all pixels from [-1,1] to [0,1]
+    X_in = (X_in + 1) / 2.0
+    X_out = (X_out + 1) / 2.0
+    # plot real images
+    for i in range(n_samples):
+        pyplot.subplot(2, n_samples, 1 + i)
+        pyplot.axis('off')
+        pyplot.imshow(X_in[i].squeeze(), cmap='gray')
+    # plot translated image
+    for i in range(n_samples):
+        pyplot.subplot(2, n_samples, 1 + n_samples + i)
+        pyplot.axis('off')
+        pyplot.imshow(X_out[i].squeeze(), cmap='gray')
+    # save plot to file
+    filename1 = '%s_generated_plot_%06d.png' % (name, (step+1))
+    filename1 = os.path.join(output_path, filename1)
+    pyplot.savefig(filename1)
+    pyplot.close()
 
 # update image pool for fake images to reduce model oscillation
 # update discriminators using a history of generated images
@@ -394,8 +394,7 @@ def update_image_pool(pool, images, max_size=50):
 #             save_models(i, g_model_AtoB, g_model_BtoA,
 #                         output_path ='src_simulated/outputs/cyclegan1')
 
-
-# train cyclegan models
+# Train CycleGan model
 def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
           c_model_AtoB, c_model_BtoA, dataset, epochs=500):
 
@@ -475,7 +474,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         # 5. LOG PROGRESS
         # -----------------------------
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 100 == 0:
             print(
                 'Iteration>%d, dA[%.3f, %.3f] dB[%.3f, %.3f] g[%.3f, %.3f]' %
                 (i + 1, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2)
@@ -484,7 +483,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         # 6. PERIODIC PERFORMANCE CHECK
         # -----------------------------
-        if (i + 1) % (bat_per_epo * 10) == 0:
+        if (i + 1) % (bat_per_epo * 3) == 0:
             summarize_performance(i, g_model_AtoB, trainA, 'AtoB')
             summarize_performance(i, g_model_BtoA, trainB, 'BtoA')
 
@@ -493,8 +492,100 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         if (i + 1) % (bat_per_epo * 5) == 0:
             save_models(i, g_model_AtoB, g_model_BtoA,
-                        output_path='src_simulated/outputs/cyclegan1')
+                        output_path='src_simulated/outputs/cyclegan2BA')
 
+# # train cyclegan models
+# def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
+#           c_model_AtoB, c_model_BtoA, dataset, epochs=500):
+
+#     # define properties of the training run
+#     n_epochs, n_batch = epochs, 1  # batch size fixed to 1
+#     n_patch = d_model_A.output_shape[1]
+
+#     # unpack dataset
+#     trainA, trainB = dataset
+
+#     # prepare image pool for fake images
+#     poolA, poolB = list(), list()
+
+#     # calculate iterations
+#     bat_per_epo = int(len(trainA) / n_batch)
+#     n_steps = bat_per_epo * n_epochs
+
+#     # enumerate epochs
+#     for i in range(n_steps):
+
+#         # -----------------------------
+#         # 1. REAL SAMPLES
+#         # -----------------------------
+#         X_realA, y_realA = generate_real_samples(trainA, n_batch, n_patch)
+#         X_realB, y_realB = generate_real_samples(trainB, n_batch, n_patch)
+
+
+#         X_fakeA, y_fakeA = generate_fake_samples(g_model_BtoA, X_realB, n_patch)
+#         X_fakeB, y_fakeB = generate_fake_samples(g_model_AtoB, X_realA, n_patch)
+
+#         # update images in pool (buffer of 50 images)
+#         X_fakeA = update_image_pool(poolA, X_fakeA)
+#         X_fakeB = update_image_pool(poolB, X_fakeB)
+
+#         # -----------------------------
+#         # 3. TRAIN GENERATORS
+#         # ----------------------------
+#         g_loss2, _, _, _, _ = c_model_BtoA.train_on_batch(
+#             [X_realB, X_realA],
+#             [y_realA, X_realA, X_realB, X_realA]
+#         )
+
+#         g_loss1, _, _, _, _ = c_model_AtoB.train_on_batch(
+#             [X_realA, X_realB],
+#             [y_realB, X_realB, X_realA, X_realB]
+#         )
+
+#         # -----------------------------
+#         # 2. TRAIN DISCRIMINATORS
+#         # -----------------------------
+#         dA_loss1 = d_model_A.train_on_batch(X_realA, y_realA)
+#         dA_loss2 = d_model_A.train_on_batch(X_fakeA, y_fakeA)
+
+#         dB_loss1 = d_model_B.train_on_batch(X_realB, y_realB)
+#         dB_loss2 = d_model_B.train_on_batch(X_fakeB, y_fakeB)
+
+#         # # ---------------------------
+#         # # 3. TRAIN GENERATORS
+#         # # ----------------------------
+#         # g_loss2, _, _, _, _ = c_model_BtoA.train_on_batch(
+#         #     [X_realB, X_realA],
+#         #     [y_realA, X_realA, X_realB, X_realA]
+#         # )
+
+#         # g_loss1, _, _, _, _ = c_model_AtoB.train_on_batch(
+#         #     [X_realA, X_realB],
+#         #     [y_realB, X_realB, X_realA, X_realB]
+#         # )
+
+#         # -----------------------------
+#         # 5. LOG PROGRESS
+#         # -----------------------------
+#         if (i + 1) % 100 == 0:
+#             print(
+#                 'Iteration>%d, dA[%.3f, %.3f] dB[%.3f, %.3f] g[%.3f, %.3f]' %
+#                 (i + 1, dA_loss1, dA_loss2, dB_loss1, dB_loss2, g_loss1, g_loss2)
+#             )
+
+#         # -----------------------------
+#         # 6. PERIODIC PERFORMANCE CHECK
+#         # -----------------------------
+#         if (i + 1) % (bat_per_epo * 1) == 0:
+#             summarize_performance(i, g_model_AtoB, trainA, 'AtoB')
+#             summarize_performance(i, g_model_BtoA, trainB, 'BtoA')
+
+#         # -----------------------------
+#         # 7. PERIODIC MODEL SAVE
+#         # -----------------------------
+#         if (i + 1) % (bat_per_epo * 5) == 0:
+#             save_models(i, g_model_AtoB, g_model_BtoA,
+#                         output_path='src_simulated/outputs/cyclegan2')
 
 ## Read dataset
 
@@ -558,7 +649,7 @@ def crop_or_pad_depth(vol, target_d=35):
         vol = np.pad(vol, ((0,0),(0,0),(pad_before, pad_after)), mode='constant')
     return vol
 
-def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,1), add_channel=False):
+def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,2), add_channel=False):
 
     """
     Load NIfTI volumes, resample by voxel spacing only,
@@ -679,7 +770,7 @@ def visualize_slices(volume, n_cols=5):
     plt.show()
 
 # dataset path
-path = 'Data/Low_field_data_DA/'
+path = "Data/Nipah IRF data/Low_field_data_DA/"
 
 # load dataset A - Monet paintings
 dataA_all = load_nii_volumes(path + 'test_da_lf/')
@@ -695,7 +786,7 @@ dataA = resample(dataA_all,
 dataA = dataA[:, :, :, 3:-2]   # new depth = 30
 
 # convert to grayscale
-dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
+# dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
 # visualize_slices(dataA[1, :, :, :])
 # visualize_slices(dataA[2, :, :, :])
 # visualize_slices(dataA[3, :, :, :])
@@ -718,7 +809,7 @@ print('Loaded dataB: ', dataB.shape)
 dataB = np.abs(dataB)
 
 # convert to grayscale
-dataB = np.array([cv2.cvtColor(dataB[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataB))])
+# dataB = np.array([cv2.cvtColor(dataB[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataB))])
 # Normalize dataB to [-1, 1]
 
 # Normalize dataB to [-1, 1] volume-wise
@@ -747,7 +838,7 @@ print("DataB range: ", np.min(dataB), np.max(dataB))
 # discard first three slices and last 2 slices of dataA and last five slices of dataB to have depth 30
 
 # load image data
-data = [dataA, dataB]
+data =  [dataB, dataA]
 
 print('Loaded', data[0].shape, data[1].shape)
 
@@ -758,7 +849,7 @@ A_slices = []
 for i in range(dataA.shape[0]):          # number of volumes
     for z in range(dataA.shape[3]):      # number of slices
         slice_2d = dataA[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
+        # slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
         A_slices.append(slice_2d)
 
 A_2D = np.array(A_slices)
@@ -771,7 +862,7 @@ B_slices = []
 for i in range(dataB.shape[0]):
     for z in range(dataB.shape[3]):
         slice_2d = dataB[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
+        # slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
         B_slices.append(slice_2d)
 
 B_2D = np.array(B_slices)
@@ -785,7 +876,20 @@ B_2D = B_2D[..., np.newaxis]
 # B_2D = np.repeat(B_2D, 3, axis=-1)  # (N, 256, 256, 3)
 print(A_2D.shape, B_2D.shape)
 
-data = [A_2D, B_2D]
+# Select 300 samples from each domain for faster training during demonstration
+# dataA_2D = resample(A_2D,
+#                  replace=False,
+#                  n_samples=300,
+#                  random_state=42)
+
+# dataB_2D = resample(B_2D,
+#                  replace=False,
+#                  n_samples=300,
+#                  random_state=42)
+# A_2D = dataA_2D
+# B_2D = dataB_2D
+
+data = [B_2D, A_2D]
 
 #print datatype of each
 print("A_2D dtype:", A_2D.dtype)
@@ -864,7 +968,7 @@ c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, ima
 from datetime import datetime
 start1 = datetime.now()
 # train models
-train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset, epochs=800)
+train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA, c_model_AtoB, c_model_BtoA, dataset, epochs=500)
 
 stop1 = datetime.now()
 #Execution time of the model

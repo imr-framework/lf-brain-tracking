@@ -55,6 +55,26 @@ class InstanceNormalization(Layer):
         normalized = (inputs - mean) / tf.math.sqrt(var + self.epsilon)
         return self.gamma * normalized + self.beta
 
+## Read dataset
+
+data_folder = "Data/Nipah IRF data/IRF_3T_NIFTI"
+subjects = ["26184", "30366","34507", "35547", "59877","59233"]
+train_day = [1,2,3,4,5]
+
+# monet2photo
+from os import listdir
+from numpy import asarray
+from numpy import vstack
+from keras.preprocessing.image import img_to_array
+from keras.preprocessing.image import load_img
+from matplotlib import pyplot as plt
+import numpy as np
+
+import os
+import nibabel as nib
+import numpy as np
+from scipy.ndimage import zoom
+
 def crop_or_pad_depth(vol, target_D):
     """
     Only crop/pad depth dimension.
@@ -97,74 +117,85 @@ def crop_or_pad_depth(vol, target_d=35):
         vol = np.pad(vol, ((0,0),(0,0),(pad_before, pad_after)), mode='constant')
     return vol
 
-def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,2), add_channel=False):
+import os
+import nibabel as nib
+import numpy as np
+from scipy.ndimage import zoom
 
+def load_nii_volumes(path, target_spacing=(1,1,2), add_channel=False, 
+                     target_h=140, target_w=140, target_d=35, 
+                     substring=None, rotate=False, test=False):
     """
-    Load NIfTI volumes, resample by voxel spacing only,
-    ensure H=W=128 or discard, crop/pad D→35, normalize to [-1,1].
+    Load NIfTI volumes, optionally filter by substring in filename,
+    resample to target voxel spacing, accept only target in-plane resolution,
+    fix depth, normalize, optionally add channel dimension.
+    
+    Parameters:
+    - test : bool : if True, load only 5 volumes to save time
     """
-
-    TARGET_H = 128
-    TARGET_W = 128
-    TARGET_D = 35
-
     volumes = []
 
-    for fname in os.listdir(path):
-        if not fname.endswith((".nii", ".nii.gz")):
-            continue
+    # Recursively find NIfTI files
+    nii_files = []
+    for dirpath, dirnames, filenames in os.walk(path):
+        dirnames.sort()
+        filenames.sort()
+        for fname in filenames:
+            if fname.endswith((".nii", ".nii.gz")) and (substring is None or substring in fname):
+                nii_files.append(os.path.join(dirpath, fname))
 
-        fpath = os.path.join(path, fname)
+    nii_files.sort(key=lambda x: (os.path.dirname(x), os.path.basename(x)))
+
+    # Limit number of files if test mode is on
+    if test:
+        nii_files = nii_files[:5]
+
+    for fpath in nii_files:
         nii = nib.load(fpath)
-        vol = nii.get_fdata().astype(np.float32)
+        vol = np.abs(nii.get_fdata().astype(np.float32))  # fix negatives
+        header = nii.header
+        current_spacing = header.get_zooms()[:3]  # get voxel size
 
-        # 0. Fix LF-MRI negative values
-        vol = np.abs(vol)
-
-        # -------------------------------------------------------
-        # 1. RESAMPLE ONLY USING SPACING (NO SHAPE-BASED RESIZE)
-        # -------------------------------------------------------
+        # Resample to target voxel size
         zoom_factors = (
             current_spacing[0] / target_spacing[0],
             current_spacing[1] / target_spacing[1],
             current_spacing[2] / target_spacing[2]
         )
-
         vol_iso = zoom(vol, zoom_factors, order=1)
         vol_iso = np.ascontiguousarray(vol_iso)
-
         h, w, d = vol_iso.shape
-        print(f"[INFO] Volume {fname} resampled → {vol_iso.shape}")
+        print(f"[INFO] {os.path.basename(fpath)} resampled → {vol_iso.shape} (target spacing {target_spacing})")
 
-        # -------------------------------------------------------
-        # 2. ACCEPT ONLY 128×128 IN-PLANE RESOLUTION
-        # -------------------------------------------------------
-        if h != TARGET_H or w != TARGET_W:
-            print(f"[SKIP] {fname} skipped — incorrect size: {vol_iso.shape}")
+        # Check in-plane resolution
+        if h != target_h or w != target_w:
+            print(f"[SKIP] {os.path.basename(fpath)} skipped — incorrect in-plane size: {vol_iso.shape}")
             continue
 
-        # -------------------------------------------------------
-        # 3. FIX DEPTH TO 35 WITHOUT DISTORTION
-        # -------------------------------------------------------
-        vol_fixed = crop_or_pad_depth(vol_iso, TARGET_D)
+        # Crop/pad depth
+        vol_fixed = crop_or_pad_depth(vol_iso, target_d)
 
-        # -------------------------------------------------------
-        # 4. Normalize to [-1,1] (CycleGAN requirement)
-        # -------------------------------------------------------
+        # Normalize to [-1,1]
         vol_fixed = normalize_volume(vol_fixed)
 
-        # -------------------------------------------------------
-        # 5. Optional channel dimension
-        # -------------------------------------------------------
-        if add_channel:
-            vol_fixed = vol_fixed[..., None]   # (H,W,D,1)
+        # Rotate 90° counter-clockwise in-plane (H x W)
+        if rotate:
+            vol_fixed = np.rot90(vol_fixed, k=3, axes=(0, 1))
 
-        print(f"[LOAD] {fname}: final shape {vol_fixed.shape}")
+        # Optional channel dimension
+        if add_channel:
+            vol_fixed = vol_fixed[..., None]  # (H,W,D,1)
+
+        print(f"[LOAD] {os.path.basename(fpath)}: final shape {vol_fixed.shape}")
         volumes.append(vol_fixed)
 
-    if not volumes:
-        raise ValueError("No valid volumes loaded. Check dimensions and input path.")
+        # Stop early if test mode
+        if test and len(volumes) >= 5:
+            break
 
+    if not volumes:
+        raise ValueError("No valid volumes loaded. Check dimensions, substring, and input path.")
+    
     return np.stack(volumes, axis=0)
 
 # -----------------------------
@@ -215,23 +246,71 @@ def visualize_slices(volume, n_cols=5):
     plt.tight_layout()
     plt.show()
 
-# dataset path
-path = 'Data/Nipah IRF data/Low_field_data_DA/'
 
-# load dataset A - Monet paintings
-dataA_all = load_nii_volumes(path + 'test_da_lf/')
-print('Loaded dataA: ', dataA_all.shape)
+import numpy as np
+from scipy.ndimage import zoom
+
+def resample_volume(volume, current_spacing=(1,1,2), target_spacing=(1,1,1), order=3):
+    """
+    Resample a 3D volume to new voxel spacing.
+
+    Parameters:
+    volume : np.ndarray
+        3D volume (D, H, W)
+    current_spacing : tuple
+        Original voxel spacing (z, y, x)
+    target_spacing : tuple
+        Desired voxel spacing (z, y, x)
+    order : int
+        Interpolation order:
+        0 = nearest (labels)
+        1 = linear
+        3 = cubic (recommended for MRI)
+
+    Returns:
+    resampled_volume : np.ndarray
+    """
+
+    zoom_factors = (
+        current_spacing[0] / target_spacing[0],
+        current_spacing[1] / target_spacing[1],
+        current_spacing[2] / target_spacing[2],
+    )
+
+    resampled_volume = zoom(volume, zoom_factors, order=order)
+    return resampled_volume
+
+# dataset path
+
+# Example usage
+data_path = "Data/Nipah IRF data/IRF_3T_NIFTI"
+substring_filter = "T1_n100__00001"
+
+dataA_all = load_nii_volumes(
+    path=data_path,
+    target_spacing=(1,1,2),
+    add_channel=False,
+    target_h=140,
+    target_w=140,
+    target_d=35,
+    substring=substring_filter,
+    rotate=True,
+    test=True
+)
+
+print("Loaded volumes shape:", dataA_all.shape)
+
 
 from sklearn.utils import resample
-#To get a subset of all images, for faster training during demonstration
-dataA = resample(dataA_all,
-                 replace=False,
-                 n_samples=40,
-                 random_state=42)
 
-dataA = dataA[:, :, :, 3:-2]   # new depth = 30
+# take first 40 samples from dataA_all
+dataA = dataA_all[:40]
+print('Loaded dataA: ', dataA.shape)
 
-# visualize_slices(dataA[1, :, :, :])
+dataA = dataA[:, :, :, :-10]
+# convert to grayscale
+# dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
+visualize_slices(dataA[1, :, :, :])
 # visualize_slices(dataA[2, :, :, :])
 # visualize_slices(dataA[3, :, :, :])
 # visualize_slices(dataA[4, :, :, :])
@@ -245,24 +324,59 @@ dataA = dataA[:, :, :, 3:-2]   # new depth = 30
 # display range , min and max
 print("DataA range: ", np.min(dataA), np.max(dataA))
 
-# Load Data
-X_train, y_train = load_data_for_days(subjects, train_day)
+# Example usage
+substring_filter = "T2_n100"
 
-dataB = X_train
+dataB_all = load_nii_volumes(
+    path=data_path,
+    target_spacing=(1,1,2),
+    add_channel=False,
+    target_h=140,
+    target_w=140,
+    target_d=35,
+    substring=substring_filter,
+    rotate=True,
+    test=True
+)
+
+print("Loaded volumes shape:", dataB_all.shape)
+
+from sklearn.utils import resample
+
+# take first 40 samples from dataB_all
+dataB = dataB_all[:40]
 print('Loaded dataB: ', dataB.shape)
-dataB = np.abs(dataB)
-# Normalize dataB to [-1, 1]
 
+dataB = dataB[:, :, :, :-10]
+
+# Load Data
+
+# resampled_dataB = []
+
+# for i in range(dataB.shape[0]):
+#     vol = dataB[i]  # shape: (140, 140, 35)
+#     vol_resampled = resample_volume(
+#         vol,
+#         current_spacing=(1,1,2),
+#         target_spacing=(1,1,1),
+#         order=3
+#     )  # shape: (140, 140, 70)
+#     resampled_dataB.append(vol_resampled)
+
+# # resampled_dataB is a list of 40 arrays, each 140x140x70
+# dataB = np.array(resampled_dataB)
+
+# print('Resampled dataB: ', dataB.shape)
 # Normalize dataB to [-1, 1] volume-wise
-for i in range(dataB.shape[0]):
-	dataB[i] = normalize_volume(dataB[i])
+# for i in range(dataB.shape[0]):
+# 	dataB[i] = normalize_volume(dataB[i])
 
-# Crop dataB to match dataA height and width if needed
-dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
+# # Crop dataB to match dataA height and width if needed
+# dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
 
-dataB = dataB[:, :, :, :-5]
+# dataB = dataB[:, :, :, :-10]
 
-# visualize_slices(dataB[1, :, :, :])
+visualize_slices(dataB[1, :, :, :])
 # visualize_slices(dataB[2, :, :, :])
 # visualize_slices(dataB[3, :, :, :])
 # visualize_slices(dataB[4, :, :, :])
@@ -281,6 +395,17 @@ print("DataB range: ", np.min(dataB), np.max(dataB))
 # load image data
 data = [dataA, dataB]
 
+import numpy as np
+
+# Assuming data = [dataA, dataB]
+for i in range(len(data)):
+    # Rotate 90° counter-clockwise in-plane (H x W)
+    data[i] = np.rot90(data[i], k=1, axes=(0, 1))
+
+# Now data contains the rotated volumes
+print("Rotated volumes shapes:", [d.shape for d in data])
+
+
 print('Loaded', data[0].shape, data[1].shape)
 
 # ----------------------------
@@ -290,11 +415,23 @@ A_slices = []
 for i in range(dataA.shape[0]):          # number of volumes
     for z in range(dataA.shape[3]):      # number of slices
         slice_2d = dataA[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
+        # slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
         A_slices.append(slice_2d)
 
 A_2D = np.array(A_slices)
 print("A_2D:", A_2D.shape)   # expected → (40*35, 256, 256)
+
+
+# crop to 128, 128 of 140, 140 images
+A_2D_cropped = []
+for i in range(A_2D.shape[0]):
+    slice_2d = A_2D[i]
+    start_h = (140 - 128) // 2
+    start_w = (140 - 128) // 2
+    slice_cropped = slice_2d[start_h:start_h+128, start_w:start_w+128]
+    A_2D_cropped.append(slice_cropped)    
+A_2D = np.array(A_2D_cropped)
+print("A_2D cropped:", A_2D.shape)   # expected → (40*35, 128, 128)
 
 # ----------------------------
 # Convert Domain B → 2D (256x256)
@@ -303,11 +440,23 @@ B_slices = []
 for i in range(dataB.shape[0]):
     for z in range(dataB.shape[3]):
         slice_2d = dataB[i, :, :, z]
-        slice_2d = cv2.resize(slice_2d, (128, 128), interpolation=cv2.INTER_LINEAR)
+        # slice_2d = cv2.resize(slice_2d, (140, 140), interpolation=cv2.INTER_LINEAR)
         B_slices.append(slice_2d)
 
 B_2D = np.array(B_slices)
 print("B_2D:", B_2D.shape)   # expected → (40*35, 256, 256)
+
+# crop to 128, 128 of 140, 140 images
+B_2D_cropped = []
+for i in range(B_2D.shape[0]):
+    slice_2d = B_2D[i]
+    start_h = (140 - 128) // 2
+    start_w = (140 - 128) // 2
+    slice_cropped = slice_2d[start_h:start_h+128, start_w:start_w+128]
+    B_2D_cropped.append(slice_cropped)    
+B_2D = np.array(B_2D_cropped)
+print("B_2D cropped:", B_2D.shape)   # expected → (40*35, 128, 128)
+
 
 # Suppose A_2D.shape = (N, 256, 256)
 A_2D = A_2D[..., np.newaxis]   # (N, 256, 256, 1)
@@ -416,29 +565,19 @@ def show_plot(imagesX, imagesY1, imagesY2):
     pyplot.show()
 
 def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None):
-    
-    """
-    Display both A and B domains in a single figure:
-    - 2 rows: A domain (top), B domain (bottom)
-    - 3 columns: Real / Generated / Reconstructed
-    - Column titles on top
-    - Row labels on left (black color)
-    - Zero spacing
-    - Handles 3D/4D/5D inputs
-    """
 
     def get_middle_slice(vol):
-        # Convert to 2D slice (H,W) and scale [0,1]
         if vol.ndim == 5:       # (1,H,W,D,C)
-            vol = vol[0, ..., vol.shape[3]//2, 0]
+            vol = vol[0, ..., vol.shape[3] // 2, 0]
         elif vol.ndim == 4:     # (H,W,D,C)
-            vol = vol[..., vol.shape[2]//2, 0]
-        elif vol.ndim == 3:     # (H,W,D) or (H,W,1)
-            vol = vol[..., vol.shape[2]//2] if vol.shape[2] > 1 else vol[..., 0]
-        vol = (vol + 1) / 2.0   # scale [-1,1] -> [0,1]
-        return vol
+            vol = vol[..., vol.shape[2] // 2, 0]
+        elif vol.ndim == 3:
+            vol = vol[..., vol.shape[2] // 2] if vol.shape[2] > 1 else vol[..., 0]
 
-    # Extract slices
+        # EXACT same scaling as summarize_performance
+        vol = (vol + 1.0) / 2.0
+        return np.clip(vol, 0, 1)
+
     A_real_slice = get_middle_slice(A_real[0])
     A_gen_slice  = get_middle_slice(A_gen[0])
     A_rec_slice  = get_middle_slice(A_rec[0])
@@ -447,32 +586,33 @@ def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None
     B_gen_slice  = get_middle_slice(B_gen[0])
     B_rec_slice  = get_middle_slice(B_rec[0])
 
-    # Plot
     fig, axes = plt.subplots(2, 3, figsize=(9, 6))
     col_titles = ['Real', 'Generated', 'Reconstructed']
     row_labels = ['A Domain', 'B Domain']
 
-    for row_idx, row_imgs in enumerate([[A_real_slice, A_gen_slice, A_rec_slice],
-                                        [B_real_slice, B_gen_slice, B_rec_slice]]):
+    for row_idx, row_imgs in enumerate([
+        [A_real_slice, A_gen_slice, A_rec_slice],
+        [B_real_slice, B_gen_slice, B_rec_slice]
+    ]):
         for col_idx, img in enumerate(row_imgs):
             ax = axes[row_idx, col_idx]
             ax.imshow(img, cmap='gray', vmin=0, vmax=1)
             ax.axis('off')
 
-            # Column titles on top row
             if row_idx == 0:
                 ax.set_title(col_titles[col_idx], fontsize=12, color='black')
 
-            # Row labels on first column
             if col_idx == 0:
-                ax.set_ylabel(row_labels[row_idx], rotation=90, size='large',
-                              labelpad=10, color='black')
+                ax.set_ylabel(row_labels[row_idx],
+                              rotation=90,
+                              fontsize=12,
+                              labelpad=10,
+                              color='black')
 
     plt.subplots_adjust(wspace=0, hspace=0)
 
     if save_path:
         plt.savefig(save_path, dpi=200, bbox_inches='tight', pad_inches=0)
-        print(f"[Saved] {save_path}")
 
     plt.show()
 
@@ -498,8 +638,8 @@ print("B_real shape:", B_real.shape)
 inspect_domains(A_real, B_real, n_samples=1)
 
 # load the models
-g_model_AtoB = load_model('src_simulated/outputs/cyclegan1/g_model_AtoB_latest.keras', custom_objects={'InstanceNormalization': InstanceNormalization})
-g_model_BtoA = load_model('src_simulated/outputs/cyclegan1/g_model_BtoA_latest.keras', custom_objects={'InstanceNormalization': InstanceNormalization})
+g_model_AtoB = load_model('src_simulated/outputs/cyclegan_t1_t2_upsample1/g_model_AtoB_latest.keras', custom_objects={'InstanceNormalization': InstanceNormalization})
+g_model_BtoA = load_model('src_simulated/outputs/cyclegan_t1_t2_upsample1/g_model_BtoA_latest.keras', custom_objects={'InstanceNormalization': InstanceNormalization})
 
 # generate images
 A_generated = g_model_BtoA.predict(B_real)
@@ -508,6 +648,10 @@ B_generated = g_model_AtoB.predict(A_real)
 # print shapes
 print("A_generated shape:", A_generated.shape)
 print("B_generated shape:", B_generated.shape)
+
+# check min and max of generated images
+print("A_generated range:", np.min(A_generated), np.max(A_generated))
+print("B_generated range:", np.min(B_generated), np.max(B_generated))
 
 # reconstruct images
 A_reconstructed = g_model_AtoB.predict(A_generated)
@@ -518,10 +662,10 @@ print("A_reconstructed shape:", A_reconstructed.shape)
 print("B_reconstructed shape:", B_reconstructed.shape)
 
 # plot all results
-print("A domain:")
-show_plot(A_real, A_generated, A_reconstructed)
-print("B domain:")
-show_plot(B_real, B_generated, B_reconstructed)
+# print("A domain:")
+# show_plot(A_real, A_generated, A_reconstructed)
+# print("B domain:")
+# show_plot(B_real, B_generated, B_reconstructed)
 
 show_plot_domains(A_real, A_generated, A_reconstructed,
                   B_real, B_generated, B_reconstructed,
