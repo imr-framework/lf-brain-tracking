@@ -1,79 +1,88 @@
-## Read dataset
+import sys
+sys.path.insert(0, './')
 
-data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
-subjects = ["26184", "30366", "35528","34507", "35547", "59228", "59877","59233"]
-train_day = [1,2,3,4,5]
-
-# monet2photo
-from os import listdir
-from numpy import asarray
-from numpy import vstack
-from keras.preprocessing.image import img_to_array
-from keras.preprocessing.image import load_img
-from matplotlib import pyplot as plt
-import numpy as np
-import cv2
 import os
-import nibabel as nib
-import numpy as np
-from scipy.ndimage import zoom
-# # Use the saved cyclegan models for image translation
-from keras.models import load_model
-from matplotlib import pyplot
+import random
+from random import random as rand_func
+from numpy import asarray, load, zeros, ones
 from numpy.random import randint
-import nibabel as nib
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from matplotlib import gridspec
 
-# inference test
 import tensorflow as tf
-from keras.layers import Layer
-from keras.saving import register_keras_serializable
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.layers import (
+    Input, Conv2D, Conv2DTranspose, LeakyReLU,
+    Activation, Concatenate, Add, UpSampling2D, Layer
+)
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.initializers import RandomNormal
 
-class InstanceNormalization(Layer):
-    def __init__(self, axis=-1, epsilon=1e-5, **kwargs):
-        super().__init__(**kwargs)
-        self.axis = axis
-        self.epsilon = epsilon
+# Image loading and preprocessing
+from keras.preprocessing.image import img_to_array, load_img
 
-    def build(self, input_shape):
-        dim = input_shape[self.axis]
-        self.gamma = self.add_weight(
-            shape=(dim,),
-            initializer="ones",
-            trainable=True,
-            name="gamma"
-        )
-        self.beta = self.add_weight(
-            shape=(dim,),
-            initializer="zeros",
-            trainable=True,
-            name="beta"
-        )
-        super().build(input_shape)
+# Nifti / medical image processing
+import nibabel as nib
+from scipy.ndimage import zoom
 
-    def call(self, inputs):
-        mean, var = tf.nn.moments(inputs, axes=[1, 2], keepdims=True)
-        normalized = (inputs - mean) / tf.math.sqrt(var + self.epsilon)
-        return self.gamma * normalized + self.beta
+# Load config = CycleGANConfig() class from config.py
+from src_simulated.cyclegan_models.config import config
+# import losses from losses.py
+from src_simulated.cyclegan_models.losses_cyclegan import *
 
-## Read dataset
+# models.py load all models
+from src_simulated.cyclegan_models.models import *
+from src_simulated.cyclegan_models.train_utils import *
+
+EPOCHS = config.EPOCHS
+
+# test mode
+TEST = config.TEST
+SLICES_TEST = config.SLICES_TEST
+
+#parameters for descriminator
+DISC_LOSS = config.DISC_LOSS
+DISC_LEARNING_RATE = config.DISC_LEARNING_RATE
+DISC_BETA_1 = config.DISC_BETA_1
+DISC_LOSS_WEIGHTS = config.DISC_LOSS_WEIGHTS
+
+#parameters for generator
+GEN_LOSS_1 = config.GEN_LOSS_1
+GEN_LOSS_2 = config.GEN_LOSS_2
+GEN_LOSS_3 = config.GEN_LOSS_3
+GEN_LOSS_4 = config.GEN_LOSS_4
+GEN_LEARNING_RATE = config.GEN_LEARNING_RATE
+GEN_BETA_1 = config.GEN_BETA_1
+GEN_LOSS_WEIGHTS = config.GEN_LOSS_WEIGHTS
+
+#train parameters
+INITIAL_LR = config.INITIAL_LR
+N_ITER = config.N_ITER
+N_ITER_DECAY = config.N_ITER_DECAY
+
+# Output directories
+OUTPUT_DIR = config.OUTPUT_DIR
+# Visualization parameters
+VISUALIZE = config.VISUALIZE  # Whether to visualize test examples during training
+
+# model evaluation loading
+MODEL_EVAL_PATH = config.MODEL_EVAL_PATH
+# all model names to load using MODEL_EVAL_PATH
+MODEL_NAME_D_A = config.MODEL_NAME_D_A
+MODEL_NAME_D_B = config.MODEL_NAME_D_B
+MODEL_NAME_G_A2B = config.MODEL_NAME_G_A2B
+MODEL_NAME_G_B2A = config.MODEL_NAME_G_B2A
+
+# output_path_test
+OUTPUT_PATH_TEST = config.OUTPUT_PATH_TEST
+
+# Read dataset
 
 data_folder = "Data/Nipah IRF data/IRF_3T_NIFTI"
 subjects = ["26184", "30366","34507", "35547", "59877","59233"]
 train_day = [1,2,3,4,5]
-
-# monet2photo
-from os import listdir
-from numpy import asarray
-from numpy import vstack
-from keras.preprocessing.image import img_to_array
-from keras.preprocessing.image import load_img
-from matplotlib import pyplot as plt
-import numpy as np
-
-import os
-import nibabel as nib
-import numpy as np
-from scipy.ndimage import zoom
 
 def crop_or_pad_depth(vol, target_D):
     """
@@ -117,14 +126,10 @@ def crop_or_pad_depth(vol, target_d=35):
         vol = np.pad(vol, ((0,0),(0,0),(pad_before, pad_after)), mode='constant')
     return vol
 
-import os
-import nibabel as nib
-import numpy as np
-from scipy.ndimage import zoom
 
 def load_nii_volumes(path, target_spacing=(1,1,2), add_channel=False, 
                      target_h=140, target_w=140, target_d=35, 
-                     substring=None, rotate=False, test=False):
+                     substring=None, rotate=False, test=False, save_path=None):
     """
     Load NIfTI volumes, optionally filter by substring in filename,
     resample to target voxel spacing, accept only target in-plane resolution,
@@ -145,10 +150,22 @@ def load_nii_volumes(path, target_spacing=(1,1,2), add_channel=False,
                 nii_files.append(os.path.join(dirpath, fname))
 
     nii_files.sort(key=lambda x: (os.path.dirname(x), os.path.basename(x)))
+    import shutil
+    # copy all nii.gz files to save folder if save_path is provided
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+        for i, fpath in enumerate(nii_files, 1):
+            fname = os.path.basename(fpath)
+            # change substring in filename with image {i}
+            fname = fname.replace(substring, f"image_{i}")
+            dest_path = os.path.join(save_path, fname)
+            if not os.path.exists(dest_path):
+                shutil.copy2(fpath, dest_path)
+        print(f"[INFO] Copied {len(nii_files)} files to {save_path}")
 
     # Limit number of files if test mode is on
     if test:
-        nii_files = nii_files[:5]
+        nii_files = nii_files[-5:]
 
     for fpath in nii_files:
         nii = nib.load(fpath)
@@ -247,9 +264,6 @@ def visualize_slices(volume, n_cols=5):
     plt.show()
 
 
-import numpy as np
-from scipy.ndimage import zoom
-
 def resample_volume(volume, current_spacing=(1,1,2), target_spacing=(1,1,1), order=3):
     """
     Resample a 3D volume to new voxel spacing.
@@ -295,7 +309,8 @@ dataA_all = load_nii_volumes(
     target_d=35,
     substring=substring_filter,
     rotate=True,
-    test=True
+    test=True,
+    save_path="Data/Nipah IRF data/IRF_3T_t1-t2/T1"
 )
 
 print("Loaded volumes shape:", dataA_all.shape)
@@ -308,18 +323,6 @@ dataA = dataA_all[:40]
 print('Loaded dataA: ', dataA.shape)
 
 dataA = dataA[:, :, :, :-10]
-# convert to grayscale
-# dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
-visualize_slices(dataA[1, :, :, :])
-# visualize_slices(dataA[2, :, :, :])
-# visualize_slices(dataA[3, :, :, :])
-# visualize_slices(dataA[4, :, :, :])
-# visualize_slices(dataA[5, :, :, :])
-# visualize_slices(dataA[6, :, :, :])
-# visualize_slices(dataA[7, :, :, :])
-# visualize_slices(dataA[8, :, :, :])
-# visualize_slices(dataA[9, :, :, :])
-# visualize_slices(dataA[10, :, :, :])
 
 # display range , min and max
 print("DataA range: ", np.min(dataA), np.max(dataA))
@@ -336,7 +339,8 @@ dataB_all = load_nii_volumes(
     target_d=35,
     substring=substring_filter,
     rotate=True,
-    test=True
+    test=True,
+    save_path="Data/Nipah IRF data/IRF_3T_t1-t2/T2"
 )
 
 print("Loaded volumes shape:", dataB_all.shape)
@@ -347,57 +351,15 @@ from sklearn.utils import resample
 dataB = dataB_all[:40]
 print('Loaded dataB: ', dataB.shape)
 
-dataB = dataB[:, :, :, :-10]
-
 # Load Data
 
-# resampled_dataB = []
-
-# for i in range(dataB.shape[0]):
-#     vol = dataB[i]  # shape: (140, 140, 35)
-#     vol_resampled = resample_volume(
-#         vol,
-#         current_spacing=(1,1,2),
-#         target_spacing=(1,1,1),
-#         order=3
-#     )  # shape: (140, 140, 70)
-#     resampled_dataB.append(vol_resampled)
-
-# # resampled_dataB is a list of 40 arrays, each 140x140x70
-# dataB = np.array(resampled_dataB)
-
-# print('Resampled dataB: ', dataB.shape)
-# Normalize dataB to [-1, 1] volume-wise
-# for i in range(dataB.shape[0]):
-# 	dataB[i] = normalize_volume(dataB[i])
-
-# # Crop dataB to match dataA height and width if needed
-# dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
-
-# dataB = dataB[:, :, :, :-10]
-
-visualize_slices(dataB[1, :, :, :])
-# visualize_slices(dataB[2, :, :, :])
-# visualize_slices(dataB[3, :, :, :])
-# visualize_slices(dataB[4, :, :, :])
-# visualize_slices(dataB[5, :, :, :])
-# visualize_slices(dataB[6, :, :, :])
-# visualize_slices(dataB[7, :, :, :])
-# visualize_slices(dataB[8, :, :, :])
-# visualize_slices(dataB[9, :, :, :])
-# visualize_slices(dataB[10, :, :, :])
+dataB = dataB[:, :, :, :-10]
 
 # display range , min and max
 print("DataB range: ", np.min(dataB), np.max(dataB))
 
-# discard first three slices and last 2 slices of dataA and last five slices of dataB to have depth 30
-
-# load image data
 data = [dataA, dataB]
 
-import numpy as np
-
-# Assuming data = [dataA, dataB]
 for i in range(len(data)):
     # Rotate 90° counter-clockwise in-plane (H x W)
     data[i] = np.rot90(data[i], k=1, axes=(0, 1))
@@ -405,11 +367,10 @@ for i in range(len(data)):
 # Now data contains the rotated volumes
 print("Rotated volumes shapes:", [d.shape for d in data])
 
-
 print('Loaded', data[0].shape, data[1].shape)
 
 # ----------------------------
-# Convert Domain A → 2D (256x256)
+# Convert 3D to slices
 # ----------------------------
 A_slices = []
 for i in range(dataA.shape[0]):          # number of volumes
@@ -420,7 +381,6 @@ for i in range(dataA.shape[0]):          # number of volumes
 
 A_2D = np.array(A_slices)
 print("A_2D:", A_2D.shape)   # expected → (40*35, 256, 256)
-
 
 # crop to 128, 128 of 140, 140 images
 A_2D_cropped = []
@@ -433,9 +393,10 @@ for i in range(A_2D.shape[0]):
 A_2D = np.array(A_2D_cropped)
 print("A_2D cropped:", A_2D.shape)   # expected → (40*35, 128, 128)
 
-# ----------------------------
-# Convert Domain B → 2D (256x256)
-# ----------------------------
+# ------------------------------
+# Convert Domain B
+# ------------------------------
+
 B_slices = []
 for i in range(dataB.shape[0]):
     for z in range(dataB.shape[3]):
@@ -453,10 +414,9 @@ for i in range(B_2D.shape[0]):
     start_h = (140 - 128) // 2
     start_w = (140 - 128) // 2
     slice_cropped = slice_2d[start_h:start_h+128, start_w:start_w+128]
-    B_2D_cropped.append(slice_cropped)    
+    B_2D_cropped.append(slice_cropped)
 B_2D = np.array(B_2D_cropped)
 print("B_2D cropped:", B_2D.shape)   # expected → (40*35, 128, 128)
-
 
 # Suppose A_2D.shape = (N, 256, 256)
 A_2D = A_2D[..., np.newaxis]   # (N, 256, 256, 1)
@@ -466,103 +426,39 @@ B_2D = B_2D[..., np.newaxis]
 # B_2D = np.repeat(B_2D, 3, axis=-1)  # (N, 256, 256, 3)
 print(A_2D.shape, B_2D.shape)
 
-data = [A_2D, B_2D]
+# print shape of each
+print("A_2D shape:", A_2D.shape)
+print("B_2D shape:", B_2D.shape)
+
+if SLICES_TEST:
+    min_samples = min(5, 5)
+    A_2D = A_2D[:min_samples]
+    B_2D = B_2D[:min_samples]
+    # print shape of each
+    print("A_2D shape for test:", A_2D.shape)
+    print("B_2D shape for test:", B_2D.shape)
+
+data = [B_2D, A_2D]
 
 #print datatype of each
 print("A_2D dtype:", A_2D.dtype)
 print("B_2D dtype:", B_2D.dtype)
 
-def inspect_domains(A, B, n_samples=20):
-	"""
-	Prints stats and displays 20 samples (top=A, bottom=B).
-	"""
-
-	# ------------------------- Helper: describe -------------------------
-	def describe(name, X):
-		print(f"\n{name} Dataset:")
-		print(f"  Shape         : {X.shape}")
-		print(f"  Min pixel     : {X.min():.4f}")
-		print(f"  Max pixel     : {X.max():.4f}")
-		print(f"  Mean pixel    : {X.mean():.4f}")
-
-	# ------------------------- Print stats -------------------------
-	describe("A", A)
-	describe("B", B)
-
-	# ------------------------- Visualization -------------------------
-	print("\nDisplaying sample images...")
-
-	plt.figure(figsize=(20, 4))
-	n = min(n_samples, len(A), len(B))
-
-	for i in range(n):
-
-		# ---------- TOP ROW (A) ----------
-		plt.subplot(2, n, 1 + i)
-		plt.axis("off")
-		imgA = (A[i] + 1) / 2
-		if imgA.shape[-1] == 1:
-			imgA = imgA[:, :, 0]
-			plt.imshow(imgA, cmap="gray")
-		else:
-			plt.imshow(imgA)
-
-		# ---------- BOTTOM ROW (B) ----------
-		plt.subplot(2, n, 1 + n + i)
-		plt.axis("off")
-		imgB = (B[i] + 1) / 2
-		if imgB.shape[-1] == 1:
-			imgB = imgB[:, :, 0]
-			plt.imshow(imgB, cmap="gray")
-		else:
-			plt.imshow(imgB)
-
-	plt.tight_layout()
-	plt.show()
-
 dataset = data
 
-inspect_domains(dataset[0], dataset[1], n_samples=20)
+if VISUALIZE:
+    inspect_domains(dataset[0], dataset[1], n_samples=5)
 
 # from cycleGAN_model import define_generator, define_discriminator, define_composite_model, train
 # define input shape based on the loaded dataset
 image_shape = dataset[0].shape[1:]
 print(image_shape)
 
-# select a random sample of images from the dataset
-def select_sample(dataset, n_samples):
-	# choose random instances
-	ix = randint(0, dataset.shape[0], n_samples)
-	# retrieve selected images
-	X = dataset[ix]
-	return X
+# print min and max of dataset sample points
 
-# plot the image, its translation, and the reconstruction
-from numpy import vstack
-from matplotlib import pyplot
+print("Dataset A min:", np.min(dataset[0][0]), "max:", np.max(dataset[0][0]))
+print("Dataset B min:", np.min(dataset[1][0]), "max:", np.max(dataset[1][0]))
 
-def show_plot(imagesX, imagesY1, imagesY2):
-    images = vstack((imagesX, imagesY1, imagesY2))
-    titles = ['Real', 'Generated', 'Reconstructed']
-
-    # scale from [-1,1] to [0,1]
-    images = (images + 1) / 2.0
-
-    for i in range(len(images)):
-        pyplot.subplot(1, len(images), 1 + i)
-        pyplot.axis('off')
-
-        img = images[i]
-
-        # ✅ handle (H, W, 1) or (1, H, W)
-        if img.ndim == 3:
-            img = img.squeeze()
-
-        # ✅ force grayscale
-        pyplot.imshow(img, cmap='gray', vmin=0, vmax=1)
-        pyplot.title(titles[i])
-
-    pyplot.show()
 
 def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None):
 
@@ -576,7 +472,7 @@ def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None
 
         # EXACT same scaling as summarize_performance
         vol = (vol + 1.0) / 2.0
-        return np.clip(vol, 0, 1)
+        return vol
 
     A_real_slice = get_middle_slice(A_real[0])
     A_gen_slice  = get_middle_slice(A_gen[0])
@@ -587,7 +483,7 @@ def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None
     B_rec_slice  = get_middle_slice(B_rec[0])
 
     fig, axes = plt.subplots(2, 3, figsize=(9, 6))
-    col_titles = ['Real', 'Generated', 'Reconstructed']
+    col_titles = ['Input x', 'Output G(x)', 'Reconstruction F(G(x))']
     row_labels = ['A Domain', 'B Domain']
 
     for row_idx, row_imgs in enumerate([
@@ -596,7 +492,7 @@ def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None
     ]):
         for col_idx, img in enumerate(row_imgs):
             ax = axes[row_idx, col_idx]
-            ax.imshow(img, cmap='gray', vmin=0, vmax=1)
+            ax.imshow(img, cmap='gray', aspect='auto')
             ax.axis('off')
 
             if row_idx == 0:
@@ -616,91 +512,61 @@ def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None
 
     plt.show()
 
-# load dataset
-A_data = resample(dataset[0],
-                 replace=False,
-                 n_samples=50,
-                 random_state=42) # reproducible results
-
-B_data = resample(dataset[1],
-                 replace=False,
-                 n_samples=50,
-                 random_state=42) # reproducible results
-
-# select a sample of images
-A_real = select_sample(A_data, 1)
-B_real = select_sample(B_data, 1)
-
-#print shapes
-print("A_real shape:", A_real.shape)
-print("B_real shape:", B_real.shape)
-
-inspect_domains(A_real, B_real, n_samples=1)
-
 # load the models
-g_model_AtoB = load_model('src_simulated/outputs/cyclegan_t1_t2_upsample1/g_model_AtoB_latest.keras', custom_objects={'InstanceNormalization': InstanceNormalization})
-g_model_BtoA = load_model('src_simulated/outputs/cyclegan_t1_t2_upsample1/g_model_BtoA_latest.keras', custom_objects={'InstanceNormalization': InstanceNormalization})
+g_model_AtoB = load_model(MODEL_NAME_G_A2B, custom_objects={'InstanceNormalization': InstanceNormalization})
+g_model_BtoA = load_model(MODEL_NAME_G_B2A, custom_objects={'InstanceNormalization': InstanceNormalization})
 
-# generate images
-A_generated = g_model_BtoA.predict(B_real)
-B_generated = g_model_AtoB.predict(A_real)
+trainA, trainB = dataset
+
+summarize_performance(4, g_model_AtoB, g_model_BtoA, trainA,'AtoB', 5, OUTPUT_PATH_TEST)
+summarize_performance(4, g_model_BtoA, g_model_AtoB, trainB,'BtoA', 5, OUTPUT_PATH_TEST)
+
+# # generate images
+A_generated = g_model_BtoA.predict(trainB)
+B_generated = g_model_AtoB.predict(trainA)
 
 # print shapes
 print("A_generated shape:", A_generated.shape)
 print("B_generated shape:", B_generated.shape)
 
-# check min and max of generated images
-print("A_generated range:", np.min(A_generated), np.max(A_generated))
-print("B_generated range:", np.min(B_generated), np.max(B_generated))
+# #Convert to range [-1, 1] to 0,1
+# # A_generated = (A_generated + 1) / 2
+# # B_generated = (B_generated + 1) / 2
 
-# reconstruct images
-A_reconstructed = g_model_AtoB.predict(A_generated)
-B_reconstructed = g_model_BtoA.predict(B_generated)
+# #Display A_generated slices
+visualize_slices(A_generated[0, :, :, :])
+visualize_slices(B_generated[0, :, :, :])
 
-# print shapes
-print("A_reconstructed shape:", A_reconstructed.shape)
-print("B_reconstructed shape:", B_reconstructed.shape)
+# # check min and max of generated images
+# print("A_generated range:", np.min(A_generated), np.max(A_generated))
+# print("B_generated range:", np.min(B_generated), np.max(B_generated))
 
-# plot all results
-# print("A domain:")
-# show_plot(A_real, A_generated, A_reconstructed)
-# print("B domain:")
-# show_plot(B_real, B_generated, B_reconstructed)
+# # reconstruct images
+# A_reconstructed = g_model_AtoB.predict(A_generated)
+# B_reconstructed = g_model_BtoA.predict(B_generated)
 
-show_plot_domains(A_real, A_generated, A_reconstructed,
-                  B_real, B_generated, B_reconstructed,
-                  save_path=None)
+# # print shapes
+# print("A_reconstructed shape:", A_reconstructed.shape)
+# print("B_reconstructed shape:", B_reconstructed.shape)
 
-# Function to convert 3-channel image to grayscale
-def to_gray(x):
-    # x shape: (H, W, 3) or (N, H, W, 3)
-    return np.mean(x, axis=-1, keepdims=True)
+# # plot all results
+# # print("A domain:")
+# # show_plot(A_real, A_generated, A_reconstructed)
+# # print("B domain:")
+# # show_plot(B_real, B_generated, B_reconstructed)
 
-# Convert generated and reconstructed images to grayscale
-A_generated_gray = to_gray(A_generated)
-B_generated_gray = to_gray(B_generated)
-A_reconstructed_gray = to_gray(A_reconstructed)
-B_reconstructed_gray = to_gray(B_reconstructed)
+# # convert all to float32, A_generated, A_reconstructed
+# A_real = A_real.astype(np.float32)
+# B_real = B_real.astype(np.float32)
+# A_generated = A_generated.astype(np.float32)
+# B_generated = B_generated.astype(np.float32)
+# A_reconstructed = A_reconstructed.astype(np.float32)
+# B_reconstructed = B_reconstructed.astype(np.float32)
 
-# Function to display images in grayscale
-def show_plot_gray(real, generated, reconstructed):
-    plt.figure(figsize=(12,4))
-    images = [real, generated, reconstructed]
-    titles = ['Real', 'Generated', 'Reconstructed']
-    for i, img in enumerate(images):
-        plt.subplot(1,3,i+1)
-        plt.imshow(img.squeeze(), cmap='gray')
-        plt.title(titles[i])
-        plt.axis('off')
-    plt.show()
 
-# Plot all results in grayscale
-print("A domain:")
-show_plot_gray(A_real, A_generated_gray, A_reconstructed_gray)
-print("B domain:")
-show_plot_gray(B_real, B_generated_gray, B_reconstructed_gray)
-
-# Load real images and produce outputs
+# show_plot_domains(B_real, A_generated, A_reconstructed,
+#                   A_real, B_generated, B_reconstructed,
+#                   save_path=None)
 
 # # ##########################
 # # Load a single custom image

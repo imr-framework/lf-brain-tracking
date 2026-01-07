@@ -452,7 +452,7 @@ def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None
 
     # Plot
     fig, axes = plt.subplots(2, 3, figsize=(9, 6))
-    col_titles = ['Real', 'Generated', 'Reconstructed']
+    col_titles = ['Input x', 'Output G(x)', 'Reconstruction F(G(x))']
     row_labels = ['A Domain', 'B Domain']
 
     for row_idx, row_imgs in enumerate([[A_real_slice, A_gen_slice, A_rec_slice],
@@ -531,42 +531,42 @@ print("B_reconstructed shape:", B_reconstructed.shape)
 
 # plot all results
 print("A domain:")
-show_plot(A_real, A_generated, A_reconstructed)
+# show_plot(A_real, A_generated, A_reconstructed)
 print("B domain:")
-show_plot(B_real, B_generated, B_reconstructed)
+# show_plot(B_real, B_generated, B_reconstructed)
 
-show_plot_domains(A_real, A_generated, A_reconstructed,
-                  B_real, B_generated, B_reconstructed,
+show_plot_domains(B_real, A_generated, A_reconstructed,
+                  A_real, B_generated, B_reconstructed,
                   save_path=None)
 
-# Function to convert 3-channel image to grayscale
-def to_gray(x):
-    # x shape: (H, W, 3) or (N, H, W, 3)
-    return np.mean(x, axis=-1, keepdims=True)
+# # Function to convert 3-channel image to grayscale
+# def to_gray(x):
+#     # x shape: (H, W, 3) or (N, H, W, 3)
+#     return np.mean(x, axis=-1, keepdims=True)
 
-# Convert generated and reconstructed images to grayscale
-A_generated_gray = to_gray(A_generated)
-B_generated_gray = to_gray(B_generated)
-A_reconstructed_gray = to_gray(A_reconstructed)
-B_reconstructed_gray = to_gray(B_reconstructed)
+# # Convert generated and reconstructed images to grayscale
+# A_generated_gray = to_gray(A_generated)
+# B_generated_gray = to_gray(B_generated)
+# A_reconstructed_gray = to_gray(A_reconstructed)
+# B_reconstructed_gray = to_gray(B_reconstructed)
 
-# Function to display images in grayscale
-def show_plot_gray(real, generated, reconstructed):
-    plt.figure(figsize=(12,4))
-    images = [real, generated, reconstructed]
-    titles = ['Real', 'Generated', 'Reconstructed']
-    for i, img in enumerate(images):
-        plt.subplot(1,3,i+1)
-        plt.imshow(img.squeeze(), cmap='gray')
-        plt.title(titles[i])
-        plt.axis('off')
-    plt.show()
+# # Function to display images in grayscale
+# def show_plot_gray(real, generated, reconstructed):
+#     plt.figure(figsize=(12,4))
+#     images = [real, generated, reconstructed]
+#     titles = ['Real', 'Generated', 'Reconstructed']
+#     for i, img in enumerate(images):
+#         plt.subplot(1,3,i+1)
+#         plt.imshow(img.squeeze(), cmap='gray')
+#         plt.title(titles[i])
+#         plt.axis('off')
+#     plt.show()
 
-# Plot all results in grayscale
-print("A domain:")
-show_plot_gray(A_real, A_generated_gray, A_reconstructed_gray)
-print("B domain:")
-show_plot_gray(B_real, B_generated_gray, B_reconstructed_gray)
+# # Plot all results in grayscale
+# print("A domain:")
+# show_plot_gray(A_real, A_generated_gray, A_reconstructed_gray)
+# print("B domain:")
+# show_plot_gray(B_real, B_generated_gray, B_reconstructed_gray)
 
 # Load real images and produce outputs
 

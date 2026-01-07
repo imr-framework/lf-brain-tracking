@@ -196,3 +196,6 @@ motion_correction/
 *.fig
 *.keras
 Ajay_training/
+src_simulated/grumpifycat
+src_simulated/maps
+R21figure_pkg/

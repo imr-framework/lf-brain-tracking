@@ -1,0 +1,249 @@
+Experiments: Unpaired image denoising
+
+    Raw_low_field_MRI to downsampled_high_field_MRI
+
+T1_t2-2D 300 epochs trained
+
+CycleGAN_t1_t2_upsample1 ---- 70 epochs
+
+We train a conditional diffusion model using synthetically degraded high-field MRI to learn a probabilistic inverse mapping for low-field enhancement.
+“Compared to adversarial translation models (CycleGAN), diffusion models provide a more stable and physically consistent framework for low-field MRI enhancement, significantly reducing hallucination artifacts.”
+
+# Correct Cycle GAN Inputs
+############################################
+#update 1-- mse, mae, mae, mae
+#            [1, 1, 10, 10]
+
+#Update 2-- MAE_SSIM, 0.5 id weight
+#Update 3-- MAE, MAE all 1 id weight
+#update 4-- Id-MAESSIM only, all same id (1,1,10,10)
+Upsample2: mse, mae, L1_ssim, l1_ssim 
+
+Upsample3: mse, l1_ssim (0.5), mae, mae Not
+
+Upsample4: mse, l1_ssim (1), mae, mae Not
+
+upsample5: mse, ssim, mae_ssim, mae_ssim 
+            [1, 5, 10, 10]
+
+upsample6: mse, ssim, mae_ssim, mae_ssim (add skip connections)
+            [1, 5, 10, 10]
+
+Upsample7: loss=[
+            'mse',          # adversarial
+            ssim_loss,        # identity
+            'mae',  # cycle forward
+            'mae'   # cycle backward
+        ],
+        loss_weights=[1, 1, 10, 10] Not
+
+Upsample8: loss=[
+            'mse',          # adversarial
+            'mae',        # identity
+            'l1_ssim',  # cycle forward
+            'l1_ssim'   # cycle backward
+        ],
+        loss_weights=[1, 1, 10, 10] Yes
+
+# MODEL CHANGES 
+  CONV TO UPSAMPLING
+  DISCRINIMATOR CHANGES -- REDUCED 512 LAYES WITH STRIDE 2
+  LEARNING RATE DECAY
+
+
+Upsample9:     # define the optimiz    # define the optimizer
+	opt = Adam(learning_rate=0.0002, beta_1=0.5)
+	# compile model with weighting of least squares loss and L1 loss
+	model.compile(
+        optimizer=opt,
+        loss=[
+            'mse',          # adversarial
+            'mae',        # identity
+            mae_ssim_cycle,  # cycle forward
+            mae_ssim_cycle   # cycle backward
+        ],
+        loss_weights=[1, 0.5, 10, 10]
+    )
+	# model.summary()
+	return model
+
+Upsample10:     # define the optimizer
+    
+    Descriminator weight - 0.5 to 0.25 [Linear decay error trained for only 40 epochs without decay steps]  
+    linear decay added
+	opt = Adam(learning_rate=0.0002, beta_1=0.5)
+	# compile model with weighting of least squares loss and L1 loss
+	model.compile(
+        optimizer=opt,
+        loss=[
+            'mse',          # adversarial
+            'mae',        # identity
+            mae_ssim_cycle,  # cycle forward
+            mae_ssim_cycle   # cycle backward
+        ],
+        loss_weights=[1, 1, 20, 20]
+    )
+	# model.summary()
+	return model
+
+    # error in decay steps
+
+Upsample11:     # define the optimizer
+
+    DISC_LOSS_WEIGHTS = [0.25]
+
+    # Generator parameters
+
+    GEN_LEARNING_RATE = 0.0002 
+    GEN_BETA_1 = 0.5
+
+    # -----------------------
+    # Generator Losses
+    # -----------------------
+
+    # Adversarial loss
+    GEN_LOSS_1 = 'mse'
+    
+    # Identity loss
+    GEN_LOSS_2 = 'mae' 
+    # GEN_LOSS_2 = partial(mae_ssim_id, ssim_weight_id=0.5)
+
+    # Cycle consistency losses
+    GEN_LOSS_3 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2) 
+    GEN_LOSS_4 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2) 
+
+    # Loss weights (CycleGAN paper style)
+    GEN_LOSS_WEIGHTS = [1, 1, 20, 20] # weights for [adv, identity, cycle_A, cycle_B]
+
+    #train parameters
+    EPOCHS = 200 # total number of epochs
+    INITIAL_LR = 0.0002 # initial learning rate
+    N_ITER = 40 # number of epochs with initial learning rate
+    N_ITER_DECAY = 160 # number of epochs with linearly decaying learning rate
+
+Upsample12:     # define the optimizer
+
+    #Descriminator parameters
+    # Discriminator parameters
+    DISC_LOSS = 'mse'
+    DISC_LEARNING_RATE = 0.0001
+    DISC_BETA_1 = 0.5
+    DISC_LOSS_WEIGHTS = [0.5]  # weights for [real, fake] [Only change +  lR decay to descriminators as well]
+
+    # Generator parameters
+
+    GEN_LEARNING_RATE = 0.0002 
+    GEN_BETA_1 = 0.5
+
+    # -----------------------
+    # Generator Losses
+    # -----------------------
+
+    # Adversarial loss
+    GEN_LOSS_1 = 'mse'
+    
+    # Identity loss
+    GEN_LOSS_2 = 'mae' 
+    # GEN_LOSS_2 = partial(mae_ssim_id, ssim_weight_id=0.5)
+
+    # Cycle consistency losses
+    GEN_LOSS_3 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2) 
+    GEN_LOSS_4 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2) 
+
+    # Loss weights (CycleGAN paper style)
+    GEN_LOSS_WEIGHTS = [1, 1, 20, 20] # weights for [adv, identity, cycle_A, cycle_B]
+
+    #train parameters
+    EPOCHS = 200 # total number of epochs
+    INITIAL_LR = 0.0002 # initial learning rate
+    N_ITER = 100 # number of epochs with initial learning rate
+    N_ITER_DECAY = 100 # number of epochs with linearly decaying learning rate
+
+    # Output directories
+    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_t1_t2_upsample12'
+
+Upsample13:     # define the optimizer
+
+    #Descriminator parameters
+    # Discriminator parameters
+    DISC_LOSS = 'mse'
+    DISC_LEARNING_RATE = 0.0001
+    DISC_BETA_1 = 0.5
+    DISC_LOSS_WEIGHTS = [0.25]  # weights for [real, fake] [Only change +  lR decay to descriminators as well]
+
+    # Generator parameters
+
+    GEN_LEARNING_RATE = 0.0002 
+    GEN_BETA_1 = 0.5
+
+    # -----------------------
+    # Generator Losses
+    # -----------------------
+
+    # Adversarial loss
+    GEN_LOSS_1 = 'mse'
+    
+    # Identity loss
+    GEN_LOSS_2 = 'mae' 
+    # GEN_LOSS_2 = partial(mae_ssim_id, ssim_weight_id=0.5)
+
+    # Cycle consistency losses
+    GEN_LOSS_3 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2) 
+    GEN_LOSS_4 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2) 
+
+    # Loss weights (CycleGAN paper style)
+    GEN_LOSS_WEIGHTS = [0.25, 1, 20, 20] # weights for [adv, identity, cycle_A, cycle_B]
+
+    #train parameters
+    EPOCHS = 200 # total number of epochs
+    INITIAL_LR = 0.0002 # initial learning rate
+    N_ITER = 100 # number of epochs with initial learning rate
+    N_ITER_DECAY = 100 # number of epochs with linearly decaying learning rate
+
+    # Output directories
+    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_t1_t2_upsample12'
+
+
+############################################
+
+#Descriminator parameters
+
+cyclegan_t1_t2_upsample14:     #Not working
+
+    # Discriminator parameters
+    DISC_LOSS = 'mse'
+    DISC_LEARNING_RATE = 0.0001
+    DISC_BETA_1 = 0.5
+    DISC_LOSS_WEIGHTS = [0.20]  # weights for [real, fake]
+
+    # Generator parameters
+
+    GEN_LEARNING_RATE = 0.0002 
+    GEN_BETA_1 = 0.5
+
+    # -----------------------
+    # Generator Losses
+    # -----------------------
+
+    # Adversarial loss
+    GEN_LOSS_1 = 'mse'
+    
+    # Identity loss
+    GEN_LOSS_2 = 'mae' 
+    # GEN_LOSS_2 = partial(mae_ssim_id, ssim_weight_id=0.5)
+
+    # Cycle consistency losses
+    GEN_LOSS_3 = partial(mae_ssim_cycle, ssim_weight_cycle=0.1) 
+    GEN_LOSS_4 = partial(mae_ssim_cycle, ssim_weight_cycle=0.1) 
+
+    # Loss weights (CycleGAN paper style)
+    GEN_LOSS_WEIGHTS = [0.10, 1, 15, 15] # weights for [adv, identity, cycle_A, cycle_B]
+
+    #train parameters
+    EPOCHS = 150 # total number of epochs
+    INITIAL_LR = 0.0002 # initial learning rate
+    N_ITER = 80 # number of epochs with initial learning rate
+    N_ITER_DECAY = 100 # number of epochs with linearly decaying learning rate
+
+    # Output directories
+    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_t1_t2_upsample14' # directory to save outputs
