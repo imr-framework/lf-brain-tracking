@@ -42,20 +42,22 @@ class CycleGANConfig:
     # GEN_LOSS_2 = partial(mae_ssim_id, ssim_weight_id=0.5)
 
     # Cycle consistency losses
-    GEN_LOSS_3 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2)
+    # GEN_LOSS_3 = 'mae'
+    # GEN_LOSS_4 = 'mae'
+    GEN_LOSS_3 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2) 
     GEN_LOSS_4 = partial(mae_ssim_cycle, ssim_weight_cycle=0.2)
 
     # Loss weights (CycleGAN paper style)
-    GEN_LOSS_WEIGHTS = [0.25, 1, 20, 20] # weights for [adv, identity, cycle_A, cycle_B]
+    GEN_LOSS_WEIGHTS = [0.25, 1, 30, 30] # weights for [adv, identity, cycle_A, cycle_B]
 
     #train parameters
-    EPOCHS = 200 # total number of epochs
+    EPOCHS = 500 # total number of epochs
     INITIAL_LR = 0.0002 # initial learning rate
     N_ITER = 100 # number of epochs with initial learning rate
-    N_ITER_DECAY = 200 # number of epochs with linearly decaying learning rate
+    N_ITER_DECAY = 400 # number of epochs with linearly decaying learning rate
 
     # Output directories
-    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_lfmri_1' # directory to save outputs
+    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_lfmri_2' # directory to save outputs
 
     # Visualization parameters
     VISUALIZE = False  # Whether to visualize test examples during training
@@ -78,4 +80,4 @@ class CycleGANConfig:
     # output_path_test
     OUTPUT_PATH_TEST = 'src_simulated/outputs/cyclegan_t1_t2_evaluate_outputs/'
 
-config = CycleGANConfig()
+config_lf = CycleGANConfig()

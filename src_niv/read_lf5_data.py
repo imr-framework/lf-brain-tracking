@@ -46,7 +46,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
     sub_list = subject_data[int(subject)]
     
     output_folder = 'Data/LFMRI_DATA_IRF_nifti'
-    data_dir = 'Data/IRF_3T'
+    data_dir = 'Data/Nipah_IRF_data/IRF_3T'
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
     folders.sort()
 
@@ -60,9 +60,9 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
     print(f"Searching for subfolders containing '{search_string}' in each IRF folder...")
 
     irf_folders = [
-        f for f in os.listdir('Data/LFMRI_DATA_IRF')
+        f for f in os.listdir('Data/Nipah_IRF_data/LFMRI_DATA_IRF')
         if 'IRF_071E_2_C1_' in f and os.path.isdir(
-            os.path.join('Data/LFMRI_DATA_IRF', f)
+            os.path.join('Data/Nipah_IRF_data/LFMRI_DATA_IRF', f)
         )
     ]
 
@@ -71,7 +71,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
     lf_dataset = []
 
     for irf_folder in irf_folders:
-        folder_path = os.path.join('Data/LFMRI_DATA_IRF', irf_folder)
+        folder_path = os.path.join('Data/Nipah_IRF_data/LFMRI_DATA_IRF', irf_folder)
         subfolders = [sf for sf in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, sf))]
         matching_subfolders = [sf for sf in subfolders if search_string in sf]
         if matching_subfolders:
@@ -596,7 +596,7 @@ def predict_and_evaluate(
 
 if __name__ == "__main__":
     
-    subjects = ['35528', '59228']
+    subjects = ['35528', '59228', '30366', '26184', '59081', '59175', '34507', '35547', '59233', '59877']
     # subjects = os.listdir('Data/IRF_3T')
     #print subjects
 
