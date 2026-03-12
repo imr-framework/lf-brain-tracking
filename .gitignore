@@ -210,3 +210,4 @@ src_simulated/Tasks_to_Complete/*
 src_simulated/cyclegan_models/details/*
 motion_correction/*
 LFsim/6_data_for_noise
+Denoi_data/*
