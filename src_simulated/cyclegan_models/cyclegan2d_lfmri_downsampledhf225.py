@@ -129,7 +129,7 @@ def crop_or_pad_depth(vol, target_d=35):
         vol = np.pad(vol, ((0,0),(0,0),(pad_before, pad_after)), mode='constant')
     return vol
 
-def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,2),TARGET_H = 128, TARGET_W = 128, TARGET_D = 35, add_channel=False):
+def load_nii_volumes(path, target_spacing=(1,1,2),TARGET_H = 128, TARGET_W = 128, TARGET_D = 35, add_channel=False):
 
     """
     Load NIfTI volumes, resample by voxel spacing only,
@@ -145,6 +145,12 @@ def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,2),TARGE
         fpath = os.path.join(path, fname)
         nii = nib.load(fpath)
         vol = nii.get_fdata().astype(np.float32)
+
+        #load header and resolution as current_spacing and print current spacing and target spacing
+        header = nii.header
+        current_spacing = header.get_zooms()[:3]  # get voxel size
+        print(f"[INFO] Current spacing for: {current_spacing}")
+        print(f"[INFO] Target spacing: {target_spacing}")
 
         # 0. Fix LF-MRI negative values
         vol = np.abs(vol)
@@ -275,22 +281,21 @@ def resample_volume(volume, current_spacing=(1,1,2), target_spacing=(1,1,1), ord
     resampled_volume = zoom(volume, zoom_factors, order=order)
     return resampled_volume
 
-# dataset path
 
 # Example usage
 # Can load true acquired LF volumes
-path = "Data/Nipah_IRF_data/Low_field_data_DA/"
-dataA_all = load_nii_volumes(path + 'test_da_lf/', current_spacing=(1,1,2), target_spacing=(2,2,5),TARGET_H = 64, TARGET_W = 64, TARGET_D = 14, add_channel=False)
+path_lf = config_lf.path_lf
+dataA_all = load_nii_volumes(path_lf, target_spacing=(2,2,5),TARGET_H = 64, TARGET_W = 64, TARGET_D = 14, add_channel=False)
 print('Loaded dataA: ', dataA_all.shape)
 
 from sklearn.utils import resample
 #To get a subset of all images, for faster training during demonstration
 dataA = resample(dataA_all,
                  replace=False,
-                 n_samples=40,
+                 n_samples=35,
                  random_state=42)
 
-dataA = dataA[:, :, :, 3:-2]   # new depth = 30
+# dataA = dataA[:, :, :, 3:-2]   # new depth = 30
 
 # dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
 visualize_slices(dataA[1, :, :, :])
@@ -418,14 +423,14 @@ print("DataB range: ", np.min(dataB), np.max(dataB))
 # Crop dataB to match dataA height and width if needed
 dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
 
-dataB = dataB[:, :, :, :-5]
+dataB = dataB[:, :, :, :-4]
 
 visualize_slices(dataB[1, :, :, :])
 
 # display range , min and max
 print("DataB range: ", np.min(dataB), np.max(dataB))
 
-# discard first three slices and last 2 slices of dataA and last five slices of dataB to have depth 30
+# discard first three slices and last 2 slices of dataA and last four slices of dataB to have depth 30
 
 # load image data
 data =  [dataB, dataA]
@@ -490,6 +495,9 @@ if SLICES_TEST:
     # print shape of each
     print("A_2D shape for test:", A_2D.shape)
     print("B_2D shape for test:", B_2D.shape)
+
+# rotate A_2d all slices by 90 degrees clockwise for better alignment
+A_2D = np.rot90(A_2D, k=1, axes=(1, 2))
 
 data = [A_2D, B_2D]
 

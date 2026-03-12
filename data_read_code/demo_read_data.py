@@ -6,11 +6,11 @@ from nibabel.viewers import OrthoSlicer3D
 import os
 
 def read_lf_data(
-    data_folder='Ajay_training/Ajay_training_01',
-    output_folder='Ajay_training/Output_nifti',
+    data_folder='BT_0001_MRI_47mT_S1',
+    output_folder='Output_lfmri',
     subject="34507",
-    sub_folder='3DTSE/1',
-    file_name='lf_mri.nii.gz'
+    sub_folder='3DTSE/4',
+    file_name='coronal2.nii.gz'
 ):
     try:
         # print(f"Data folder: {data_folder}")

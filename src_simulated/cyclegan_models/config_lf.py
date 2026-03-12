@@ -11,6 +11,9 @@ import os
 
 class CycleGANConfig:
 
+
+    path_lf = "Data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T2w"
+
     # Image parameters
     BATCH_SIZE = 1
 
@@ -21,7 +24,7 @@ class CycleGANConfig:
     #Descriminator parameters
     # Discriminator parameters
     DISC_LOSS = 'mse'
-    DISC_LEARNING_RATE = 0.0001
+    DISC_LEARNING_RATE = 0.0002
     DISC_BETA_1 = 0.5
     DISC_LOSS_WEIGHTS = [0.25]  # weights for [real, fake]
 
@@ -51,19 +54,19 @@ class CycleGANConfig:
     GEN_LOSS_WEIGHTS = [0.25, 1, 30, 30] # weights for [adv, identity, cycle_A, cycle_B]
 
     #train parameters
-    EPOCHS = 500 # total number of epochs
-    INITIAL_LR = 0.0002 # initial learning rate
-    N_ITER = 100 # number of epochs with initial learning rate
-    N_ITER_DECAY = 400 # number of epochs with linearly decaying learning rate
+    EPOCHS = 300 # total number of epochs
+    INITIAL_LR = 0.002 # initial learning rate
+    N_ITER = 300 # number of epochs with initial learning rate
+    N_ITER_DECAY = 0 # number of epochs with linearly decaying learning rate
 
     # Output directories
-    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_lfmri_2' # directory to save outputs
-
+    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_lfmri20t2w_2_lfsimulated' # directory to save outputs
+    
     # Visualization parameters
     VISUALIZE = False  # Whether to visualize test examples during training
 
     #Model Evaluation loading
-    MODEL_EVAL_PATH = 'src_simulated/outputs/cyclegan_lfmri_1/' # path to load model for evaluation
+    MODEL_EVAL_PATH = 'src_simulated/outputs/cyclegan_lfmri20t1w/' # path to load model for evaluation
 
     # Specific model names to load using MODEL_EVAL_PATH
     MODEL_NAME_D_A = os.path.join(MODEL_EVAL_PATH, 'd_A_030000.keras')

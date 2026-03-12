@@ -129,16 +129,12 @@ def crop_or_pad_depth(vol, target_d=35):
         vol = np.pad(vol, ((0,0),(0,0),(pad_before, pad_after)), mode='constant')
     return vol
 
-def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,2), add_channel=False):
+def load_nii_volumes(path, target_spacing=(1,1,2),TARGET_H = 128, TARGET_W = 128, TARGET_D = 35, add_channel=False):
 
     """
     Load NIfTI volumes, resample by voxel spacing only,
     ensure H=W=128 or discard, crop/pad D→35, normalize to [-1,1].
     """
-
-    TARGET_H = 128
-    TARGET_W = 128
-    TARGET_D = 35
 
     volumes = []
 
@@ -149,6 +145,12 @@ def load_nii_volumes(path, current_spacing=(1,1,2), target_spacing=(1,1,2), add_
         fpath = os.path.join(path, fname)
         nii = nib.load(fpath)
         vol = nii.get_fdata().astype(np.float32)
+
+        #load header and resolution as current_spacing and print current spacing and target spacing
+        header = nii.header
+        current_spacing = header.get_zooms()[:3]  # get voxel size
+        print(f"[INFO] Current spacing for: {current_spacing}")
+        print(f"[INFO] Target spacing: {target_spacing}")
 
         # 0. Fix LF-MRI negative values
         vol = np.abs(vol)
@@ -283,33 +285,35 @@ def resample_volume(volume, current_spacing=(1,1,2), target_spacing=(1,1,1), ord
 
 # Example usage
 # dataset path
-path = "Data/Nipah_IRF_data/Low_field_data_DA/"
+path = config_lf.path_lf
 
 # load dataset A - Monet paintings
-dataA_all = load_nii_volumes(path + 'test_da_lf/')
+dataA_all = load_nii_volumes(path, target_spacing=(1,1,2),TARGET_H = 128, TARGET_W = 128, TARGET_D = 35, add_channel=False)
 print('Loaded dataA: ', dataA_all.shape)
 
 from sklearn.utils import resample
 #To get a subset of all images, for faster training during demonstration
 dataA = resample(dataA_all,
                  replace=False,
-                 n_samples=40,
+                 n_samples=15,
                  random_state=42)
 
 dataA = dataA[:, :, :, 3:-2]   # new depth = 30
 
 # convert to grayscale
 # dataA = np.array([cv2.cvtColor(dataA[i], cv2.COLOR_RGB2GRAY) for i in range(len(dataA))])
-# visualize_slices(dataA[1, :, :, :])
-# visualize_slices(dataA[2, :, :, :])
-# visualize_slices(dataA[3, :, :, :])
-# visualize_slices(dataA[4, :, :, :])
-# visualize_slices(dataA[5, :, :, :])
-# visualize_slices(dataA[6, :, :, :])
-# visualize_slices(dataA[7, :, :, :])
-# visualize_slices(dataA[8, :, :, :])
-# visualize_slices(dataA[9, :, :, :])
-# visualize_slices(dataA[10, :, :, :])
+if VISUALIZE:
+    visualize_slices(dataA[0, :, :, :])
+    visualize_slices(dataA[1, :, :, :])
+    visualize_slices(dataA[2, :, :, :])
+    visualize_slices(dataA[3, :, :, :])
+    visualize_slices(dataA[4, :, :, :])
+    visualize_slices(dataA[5, :, :, :])
+    visualize_slices(dataA[6, :, :, :])
+    visualize_slices(dataA[7, :, :, :])
+    visualize_slices(dataA[8, :, :, :])
+    visualize_slices(dataA[9, :, :, :])
+    visualize_slices(dataA[10, :, :, :])
 
 # display range , min and max
 print("DataA range: ", np.min(dataA), np.max(dataA))
@@ -334,16 +338,18 @@ dataB = dataB[:, :dataA.shape[1], :dataA.shape[2], :]
 
 dataB = dataB[:, :, :, :-5]
 
-# visualize_slices(dataB[1, :, :, :])
-# visualize_slices(dataB[2, :, :, :])
-# visualize_slices(dataB[3, :, :, :])
-# visualize_slices(dataB[4, :, :, :])
-# visualize_slices(dataB[5, :, :, :])
-# visualize_slices(dataB[6, :, :, :])
-# visualize_slices(dataB[7, :, :, :])
-# visualize_slices(dataB[8, :, :, :])
-# visualize_slices(dataB[9, :, :, :])
-# visualize_slices(dataB[10, :, :, :])
+if VISUALIZE:
+    visualize_slices(dataB[0, :, :, :])
+    visualize_slices(dataB[1, :, :, :])
+    visualize_slices(dataB[2, :, :, :])
+    visualize_slices(dataB[3, :, :, :])
+    visualize_slices(dataB[4, :, :, :])
+    visualize_slices(dataB[5, :, :, :])
+    visualize_slices(dataB[6, :, :, :])
+    visualize_slices(dataB[7, :, :, :])
+    visualize_slices(dataB[8, :, :, :])
+    visualize_slices(dataB[9, :, :, :])
+    visualize_slices(dataB[10, :, :, :])
 
 # display range , min and max
 print("DataB range: ", np.min(dataB), np.max(dataB))
@@ -414,7 +420,10 @@ if SLICES_TEST:
     print("A_2D shape for test:", A_2D.shape)
     print("B_2D shape for test:", B_2D.shape)
 
-data = [B_2D, A_2D]
+# rotate A_2d all slices by 90 degrees clockwise for better alignment
+A_2D = np.rot90(A_2D, k=1, axes=(1, 2))
+
+data = [A_2D, B_2D]
 
 #print datatype of each
 print("A_2D dtype:", A_2D.dtype)

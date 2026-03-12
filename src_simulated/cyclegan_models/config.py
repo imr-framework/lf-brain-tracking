@@ -58,16 +58,16 @@ class CycleGANConfig:
     OUTPUT_DIR = 'src_simulated/outputs/cyclegan_lfmri_1' # directory to save outputs
 
     # Visualization parameters
-    VISUALIZE = False  # Whether to visualize test examples during training
+    VISUALIZE = True  # Whether to visualize test examples during training
 
     #Model Evaluation loading
-    MODEL_EVAL_PATH = 'src_simulated/outputs/cyclegan_lfmri_1/' # path to load model for evaluation
+    MODEL_EVAL_PATH = 'src_simulated/outputs/cyclegan_t1_t2_upsample13/' # path to load model for evaluation
 
     # Specific model names to load using MODEL_EVAL_PATH
-    MODEL_NAME_D_A = os.path.join(MODEL_EVAL_PATH, 'd_A_030000.keras')
-    MODEL_NAME_D_B = os.path.join(MODEL_EVAL_PATH, 'd_B_030000.keras')
-    MODEL_NAME_G_A2B = os.path.join(MODEL_EVAL_PATH, 'g_AtoB_030000.keras')
-    MODEL_NAME_G_B2A = os.path.join(MODEL_EVAL_PATH, 'g_BtoA_030000.keras')
+    MODEL_NAME_D_A = os.path.join(MODEL_EVAL_PATH, 'd_A_066000.keras')
+    MODEL_NAME_D_B = os.path.join(MODEL_EVAL_PATH, 'd_B_066000.keras')
+    MODEL_NAME_G_A2B = os.path.join(MODEL_EVAL_PATH, 'g_AtoB_066000.keras')
+    MODEL_NAME_G_B2A = os.path.join(MODEL_EVAL_PATH, 'g_BtoA_033000.keras')
 
     # # With latest models
     # MODEL_NAME_D_A = os.path.join(MODEL_EVAL_PATH, 'd_A_latest.keras')

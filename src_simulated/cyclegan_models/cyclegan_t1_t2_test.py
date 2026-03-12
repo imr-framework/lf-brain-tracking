@@ -297,7 +297,7 @@ def resample_volume(volume, current_spacing=(1,1,2), target_spacing=(1,1,1), ord
 # dataset path
 
 # Example usage
-data_path = "Data/Nipah IRF data/IRF_3T_NIFTI"
+data_path = "Data/Nipah_IRF_data/IRF_3T_NIFTI"
 substring_filter = "T1_n100__00001"
 
 dataA_all = load_nii_volumes(
@@ -459,7 +459,6 @@ print(image_shape)
 print("Dataset A min:", np.min(dataset[0][0]), "max:", np.max(dataset[0][0]))
 print("Dataset B min:", np.min(dataset[1][0]), "max:", np.max(dataset[1][0]))
 
-
 def show_plot_domains(A_real, A_gen, A_rec, B_real, B_gen, B_rec, save_path=None):
 
     def get_middle_slice(vol):
@@ -518,8 +517,8 @@ g_model_BtoA = load_model(MODEL_NAME_G_B2A, custom_objects={'InstanceNormalizati
 
 trainA, trainB = dataset
 
-summarize_performance(4, g_model_AtoB, g_model_BtoA, trainA,'AtoB', 5, OUTPUT_PATH_TEST)
-summarize_performance(4, g_model_BtoA, g_model_AtoB, trainB,'BtoA', 5, OUTPUT_PATH_TEST)
+summarize_performance(6, g_model_AtoB, g_model_BtoA, trainA, trainB, 'AtoB', 5, OUTPUT_PATH_TEST)
+summarize_performance(6, g_model_BtoA, g_model_AtoB, trainB, trainA, 'BtoA', 5, OUTPUT_PATH_TEST)
 
 # # generate images
 A_generated = g_model_BtoA.predict(trainB)

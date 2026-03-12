@@ -201,7 +201,7 @@ Upsample13:     # define the optimizer
     N_ITER_DECAY = 100 # number of epochs with linearly decaying learning rate
 
     # Output directories
-    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_t1_t2_upsample12'
+    OUTPUT_DIR = 'src_simulated/outputs/cyclegan_t1_t2_upsample13'
 
 
 ############################################
@@ -229,7 +229,7 @@ cyclegan_t1_t2_upsample14:     #Not working
     GEN_LOSS_1 = 'mse'
     
     # Identity loss
-    GEN_LOSS_2 = 'mae' 
+    GEN_LOSS_2 = 'mae'
     # GEN_LOSS_2 = partial(mae_ssim_id, ssim_weight_id=0.5)
 
     # Cycle consistency losses

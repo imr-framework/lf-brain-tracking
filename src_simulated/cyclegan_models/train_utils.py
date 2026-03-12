@@ -65,14 +65,15 @@ def load_real_samples(filename):
 
 # select a batch of random samples, returns images and target
 #Remember that for real images the label (y) is 1.
-def generate_real_samples(dataset, n_samples, patch_shape):
+def generate_real_samples(dataset_a, dataset_b, n_samples, patch_shape):
 	# choose random instances
-	ix = randint(0, dataset.shape[0], n_samples)
+	ix = randint(0, dataset_a.shape[0], n_samples)
 	# retrieve selected images
-	X = dataset[ix]
+	X = dataset_a[ix]
+	Y = dataset_b[ix]
 	# generate 'real' class labels (1)
 	y = ones((n_samples, patch_shape, patch_shape, 1))
-	return X, y
+	return X, Y, y
 
 # generate a batch of images, returns images and targets
 #Remember that for fake images the label (y) is 0.
@@ -108,82 +109,216 @@ def save_models(step, g_model_AtoB, g_model_BtoA, d_ModelA, d_ModelB, output_pat
     
     print(f"> Saved checkpoints and latest models for step {step+1}")
 
-# periodically generate images using the save model and plot input and output images
-from matplotlib import pyplot, gridspec
+# # periodically generate images using the save model and plot input and output images
+# from matplotlib import pyplot, gridspec
 
-def summarize_performance(step, g_model, g_inverse, trainX, name, n_samples=5,
+# def summarize_performance(step, g_model, g_inverse, trainX, trainY, name, n_samples=5,
+#                           output_path='src_simulated/outputs/cyclegan_t1_t2_upsample10'):
+#     """
+#     Visualize input, generated, and reconstructed images in 3 rows.
+
+#     Parameters
+#     ----------
+#     step : int
+#         Current training step for filename.
+#     g_model : keras.Model
+#         Generator mapping input -> target domain.
+#     g_inverse : keras.Model
+#         Generator mapping target -> input domain (for reconstruction).
+#     trainX : np.array
+#         Source images to sample from.
+#     name : str
+#         Name for saving the plot.
+#     n_samples : int
+#         Number of images to display.
+#     output_path : str
+#         Directory to save the figure.
+#     """
+
+#     if not os.path.exists(output_path):
+#        os.makedirs(output_path)
+
+#     # -----------------------------
+#     # 1. Select samples and generate
+#     # -----------------------------
+#     X_in,Y_in, _ = generate_real_samples(trainX, trainY, n_samples, 0)           # Input
+#     X_out, _ = generate_fake_samples(g_model, X_in, 0)              # Generated 
+#     X_rec, _ = generate_fake_samples(g_inverse, X_out, 0)           # Reconstructed
+    
+#     # -----------------------------
+#     # 2. Scale from [-1,1] -> [0,1]
+#     # -----------------------------
+#     X_in = (X_in + 1) / 2.0
+#     Y_in = (Y_in + 1) / 2.0
+#     X_out = (X_out + 1) / 2.0
+#     X_rec = (X_rec + 1) / 2.0
+
+#     # -----------------------------
+#     # 3. Create figure
+#     # -----------------------------
+#     fig = pyplot.figure(figsize=(n_samples * 2, 6))  # 3 rows now
+#     gs = gridspec.GridSpec(3, n_samples, wspace=-0.01, hspace=-0.01)
+
+#     # Top row: Input
+#     for i in range(n_samples):
+#         ax = pyplot.subplot(gs[0, i])
+#         ax.axis('off')
+#         ax.imshow(X_in[i].squeeze(), cmap='gray', aspect='auto')
+
+#     # Middle row: Generated
+#     for i in range(n_samples):
+#         ax = pyplot.subplot(gs[1, i])
+#         ax.axis('off')
+#         ax.imshow(X_out[i].squeeze(), cmap='gray', aspect='auto')
+
+#     # Bottom row: Reconstructed
+#     for i in range(n_samples):
+#         ax = pyplot.subplot(gs[2, i])
+#         ax.axis('off')
+#         ax.imshow(X_rec[i].squeeze(), cmap='gray', aspect='auto')
+
+#     # -----------------------------
+#     # 4. Save figure
+#     # -----------------------------
+#     if not os.path.exists(output_path):
+#         os.makedirs(output_path)
+#     filename = os.path.join(output_path, f'{name}_generated_plot_{step+1:06d}.png')
+#     pyplot.savefig(filename, bbox_inches='tight', pad_inches=0)
+#     pyplot.close()
+#     print(f'> Saved plot: {filename}')
+
+import os
+import numpy as np
+from matplotlib import pyplot
+from matplotlib import gridspec
+from skimage.metrics import peak_signal_noise_ratio as psnr
+from skimage.metrics import structural_similarity as ssim
+
+def summarize_performance(step, g_model, g_inverse,
+                          trainX, trainY,
+                          name, n_samples=5,
                           output_path='src_simulated/outputs/cyclegan_t1_t2_upsample10'):
-    """
-    Visualize input, generated, and reconstructed images in 3 rows.
 
-    Parameters
-    ----------
-    step : int
-        Current training step for filename.
-    g_model : keras.Model
-        Generator mapping input -> target domain.
-    g_inverse : keras.Model
-        Generator mapping target -> input domain (for reconstruction).
-    trainX : np.array
-        Source images to sample from.
-    name : str
-        Name for saving the plot.
-    n_samples : int
-        Number of images to display.
-    output_path : str
-        Directory to save the figure.
-    """
-
-    if not os.path.exists(output_path):
-       os.makedirs(output_path)
+    os.makedirs(output_path, exist_ok=True)
 
     # -----------------------------
-    # 1. Select samples and generate
+    # 1. Sample data
     # -----------------------------
-    X_in, _ = generate_real_samples(trainX, n_samples, 0)           # Input
-    X_out, _ = generate_fake_samples(g_model, X_in, 0)              # Generated
-    X_rec, _ = generate_fake_samples(g_inverse, X_out, 0)           # Reconstructed
+    X_in, Y_in, _ = generate_real_samples(trainX, trainY, n_samples, 0)
+    X_out, _ = generate_fake_samples(g_model, X_in, 0)
+    X_rec, _ = generate_fake_samples(g_inverse, X_out, 0)
 
     # -----------------------------
-    # 2. Scale from [-1,1] -> [0,1]
+    # 2. Scale [-1,1] → [0,1]
     # -----------------------------
-    X_in = (X_in + 1) / 2.0
+    X_in  = (X_in  + 1) / 2.0
+    Y_in  = (Y_in  + 1) / 2.0
     X_out = (X_out + 1) / 2.0
     X_rec = (X_rec + 1) / 2.0
 
     # -----------------------------
-    # 3. Create figure
+    # 3. Differences
     # -----------------------------
-    fig = pyplot.figure(figsize=(n_samples * 2, 6))  # 3 rows now
-    gs = gridspec.GridSpec(3, n_samples, wspace=-0.01, hspace=-0.01)
-
-    # Top row: Input
-    for i in range(n_samples):
-        ax = pyplot.subplot(gs[0, i])
-        ax.axis('off')
-        ax.imshow(X_in[i].squeeze(), cmap='gray', aspect='auto')
-
-    # Middle row: Generated
-    for i in range(n_samples):
-        ax = pyplot.subplot(gs[1, i])
-        ax.axis('off')
-        ax.imshow(X_out[i].squeeze(), cmap='gray', aspect='auto')
-
-    # Bottom row: Reconstructed
-    for i in range(n_samples):
-        ax = pyplot.subplot(gs[2, i])
-        ax.axis('off')
-        ax.imshow(X_rec[i].squeeze(), cmap='gray', aspect='auto')
+    diff_Y = np.abs(Y_in - X_out)
+    diff_X = np.abs(X_in - X_rec)
 
     # -----------------------------
-    # 4. Save figure
+    # 4. Figure: NO spacing at all
     # -----------------------------
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    filename = os.path.join(output_path, f'{name}_generated_plot_{step+1:06d}.png')
+    fig = pyplot.figure(figsize=(n_samples * 2.0, 9))
+    gs = gridspec.GridSpec(
+    6, n_samples,
+    wspace=-0.01,
+    hspace=-0.01
+    )
+
+    pyplot.subplots_adjust(
+        left=0, right=1,
+        top=1, bottom=0,
+        wspace=-0.01,
+        hspace=-0.01
+    )
+
+    def plot_image(row, col, img, cmap='gray', vmin=None, vmax=None):
+        ax = pyplot.subplot(gs[row, col])
+        ax.axis('off')
+        ax.imshow(img.squeeze(), cmap=cmap, vmin=vmin, vmax=vmax)
+        return ax
+
+    # -----------------------------
+    # 5. Compute metrics
+    # -----------------------------
+    metrics_Y, metrics_X = [], []
+
+    for i in range(n_samples):
+        metrics_Y.append((
+            psnr(Y_in[i].squeeze(), X_out[i].squeeze(), data_range=1.0),
+            ssim(Y_in[i].squeeze(), X_out[i].squeeze(), data_range=1.0)
+        ))
+        metrics_X.append((
+            psnr(X_in[i].squeeze(), X_rec[i].squeeze(), data_range=1.0),
+            ssim(X_in[i].squeeze(), X_rec[i].squeeze(), data_range=1.0)
+        ))
+
+    # -----------------------------
+    # 6. Plot rows
+    # -----------------------------
+    for i in range(n_samples):
+        # X
+        plot_image(0, i, X_in[i])
+
+        # Y
+        plot_image(1, i, Y_in[i])
+
+        # G(X)
+        plot_image(2, i, X_out[i])
+
+        # |Y - G(X)|  (ERROR MAP)
+        ax = plot_image(
+            3, i, diff_Y[i],
+            cmap='hot',
+            vmin=0,
+            vmax=diff_Y[i].max()
+        )
+        ax.text(
+            0.02, 0.95,
+            f"PSNR={metrics_Y[i][0]:.2f}\nSSIM={metrics_Y[i][1]:.3f}",
+            color='blue',
+            fontsize=7,
+            transform=ax.transAxes,
+            verticalalignment='top'
+        )
+
+        # F(G(X))
+        plot_image(4, i, X_rec[i])
+
+        # |X - F(G(X))|  (CYCLE ERROR)
+        ax = plot_image(
+            5, i, diff_X[i],
+            cmap='hot',
+            vmin=0,
+            vmax=diff_X[i].max()
+        )
+        ax.text(
+            0.02, 0.95,
+            f"PSNR={metrics_X[i][0]:.2f}\nSSIM={metrics_X[i][1]:.3f}",
+            color='blue',
+            fontsize=7,
+            transform=ax.transAxes,
+            verticalalignment='top'
+        )
+
+    # -----------------------------
+    # 7. Save (no padding)
+    # -----------------------------
+    filename = os.path.join(
+        output_path,
+        f"{name}_cyclegan_summary_{step+1:06d}.png"
+    )
     pyplot.savefig(filename, bbox_inches='tight', pad_inches=0)
     pyplot.close()
-    print(f'> Saved plot: {filename}')
+
+    print(f"> Saved CycleGAN summary plot: {filename}")
 
 
 def plot_training_metrics(folder_path, filename='training_metrics.csv', save_plot=True):
@@ -508,7 +643,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         # 7. PERIODIC MODEL SAVE
         # -----------------------------
-        if (i + 1) % (bat_per_epo * 30) == 0:
+        if (i + 1) % (bat_per_epo * 20) == 0:
             save_models(i, g_model_AtoB, g_model_BtoA, d_model_A, d_model_B,
                         output_path=output_path)
 
