@@ -48,7 +48,7 @@ from src_simulated.cyclegan_models.losses_cyclegan import *
 
 # models.py load all models
 from src_simulated.cyclegan_models.models import *
-from src_simulated.cyclegan_models.train_utils import *
+from src_simulated.cyclegan_models.train_utils_params import *
 
 EPOCHS = config_lf.EPOCHS
 
@@ -496,7 +496,51 @@ data = [A_2D, B_2D]
 print("A_2D dtype:", A_2D.dtype)
 print("B_2D dtype:", B_2D.dtype)
 
-dataset = data
+
+# addign context to the print statements about min and max values
+
+# ----------------------------
+# CONTEXT CREATION (N, 9)
+# ----------------------------
+
+N_A = A_2D.shape[0]
+N_B = B_2D.shape[0]
+
+def create_context(N, field_strength, visit):
+    TE = np.random.uniform(80, 120, N)
+    TR = np.random.uniform(2000, 3000, N)
+    bandwidth = np.random.uniform(150, 250, N)
+    rxGain = np.random.uniform(20, 40, N)
+    etLength = np.random.uniform(8, 16, N)
+    dwellTime = np.random.uniform(5, 10, N)
+
+    # ⭐ SNR (IMPORTANT)
+    SNR = (field_strength * 10) + np.random.normal(0, 2, N)
+
+    context = np.stack([
+        TE, TR, bandwidth, rxGain,
+        etLength, dwellTime,
+        np.full(N, field_strength),
+        np.full(N, visit),
+        SNR
+    ], axis=1)
+
+    return context.astype(np.float32)
+
+A_context = create_context(N_A, field_strength=0.05, visit=1)
+B_context = create_context(N_B, field_strength=3.0, visit=1)
+
+print("A_context:", A_context.shape)
+print("B_context:", B_context.shape)
+
+from sklearn.preprocessing import StandardScaler
+
+scaler = StandardScaler()
+A_context = scaler.fit_transform(A_context)
+B_context = scaler.transform(B_context)
+
+dataset = [A_2D, B_2D, A_context, B_context]
+# dataset = data
 
 if VISUALIZE:
     inspect_domains(dataset[0], dataset[1], n_samples=5)
@@ -511,10 +555,14 @@ print(image_shape)
 print("Dataset A min:", np.min(dataset[0][0]), "max:", np.max(dataset[0][0]))
 print("Dataset B min:", np.min(dataset[1][0]), "max:", np.max(dataset[1][0]))
 
+
 # generator: A -> B
-g_model_AtoB = define_generator(image_shape)
-# generator: B -> A
-g_model_BtoA = define_generator(image_shape)
+# g_model_AtoB = define_generator(image_shape)
+# g_model_BtoA = define_generator(image_shape)
+
+g_model_AtoB = define_generator(image_shape, context_dim=9)
+g_model_BtoA = define_generator(image_shape, context_dim=9)
+
 # discriminator: A -> [real/fake]
 d_model_A = define_discriminator(image_shape)
 d_model_A.compile(
@@ -536,9 +584,11 @@ d_model_B.compile(
         loss_weights=DISC_LOSS_WEIGHTS
     )
 # composite: A -> B -> [real/fake, A]
-c_model_AtoB = define_composite_model(g_model_AtoB, d_model_B, g_model_BtoA, image_shape)
-# composite: B -> A -> [real/fake, B]
-c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)
+# c_model_AtoB = define_composite_model(g_model_AtoB, d_model_B, g_model_BtoA, image_shape)
+# c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)
+
+c_model_AtoB = define_composite_model(g_model_AtoB, d_model_B, g_model_BtoA, image_shape, context_dim=9)
+c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape, context_dim=9)
 
 from datetime import datetime
 start1 = datetime.now()

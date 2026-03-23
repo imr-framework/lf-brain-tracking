@@ -208,42 +208,76 @@ def resnet_block(n_filters, input_layer):
 #     return model
 
 # # with Conv2dtranspose
+def define_generator(image_shape, context_dim=None, n_resnet=9):
+    """
+    2D ResNet-based generator with optional context input.
+    
+    Parameters
+    ----------
+    image_shape : tuple
+        Shape of input image, e.g., (H, W, C)
+    context_dim : int or None
+        Dimension of additional context features
+    n_resnet : int
+        Number of resnet blocks
+    """
 
-def define_generator(image_shape, n_resnet=9):
-	# weight initialization
-	init = RandomNormal(stddev=0.02)
-	# image input
-	in_image = Input(shape=image_shape)
-	# c7s1-64
-	g = Conv2D(64, (7,7), padding='same', kernel_initializer=init)(in_image)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# d128
-	g = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# d256
-	g = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# R256
-	for _ in range(n_resnet):
-		g = resnet_block(256, g)
-	# u128
-	g = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# u64
-	g = Conv2DTranspose(64, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
-	g = InstanceNormalization(axis=-1)(g)
-	g = Activation('relu')(g)
-	# c7s1-3
-	g = Conv2D(1, (7,7), padding='same', kernel_initializer=init)(g)
-	out_image = Activation('tanh')(g)
-	# define model
-	model = Model(in_image, out_image)
-	model.summary()
-	return model
+    # weight initialization
+    init = RandomNormal(stddev=0.02)
+    
+    # image input
+    in_image = Input(shape=image_shape)
+    
+    if context_dim is not None:
+        # context input
+        in_context = Input(shape=(context_dim,))
+        # expand context to spatial map and concatenate
+        c = tf.keras.layers.Dense(image_shape[0]*image_shape[1])(in_context)
+        c = tf.keras.layers.Reshape((image_shape[0], image_shape[1], 1))(c)
+        x = Concatenate()([in_image, c])
+    else:
+        x = in_image
+
+    # c7s1-64
+    g = Conv2D(64, (7,7), padding='same', kernel_initializer=init)(x)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # d128
+    g = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # d256
+    g = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # R256
+    for _ in range(n_resnet):
+        g = resnet_block(256, g)
+    
+    # u128
+    g = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # u64
+    g = Conv2DTranspose(64, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # c7s1-1
+    g = Conv2D(1, (7,7), padding='same', kernel_initializer=init)(g)
+    out_image = Activation('tanh')(g)
+
+    if context_dim is not None:
+        model = Model([in_image, in_context], out_image)
+    else:
+        model = Model(in_image, out_image)
+
+    model.summary()
+    return model
 
 #Generator with skip connections (U-Net like)
 
@@ -302,36 +336,71 @@ def define_generator(image_shape, n_resnet=9):
 #     model.summary()
 #     return model
 
+def define_composite_model(g_model_1, d_model, g_model_2, image_shape, context_dim=None):
+    """
+    Create a composite CycleGAN model for training a generator with:
+    - adversarial loss
+    - identity loss
+    - cycle-consistency loss
 
-# We define a composite model that will be used to train each generator separately.
-def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
-    # Make the generator of interest trainable
-    # (other models remain frozen)
+    Supports optional context input.
+
+    Parameters
+    ----------
+    g_model_1 : keras.Model
+        Generator being trained
+    d_model : keras.Model
+        Target discriminator
+    g_model_2 : keras.Model
+        Other generator (for cycle loss)
+    image_shape : tuple
+        Shape of input image
+    context_dim : int or None
+        Dimension of context vector
+    """
+
+    # Make only g_model_1 trainable
     g_model_1.trainable = True
     d_model.trainable = False
     g_model_2.trainable = False
 
-    # Adversarial loss
-    input_gen = Input(shape=image_shape)
-    gen1_out = g_model_1(input_gen)
-    output_d = d_model(gen1_out)
-
-    # Identity loss
-    input_id = Input(shape=image_shape)
-    output_id = g_model_1(input_id)
-
-    # Cycle loss (forward)
-    output_f = g_model_2(gen1_out)
-
-    # Cycle loss (backward)
-    gen2_out = g_model_2(input_id)
-    output_b = g_model_1(gen2_out)
+    # Inputs
+    in_image = Input(shape=image_shape)
+    if context_dim is not None:
+        in_context = Input(shape=(context_dim,))
+        gen1_out = g_model_1([in_image, in_context])
+        # Identity input also needs context
+        input_id = Input(shape=image_shape)
+        output_id = g_model_1([input_id, in_context])
+        # Cycle outputs
+        output_f = g_model_2([gen1_out, in_context])
+        gen2_out = g_model_2([input_id, in_context])
+        output_b = g_model_1([gen2_out, in_context])
+        model_inputs = [in_image, in_context, input_id]
+    else:
+        gen1_out = g_model_1(in_image)
+        # Discriminator output for adversarial loss
+        output_d = d_model(gen1_out)
+        # Identity loss
+        input_id = Input(shape=image_shape)
+        output_id = g_model_1(input_id)
+        # Cycle outputs
+        output_f = g_model_2(gen1_out)
+        gen2_out = g_model_2(input_id)
+        output_b = g_model_1(gen2_out)
+        model_inputs = [in_image, input_id]
+    
+    # Discriminator output
+    if context_dim is None:
+        output_d = d_model(gen1_out)
+        outputs = [output_d, output_id, output_f, output_b]
+    else:
+        # when context is used, d_model usually only takes the generated image
+        output_d = d_model(gen1_out)
+        outputs = [output_d, output_id, output_f, output_b]
 
     # Define composite model
-    model = Model(
-        inputs=[input_gen, input_id],
-        outputs=[output_d, output_id, output_f, output_b]
-    )
+    model = Model(inputs=model_inputs, outputs=outputs)
 
     # Optimizer
     opt = Adam(
@@ -339,7 +408,7 @@ def define_composite_model(g_model_1, d_model, g_model_2, image_shape):
         beta_1=GEN_BETA_1
     )
 
-    # Compile model
+    # Compile
     model.compile(
         optimizer=opt,
         loss=[

@@ -642,7 +642,7 @@ else:
 # Load and resample LF volume
 # ------------------------------------------------------------
 
-lf_path = 'Data/data_sim_check/35528D56_3'
+lf_path = 'niv_raw_data/Nipah_IRF_data/data_niv/data_sim_check/datad4/35528D56_3'
 im = load_lf_3d_file(lf_path)
 
 print(f"Loaded LF volume: {im.shape}, range=({im.min():.4f}, {im.max():.4f})")

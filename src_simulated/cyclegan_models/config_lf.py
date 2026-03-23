@@ -12,13 +12,13 @@ import os
 class CycleGANConfig:
 
 
-    path_lf = "Data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T2w"
+    path_lf = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T2w"
 
     # Image parameters
     BATCH_SIZE = 1
 
     # code testing mode
-    TEST = False  # Whether to run in test mode
+    TEST = True  # Whether to run in test mode
     SLICES_TEST = False  # Whether to limit number of slices for quick testing of code
 
     #Descriminator parameters
