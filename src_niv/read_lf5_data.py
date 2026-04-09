@@ -1,13 +1,18 @@
 import sys
-sys.path.append('./data_read_code')
+
+sys.path.insert(0, './data_read_code')
+sys.path.insert(0, './LFsim')
 import matplotlib.pyplot as plt
 import numpy as np
+from colorama import Fore, Style
 import nibabel as nib
 from nibabel.viewers import OrthoSlicer3D
 import os
 import glob
 import pydicom
 from kea2nifti import make_nifti
+import keaDataProcessing as keaProc
+
 # import re
 from tensorflow.keras.models import load_model
 
@@ -46,7 +51,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
     sub_list = subject_data[int(subject)]
     
     output_folder = 'Data/LFMRI_DATA_IRF_nifti'
-    data_dir = 'Data/Nipah_IRF_data/IRF_3T'
+    data_dir = 'niv_raw_data/Nipah_IRF_data/IRF_3T'
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
     folders.sort()
 
@@ -60,9 +65,9 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
     print(f"Searching for subfolders containing '{search_string}' in each IRF folder...")
 
     irf_folders = [
-        f for f in os.listdir('Data/Nipah_IRF_data/LFMRI_DATA_IRF')
+        f for f in os.listdir('niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF')
         if 'IRF_071E_2_C1_' in f and os.path.isdir(
-            os.path.join('Data/Nipah_IRF_data/LFMRI_DATA_IRF', f)
+            os.path.join('niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF', f)
         )
     ]
 
@@ -71,7 +76,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
     lf_dataset = []
 
     for irf_folder in irf_folders:
-        folder_path = os.path.join('Data/Nipah_IRF_data/LFMRI_DATA_IRF', irf_folder)
+        folder_path = os.path.join('niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF', irf_folder)
         subfolders = [sf for sf in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, sf))]
         matching_subfolders = [sf for sf in subfolders if search_string in sf]
         if matching_subfolders:
@@ -94,7 +99,29 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                         fig_name = '&'.join([irf_folder, sf, Visit_id, t_folder, subf]) + '.png'
                         print(f"Reading data for {name}...")
                         im, im_props = read_lf_data(data_folder, output_folder, subject, sub_folder, name)
-                        
+
+                        # read acqu.par
+                        # join data_folder and subfolders to get acqu.par path
+                        acqu_path = os.path.join(data_folder, sub_folder, 'acqu.par')
+                        ImageScanParams = keaProc.readPar(acqu_path)
+                        #print ImageScanParams for debugging
+                        print(Fore.CYAN + 'LF Image Scan Parameters: ', ImageScanParams, Style.RESET_ALL)
+
+
+                        subject_folder_params = os.path.join('niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_ALL_PARAMS_1', "")
+                        if not os.path.exists(subject_folder_params):
+                            os.makedirs(subject_folder_params)
+                        # remove nii.gz from name and replace with json
+                        fname_nii_params = os.path.join(subject_folder_params, name.replace('.nii.gz', '.json'))
+                        # Save  ImageScanParams parameters as a JSON file
+                        params_dict = {
+                            "ImageScanParameters": ImageScanParams
+                        }
+                        with open(fname_nii_params, 'w') as f:
+                            json.dump(params_dict, f)
+
+                            print(f"Saved ImageScanParameters to {fname_nii_params}")
+
                         if im_props is not None:
                             fov_im = [im_props.res_dim1 * im.shape[0],  im_props.res_dim2 * im.shape[1], im_props.res_dim3 * im.shape[2]]
                             print(f"Field of View (mm): {fov_im}")
@@ -138,7 +165,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
 
                             # Make nifti in case of need for further inputs to other software
                             
-                            subject_folder = os.path.join('Data/LFMRI_DATA_IRF_wrap1', subject)
+                            subject_folder = os.path.join('niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_wrap1', subject)
                             if not os.path.exists(subject_folder):
                                 os.makedirs(subject_folder)
 
@@ -150,6 +177,14 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                                 res=[im_props.res_dim1,  im_props.res_dim2, im_props.res_dim3],
                                 dim_info=[0, 1, 2]
                             )
+                            # Save the NIfTI file
+                            print(f"Saved NIfTI file: {fname_nii}")
+
+                            # with open(fname_nii_params, 'w') as f:
+                            #     json.dump(params_dict, f)
+
+                            #     print(f"Saved ImageScanParameters to {fname_nii_params}")
+
                             # Load existing config or create new
                             if os.path.exists(config_path):
                                 with open(config_path, 'r') as f:
@@ -171,27 +206,28 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                         print("Data type of np.abs(im):", np.abs(im).dtype)
                         print("Shape of im:", im.shape)
                         
+
                         # save im in npy format
                         # np.save(f'./data/{subject}_{Visit_id}_{sub_folder}.npy', im)
 
-                        num_slices = im.shape[2]
-                        fig, axes = plt.subplots(2, 8, figsize=(20, 8))
-                        fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
-                        axes = axes.flatten()
+                        # num_slices = im.shape[2]
+                        # fig, axes = plt.subplots(2, 8, figsize=(20, 8))
+                        # fig.suptitle(f'All Axial Slices for {name}\n{subject}\n{Visit_id}\n3DTSE/{subf}', fontsize=16)
+                        # axes = axes.flatten()
 
-                        for i in range(16):
-                            if i < num_slices:
-                                slice_img = np.flipud(np.abs(im[:, :, i]).T)
-                                axes[i].imshow(slice_img, cmap='gray')
-                                axes[i].set_title(f'Slice {i + 1}')
-                                axes[i].axis('off')
-                            else:
-                                axes[i].axis('off')
+                        # for i in range(16):
+                        #     if i < num_slices:
+                        #         slice_img = np.flipud(np.abs(im[:, :, i]).T)
+                        #         axes[i].imshow(slice_img, cmap='gray')
+                        #         axes[i].set_title(f'Slice {i + 1}')
+                        #         axes[i].axis('off')
+                        #     else:
+                        #         axes[i].axis('off')
 
-                        plt.tight_layout()
-                        plt.savefig(f'Figures/{subject}/{fig_name}')
-                        plt.show()
-                        plt.close()
+                        # plt.tight_layout()
+                        # plt.savefig(f'Figures/{subject}/{fig_name}')
+                        # plt.show()
+                        # plt.close()
 
     return lf_dataset
 

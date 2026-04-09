@@ -479,7 +479,7 @@ print("A_2D dtype:", A_2D.dtype)
 print("B_2D dtype:", B_2D.dtype)
 
 if SLICES_TEST:
-    min_samples = min(5, 5)
+    min_samples = min(2, 2)
     A_2D = A_2D[:min_samples]
     B_2D = B_2D[:min_samples]
     # print shape of each
@@ -514,7 +514,7 @@ def create_context(N, field_strength, visit):
     etLength = np.random.uniform(8, 16, N)
     dwellTime = np.random.uniform(5, 10, N)
 
-    # ⭐ SNR (IMPORTANT)
+    # SNR (IMPORTANT)
     SNR = (field_strength * 10) + np.random.normal(0, 2, N)
 
     context = np.stack([
@@ -583,6 +583,7 @@ d_model_B.compile(
         ),
         loss_weights=DISC_LOSS_WEIGHTS
     )
+
 # composite: A -> B -> [real/fake, A]
 # c_model_AtoB = define_composite_model(g_model_AtoB, d_model_B, g_model_BtoA, image_shape)
 # c_model_BtoA = define_composite_model(g_model_BtoA, d_model_A, g_model_AtoB, image_shape)

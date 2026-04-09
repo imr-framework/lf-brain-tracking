@@ -207,7 +207,7 @@ def resnet_block(n_filters, input_layer):
 #     # model.summary()
 #     return model
 
-# # with Conv2dtranspose
+# With Conv2dTranspose
 def define_generator(image_shape, context_dim=None, n_resnet=9):
     """
     2D ResNet-based generator with optional context input.
@@ -276,65 +276,167 @@ def define_generator(image_shape, context_dim=None, n_resnet=9):
     else:
         model = Model(in_image, out_image)
 
+    # model.summary()
+    return model
+
+# With Conv2dTranspose
+def define_unet_generator(image_shape, context_dim=None, n_resnet=6):
+    """
+    2D ResNet-based generator with optional context input.
+    
+    Parameters
+    ----------
+    image_shape : tuple
+        Shape of input image, e.g., (H, W, C)
+    context_dim : int or None
+        Dimension of additional context features
+    n_resnet : int
+        Number of resnet blocks
+    """
+
+    # weight initialization
+    init = RandomNormal(stddev=0.02)
+    
+    # image input
+    in_image = Input(shape=image_shape)
+    
+    if context_dim is not None:
+        # context input
+        in_context = Input(shape=(context_dim,))
+        # expand context to spatial map and concatenate
+        c = tf.keras.layers.Dense(image_shape[0]*image_shape[1])(in_context)
+        c = tf.keras.layers.Reshape((image_shape[0], image_shape[1], 1))(c)
+        x = Concatenate()([in_image, c])
+    else:
+        x = in_image
+
+    # c3s1-32 - 128x128x32
+    g = Conv2D(32, (3,3), padding='same', kernel_initializer=init)(x)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+
+    # c3s1-64 - 64x64x64
+    g = Conv2D(64, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # d128 - 32x32x128
+    g = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # d256 - 16x16x256
+    g = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # R256 - 16x16x256
+    for _ in range(n_resnet):
+        g = resnet_block(256, g)
+    
+    # u128 - 32x32x128
+    g = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    
+    # u64 - 64x64x64
+    g = Conv2DTranspose(64, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+
+    # u32 - 128x128x32
+    g = Conv2DTranspose(32, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+
+    # c3s1-1 - 128x128x1
+    g = Conv2D(1, (3,3), padding='same', kernel_initializer=init)(g)
+    out_image = Activation('tanh')(g)
+
+    if context_dim is not None:
+        model = Model([in_image, in_context], out_image)
+    else:
+        model = Model(in_image, out_image)
+
     model.summary()
     return model
 
-#Generator with skip connections (U-Net like)
+# Generator with skip connections (U-Net like)
+def define_unet_skip_generator(image_shape, context_dim=None, n_resnet=6):
 
-# from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, Activation, Concatenate
-# from tensorflow.keras.models import Model
-# from tensorflow.keras.initializers import RandomNormal
-# # from tensorflow_addons.layers import InstanceNormalization
+    init = RandomNormal(stddev=0.02)
+    
+    in_image = Input(shape=image_shape)
+    
+    if context_dim is not None:
+        in_context = Input(shape=(context_dim,))
+        c = tf.keras.layers.Dense(image_shape[0]*image_shape[1])(in_context)
+        c = tf.keras.layers.Reshape((image_shape[0], image_shape[1], 1))(c)
+        x = Concatenate()([in_image, c])
+    else:
+        x = in_image
 
-# def define_generator(image_shape, n_resnet=9):
-#     init = RandomNormal(stddev=0.02)
+    # -----------------
+    # ENCODER
+    # -----------------
 
-#     # Input
-#     in_image = Input(shape=image_shape)
+    # e1: 128x128x32
+    e1 = Conv2D(32, (3,3), padding='same', kernel_initializer=init)(x)
+    e1 = InstanceNormalization(axis=-1)(e1)
+    e1 = Activation('relu')(e1)
 
-#     # -------- Encoder --------
-#     # c7s1-64
-#     g1 = Conv2D(64, (7,7), padding='same', kernel_initializer=init)(in_image)
-#     g1 = InstanceNormalization(axis=-1)(g1)
-#     g1 = Activation('relu')(g1)
+    # e2: 64x64x64
+    e2 = Conv2D(64, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(e1)
+    e2 = InstanceNormalization(axis=-1)(e2)
+    e2 = Activation('relu')(e2)
 
-#     # d128
-#     g2 = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g1)
-#     g2 = InstanceNormalization(axis=-1)(g2)
-#     g2 = Activation('relu')(g2)
+    # e3: 32x32x128
+    e3 = Conv2D(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(e2)
+    e3 = InstanceNormalization(axis=-1)(e3)
+    e3 = Activation('relu')(e3)
 
-#     # d256
-#     g3 = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g2)
-#     g3 = InstanceNormalization(axis=-1)(g3)
-#     g3 = Activation('relu')(g3)
+    # bottleneck: 16x16x256
+    g = Conv2D(256, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(e3)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
 
-#     # -------- Residual Blocks --------
-#     r = g3
-#     for _ in range(n_resnet):
-#         r = resnet_block(256, r)
+    # ResNet blocks
+    for _ in range(n_resnet):
+        g = resnet_block(256, g)
 
-#     # -------- Decoder --------
-#     # u128 + skip from g2
-#     u1 = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same',
-#                           kernel_initializer=init)(r)
-#     u1 = InstanceNormalization(axis=-1)(u1)
-#     u1 = Activation('relu')(u1)
-#     u1 = Concatenate()([u1, g2])
+    # -----------------
+    # DECODER + SKIPS
+    # -----------------
 
-#     # u64 + skip from g1
-#     u2 = Conv2DTranspose(64, (3,3), strides=(2,2), padding='same',
-#                           kernel_initializer=init)(u1)
-#     u2 = InstanceNormalization(axis=-1)(u2)
-#     u2 = Activation('relu')(u2)
-#     u2 = Concatenate()([u2, g1])
+    # u128: 16→32
+    g = Conv2DTranspose(128, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    g = Concatenate()([g, e3])   # ⭐ skip connection
 
-#     # -------- Output --------
-#     out = Conv2D(1, (7,7), padding='same', kernel_initializer=init)(u2)
-#     out_image = Activation('tanh')(out)
+    # u64: 32→64
+    g = Conv2DTranspose(64, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    g = Concatenate()([g, e2])   # ⭐ skip connection
 
-#     model = Model(in_image, out_image)
-#     model.summary()
-#     return model
+    # u32: 64→128
+    g = Conv2DTranspose(32, (3,3), strides=(2,2), padding='same', kernel_initializer=init)(g)
+    g = InstanceNormalization(axis=-1)(g)
+    g = Activation('relu')(g)
+    g = Concatenate()([g, e1])   # ⭐ skip connection
+
+    # output
+    g = Conv2D(1, (3,3), padding='same', kernel_initializer=init)(g)
+    out_image = Activation('tanh')(g)
+
+    if context_dim is not None:
+        model = Model([in_image, in_context], out_image)
+    else:
+        model = Model(in_image, out_image)
+
+    model.summary()
+    return model
 
 def define_composite_model(g_model_1, d_model, g_model_2, image_shape, context_dim=None):
     """
@@ -425,7 +527,7 @@ def define_composite_model(g_model_1, d_model, g_model_2, image_shape, context_d
 # call main to test
 if __name__ == '__main__':
     image_shape = (128, 128, 1)
-    d_model = define_discriminator(image_shape)
-    g_model_1 = define_generator(image_shape)
-    g_model_2 = define_generator(image_shape)
-    model = define_composite_model(g_model_1, d_model, g_model_2, image_shape)
+    # d_model = define_discriminator(image_shape)
+    g_model_1 = define_unet_generator(image_shape, context_dim=5, n_resnet=6)
+    g_model_2 = define_unet_skip_generator(image_shape, context_dim=5, n_resnet=6)
+    # model = define_composite_model(g_model_1, d_model, g_model_2, image_shape)

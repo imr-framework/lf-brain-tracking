@@ -17,6 +17,7 @@ import os
 import nibabel as nib
 import numpy as np
 from scipy.ndimage import zoom
+
 # # Use the saved cyclegan models for image translation
 from keras.models import load_model
 from matplotlib import pyplot
@@ -569,15 +570,3 @@ show_plot_domains(B_real, A_generated, A_reconstructed,
 # show_plot_gray(B_real, B_generated_gray, B_reconstructed_gray)
 
 # Load real images and produce outputs
-
-# # ##########################
-# # Load a single custom image
-# test_image = load_img('monet2photo/sunset256.jpg')
-# test_image = img_to_array(test_image)
-# test_image_input = np.array([test_image])  # Convert single image to a batch.
-# test_image_input = (test_image_input - 127.5) / 127.5
-# print("Test image shape:", test_image_input.shape)
-# # plot B->A->B (Photo to Monet to Photo)
-# monet_generated  = g_model_BtoA.predict(test_image_input)
-# photo_reconstructed = g_model_AtoB.predict(monet_generated)
-# show_plot(test_image_input, monet_generated, photo_reconstructed)

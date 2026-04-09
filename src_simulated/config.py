@@ -32,9 +32,9 @@ class Config:
     steps_per_epoch = 24
     epochs = 3
     learning_rate = 0.001
-    loss_type_denoise = "l1_l2_ssim"
+    loss_type_denoise = "mse_ssim_edge"
 
-    # -----------------------------
+    # ----------------------------
     # 🔁 REFINEMENT PARAMETERS
     # -----------------------------
     retrain_loss_type = "mse_ssim_edge"

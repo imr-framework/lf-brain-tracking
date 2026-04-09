@@ -175,11 +175,11 @@ def srr_batch_generator(
                               z_start:z_start + patch_z]
 
                 #  Assuming hf_patch is a NumPy 3D array (e.g., shape (H, W, D))
-                hf_patch[hf_patch < 0.01] = 0
+                # hf_patch[hf_patch < 0.01] = 0
 
                 # # continue patche generation with patches_per_volume-1 with zeros more than 60% in hf_patch
-                if np.sum(hf_patch == 0) / hf_patch.size > 0.7:
-                    continue
+                # if np.sum(hf_patch == 0) / hf_patch.size > 0.7:
+                #     continue
                 # Add original patch
 
                 x_batch.append(np.expand_dims(lf_patch, axis=-1))

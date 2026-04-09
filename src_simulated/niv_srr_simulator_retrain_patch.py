@@ -18,7 +18,7 @@ from src_simulated.train_scripts.niv_srr_simulated_training_patch import (
 # -----------------------------
 # PARAMETERS
 # -----------------------------
-data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
+data_folder = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA"
 subjects = ["26184", "30366", "35528", "34507", "35547", "59228", "59877", "59233"]
 train_day = 1
 val_day = 2

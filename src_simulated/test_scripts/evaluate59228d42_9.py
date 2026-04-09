@@ -51,7 +51,6 @@ from src_simulated.evaluate_niv_lf_test import evaluate_model, predict_volume
 from src_niv.metrics import psnr, ssim, mse, composite_loss
 from src_niv.utils import visualize_pair
 
-
 def resample_volume_numpy(im, current_spacing=(2.0, 2.0, 5.0), new_spacing=(1.0, 1.0, 2.0), order=3):
     """
     Resample a 3D numpy volume to the desired voxel spacing.
@@ -631,7 +630,7 @@ data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
 subjects = ["26184"]
 test_days = [3]
 
-lf_path = 'Data/data_sim_check/datad4/59228_D43_9'
+lf_path = 'niv_raw_data/Nipah_IRF_data/data_niv/data_sim_check/datad4/59228_D43_9'
 im = load_lf_3d_file(lf_path)
 print(f"Loaded LF volume: {im.shape}, range=({im.min():.4f}, {im.max():.4f})")
 visualize_volume(im, title="original LF")
@@ -709,19 +708,13 @@ im = np.expand_dims(im, axis=0)  # (1, H, W, D)
 print("Final LF input shape:", im.shape)
 
 trial1 = False
-trail2 = True
+trial2 = True
 unsharp_mask_ = True
 
-if trial1:
-    model_name = 'residual_srr_unet_l1_l2_ssim_mse_ssim_edge'
-    folder_path = "src_simulated/outputs/Output_patch"
-else:
-    model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
-    folder_path = "src_simulated/outputs/Output_patch_noise"
-    print("Using model:", model_name)
-    print("Using folder:", folder_path)
+model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
+folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
 
-if unsharp_mask_ and trial1:   
+if unsharp_mask_ and trial1:
     output_dir='src_simulated/outputs/outputs_59228/trail11_unsharp_masked'
 elif unsharp_mask_ and not trial1:
     output_dir='src_simulated/outputs/outputs_59228/trail22_unsharp_masked'
@@ -732,7 +725,8 @@ else:
 
 im = im.astype(np.float32)
 
-
+# min and max of im
+print(f"Input volume stats: min={im.min():.4f}, max={im.max():.4f}, mean={im.mean():.4f}, std={im.std():.4f}")
 
 results, pred1, pred2, model1, model2 = evaluate_model(
     folder_path=folder_path,

@@ -568,7 +568,6 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         g_model_BtoA.trainable = True
         d_model_A.trainable = False
         d_model_B.trainable = False
-        
 
         g_loss1, g_adv1, g_id1, g_cyc1a, g_cyc1b = c_model_AtoB.train_on_batch(
             [X_realA, X_realB],
@@ -635,7 +634,7 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -----------------------------
         # 6. PERIODIC PERFORMANCE CHECK
         # -----------------------------
-        if (i + 1) % (bat_per_epo * 5) == 0:
+        if (i + 1) % (bat_per_epo * 1) == 0:
             summarize_performance(i, g_model_AtoB, g_model_BtoA, trainA,'AtoB', 5, output_path)
             summarize_performance(i, g_model_BtoA, g_model_AtoB, trainB,'BtoA', 5, output_path)
 

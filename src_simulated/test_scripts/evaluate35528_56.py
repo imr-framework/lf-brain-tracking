@@ -618,14 +618,14 @@ def unsharp_mask(volume, sigma=1.0, amount=1.0):
 
 trial1 = False
 trail2 = True
-unsharp_mask_ = True
+unsharp_mask_ = False
 
 if trial1:
     model_name = 'residual_srr_unet_l1_l2_ssim_mse_ssim_edge'
-    folder_path = "src_simulated/outputs/Output_patch"
+    folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
 else:
     model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
-    folder_path = "src_simulated/outputs/Output_patch_noise"
+    folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
     print("Using model:", model_name)
     print("Using folder:", folder_path)
 

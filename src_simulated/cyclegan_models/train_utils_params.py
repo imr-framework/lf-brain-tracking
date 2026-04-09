@@ -108,6 +108,39 @@ def save_models(step, g_model_AtoB, g_model_BtoA, d_model_A, d_model_B, output_p
         model.save(os.path.join(output_path, f"{name}_latest.keras"))
     print(f"> Saved models for step {step+1}")
 
+
+def generate_real_samples_a(dataset_a, dataset_b, context_a, context_b, n_samples, patch_shape):
+    
+    # independent sampling
+    ix_A = np.random.randint(0, dataset_a.shape[0], n_samples)
+    ix_B = np.random.randint(0, dataset_b.shape[0], n_samples)
+    
+    # images
+    X = dataset_a[ix_A]   # domain A
+    Y = dataset_b[ix_B]   # domain B
+    
+    # correct context alignment
+    contextA = context_a[ix_A]
+    contextB = context_b[ix_B]
+    
+    # labels
+    y = np.ones((n_samples, patch_shape, patch_shape, 1))
+    
+    return X, Y, contextA, contextB, y
+
+def generate_fake_samples_a(g_model, dataset, context, patch_shape):
+    
+    # sanity check
+    assert dataset.shape[0] == context.shape[0], "Batch mismatch!"
+    
+    # generate fake images
+    X = g_model.predict([dataset, context], verbose=0)
+    
+    # fake labels
+    y = np.zeros((len(X), patch_shape, patch_shape, 1))
+    
+    return X, y
+
 # -----------------------------
 # Performance Visualization
 # -----------------------------
@@ -117,9 +150,9 @@ def summarize_performance(step, g_model, g_inverse, dataset, name, n_samples=5, 
     """
     os.makedirs(output_path, exist_ok=True)
 
-    X_in, Y_in, _ = generate_real_samples(dataset[0], dataset[1], n_samples, 0)
-    X_out, _ = generate_fake_samples(g_model, X_in, dataset[1][:n_samples], 0)
-    X_rec, _ = generate_fake_samples(g_inverse, X_out, dataset[1][:n_samples], 0)
+    X_in, Y_in, contextA, contextB, _ = generate_real_samples_a(dataset[0], dataset[1], dataset[2], dataset[3], n_samples, 0)
+    X_out, _ = generate_fake_samples_a(g_model, X_in, contextA, 0)
+    X_rec, _ = generate_fake_samples_a(g_inverse, X_out, contextB, 0)
 
     # Scale [-1,1] -> [0,1]
     X_in = (X_in + 1) / 2.0
@@ -256,8 +289,8 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         d_model_A.trainable = False
         d_model_B.trainable = False
 
-        g_loss1 = c_model_AtoB.train_on_batch( [X_realA, cA, X_realA], [y_realB, X_realB, X_realA, X_realB])
-        g_loss2 = c_model_BtoA.train_on_batch([X_realB, cB, X_realB], [y_realA, X_realA, X_realB, X_realA])
+        g_loss1, g_adv1, g_id1, g_cyc1a, g_cyc1b = c_model_AtoB.train_on_batch( [X_realA, cA, X_realA], [y_realB, X_realB, X_realA, X_realB])
+        g_loss2, g_adv2, g_id2, g_cyc2a, g_cyc2b = c_model_BtoA.train_on_batch([X_realB, cB, X_realB], [y_realA, X_realA, X_realB, X_realA])
 
         # -------------------- Train Discriminators --------------------
         g_model_AtoB.trainable = False
@@ -273,19 +306,24 @@ def train(d_model_A, d_model_B, g_model_AtoB, g_model_BtoA,
         # -------------------- Logging & CSV --------------------
         if (i + 1) % bat_per_epo == 0:
             loss_row = {
-                "iteration": i+1,
+                "iteration": i + 1,
                 "dA_loss_real": dA_loss1, "dA_loss_fake": dA_loss2,
                 "dB_loss_real": dB_loss1, "dB_loss_fake": dB_loss2,
-                "g_A2B_total": g_loss1[0], "g_B2A_total": g_loss2[0]
+                "g_A2B_total": g_loss1, "g_A2B_gan": g_adv1, "g_A2B_id": g_id1,
+                "g_A2B_cycA": g_cyc1a, "g_A2B_cycB": g_cyc1b,
+                "g_B2A_total": g_loss2, "g_B2A_gan": g_adv2, "g_B2A_id": g_id2,
+                "g_B2A_cycB": g_cyc2a, "g_B2A_cycA": g_cyc2b,
+                "psnr_A": None, "ssim_A": None, "psnr_B": None, "ssim_B": None
             }
+
             write_header = not os.path.exists(output_csv)
             pd.DataFrame([loss_row]).to_csv(output_csv, mode='a', header=write_header, index=False)
             print(f"Iter {i+1} | D_A[{dA_loss1:.3f},{dA_loss2:.3f}] D_B[{dB_loss1:.3f},{dB_loss2:.3f}]")
 
         # -------------------- Periodic Performance & Model Save --------------------
         if (i + 1) % (bat_per_epo * 5) == 0:
-            summarize_performance(i, g_model_AtoB, g_model_BtoA, [trainA, contextA], 'AtoB', 5, output_dir)
-            summarize_performance(i, g_model_BtoA, g_model_AtoB, [trainB, contextB], 'BtoA', 5, output_dir)
+            summarize_performance(i, g_model_AtoB, g_model_BtoA, [trainA, trainB, contextA, contextB], 'AtoB', 5, output_dir)
+            summarize_performance(i, g_model_BtoA, g_model_AtoB, [trainB, trainA, contextB, contextA], 'BtoA', 5, output_dir)
             plot_training_metrics(output_dir)
 
         if (i + 1) % (bat_per_epo * 20) == 0:
