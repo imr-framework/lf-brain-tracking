@@ -7,12 +7,10 @@ import ants
 
 sys.path.insert(0, './')
 sys.path.append('./src')
-sys.path.append('./Niftymic_related_r21')
 
 from display_vlf_ni_data import plot_anatomy_raw 
 from preprocess4srr import non_local_means_denoising
 from prep4srr_2step_v2 import make_nifti, pad_zeros, do_resize
-from skull_strip_lowfield import apply_mask, create_lowfield_brain_mask
 
 # ========
 # SETTINGS
@@ -20,11 +18,11 @@ from skull_strip_lowfield import apply_mask, create_lowfield_brain_mask
 niftymic = False
 visualize = True
 
-dataFolder = r'./DataSRR_AJ/SRR/1_ajayscan_leo/npy1'
+dataFolder = r'R21_pipeline/DataSRR_AJ/SRR/ajay_scan_1/npy1'
 subjectID = 'sub_0011'
 
 outputfolder = os.path.join(
-    r'./DataSRR_AJ/SRR/1_ajayscan_leo/Outputs',
+    r'R21_pipeline/DataSRR_AJ/SRR/ajay_scan_1/Outputs',
     subjectID
 )
 
@@ -84,29 +82,21 @@ make_nifti(im_cor,   cor_path,   mask=False, res=[2,2,2], dim_info=[0,2,1])
 # SKULL STRIPPING / MASKS
 # =========================
 
-ax_mask = create_lowfield_brain_mask(im_axial)
-sg_mask = create_lowfield_brain_mask(im_sag)
-cr_mask = create_lowfield_brain_mask(im_cor)
+th_ax  = np.percentile(im_axial, 0)
+th_sag = np.percentile(im_sag, 0)
+th_cor = np.percentile(im_cor, 0)
 
-im_axial_brain = apply_mask(im_axial, ax_mask)
-im_sag_brain = apply_mask(im_sag, sg_mask)
-im_cor_brain = apply_mask(im_cor, cr_mask)
+ax_mask = (im_axial > th_ax).astype(np.uint8)
+sg_mask = (im_sag > th_sag).astype(np.uint8)
+cr_mask = (im_cor > th_cor).astype(np.uint8)
 
 ax_mask_path = os.path.join(outputfolder, 'axial_mask_redo.nii.gz')
 sg_mask_path = os.path.join(outputfolder, 'sag_mask_redo.nii.gz')
 cr_mask_path = os.path.join(outputfolder, 'cor_mask_redo.nii.gz')
 
-axial_brain_path = os.path.join(outputfolder, 'axial_brain_redo.nii.gz')
-sag_brain_path   = os.path.join(outputfolder, 'sag_brain_redo.nii.gz')
-cor_brain_path   = os.path.join(outputfolder, 'cor_brain_redo.nii.gz')
-
 make_nifti(ax_mask, ax_mask_path, mask=True, res=[2,2,2], dim_info=[0,1,2])
 make_nifti(sg_mask, sg_mask_path, mask=True, res=[2,2,2], dim_info=[2,0,1])
 make_nifti(cr_mask, cr_mask_path, mask=True, res=[2,2,2], dim_info=[0,2,1])
-
-make_nifti(im_axial_brain, axial_brain_path, mask=False, res=[2,2,2], dim_info=[0,1,2])
-make_nifti(im_sag_brain,   sag_brain_path,   mask=False, res=[2,2,2], dim_info=[2,0,1])
-make_nifti(im_cor_brain,   cor_brain_path,   mask=False, res=[2,2,2], dim_info=[0,2,1])
 
 print("Shapes after registration:")
 print("Axial:", im_axial.shape)
@@ -119,13 +109,13 @@ print("Cor :", im_cor.shape)
 # =========================
 if visualize:
     # plot_anatomy_raw(im_axial, clim=[0,2048])
-    plot_anatomy_raw(im_axial_brain, clim=[0,2048])
+    plot_anatomy_raw(im_axial, clim=[0,2048])
     # plot_anatomy_raw(ax_mask, clim=[0,2])
     # plot_anatomy_raw(im_sag,   clim=[0,2048])
-    plot_anatomy_raw(im_sag_brain,   clim=[0,2048])
+    plot_anatomy_raw(im_sag,   clim=[0,2048])
     # plot_anatomy_raw(sg_mask,   clim=[0,2])
     # plot_anatomy_raw(im_cor,   clim=[0,2048])
-    plot_anatomy_raw(im_cor_brain,   clim=[0,2048])
+    plot_anatomy_raw(im_cor,   clim=[0,2048])
     # plot_anatomy_raw(cr_mask,   clim=[0,2])
 
 # axial_img = ants.image_read(axial_brain_path)

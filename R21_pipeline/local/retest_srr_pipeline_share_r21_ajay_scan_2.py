@@ -7,7 +7,6 @@ import ants
 
 sys.path.insert(0, './')
 sys.path.append('./src')
-sys.path.append('./Niftymic_related_r21')
 
 from display_vlf_ni_data import plot_anatomy_raw 
 from preprocess4srr import non_local_means_denoising
@@ -19,11 +18,11 @@ from prep4srr_2step_v2 import make_nifti, pad_zeros, do_resize
 niftymic = False
 visualize = True
 
-dataFolder = r'./DataSRR_AJ/SRR/ajay_training_06/npy1'
+dataFolder = r'R21_pipeline/DataSRR_AJ/SRR/ajay_scan_2/npy1'
 subjectID = '11'
 
 outputfolder = os.path.join(
-    r'./DataSRR_AJ/SRR/ajay_training_06/Outputs',
+    r'R21_pipeline/DataSRR_AJ/SRR/ajay_scan_2/Outputs',
     subjectID
 )
 
