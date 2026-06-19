@@ -204,9 +204,9 @@ DataSRR_AJ/
 src_simulated/grumpifycat
 src_simulated/maps
 R21figure_pkg/
-Niftymic_related_r21/Data/*
-Niftymic_related_r21/DataSRR_AJ/*
-Niftymic_related_r21/freesurfer_outputs/
+R21_pipeline/Data/*
+R21_pipeline/DataSRR_AJ/*
+R21_pipeline/freesurfer_outputs/*
 Zero_shot_denoising/*
 delta/*
 niv_raw_data/*
@@ -217,7 +217,6 @@ OneDrive_1_4-15-2026 (copy)/
 src_simulated/cyclegan_models/details/*
 motion_correction/*
 LFsim/6_data_for_noise
-Niftymic_related_r21/*
 nnUNet_translation/*
 nnUNet_translation1/*
 Retrospective_analysis/
