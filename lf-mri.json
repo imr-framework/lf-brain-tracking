@@ -2068,5 +2068,185 @@
     "visit": "V04",
     "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240917/59877_D_42",
     "sub_folder": "3DTSE/2"
+  },
+  {
+    "subject": "26184",
+    "visit": "V01",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240722/26184_d_minus17",
+    "sub_folder": "3DTSE/6"
+  },
+  {
+    "subject": "26184",
+    "visit": "V02",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240822/26184_D_14",
+    "sub_folder": "3DTSE/9"
+  },
+  {
+    "subject": "26184",
+    "visit": "V03",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240829/26184_D_21",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V04",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240919/26184_D_42",
+    "sub_folder": "3DTSE/8"
+  },
+  {
+    "subject": "26184",
+    "visit": "V05",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20241002/26184_D_55",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V01",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240722/26184_d_minus17",
+    "sub_folder": "3DTSE/6"
+  },
+  {
+    "subject": "26184",
+    "visit": "V02",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240822/26184_D_14",
+    "sub_folder": "3DTSE/9"
+  },
+  {
+    "subject": "26184",
+    "visit": "V03",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240829/26184_D_21",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V04",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240919/26184_D_42",
+    "sub_folder": "3DTSE/8"
+  },
+  {
+    "subject": "26184",
+    "visit": "V05",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20241002/26184_D_55",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V01",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240722/26184_d_minus17",
+    "sub_folder": "3DTSE/6"
+  },
+  {
+    "subject": "26184",
+    "visit": "V02",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240822/26184_D_14",
+    "sub_folder": "3DTSE/9"
+  },
+  {
+    "subject": "26184",
+    "visit": "V03",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240829/26184_D_21",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V04",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240919/26184_D_42",
+    "sub_folder": "3DTSE/8"
+  },
+  {
+    "subject": "26184",
+    "visit": "V05",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20241002/26184_D_55",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V01",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240722/26184_d_minus17",
+    "sub_folder": "3DTSE/6"
+  },
+  {
+    "subject": "26184",
+    "visit": "V02",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240822/26184_D_14",
+    "sub_folder": "3DTSE/9"
+  },
+  {
+    "subject": "26184",
+    "visit": "V03",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240829/26184_D_21",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V04",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240919/26184_D_42",
+    "sub_folder": "3DTSE/8"
+  },
+  {
+    "subject": "26184",
+    "visit": "V05",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20241002/26184_D_55",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V01",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240722/26184_d_minus17",
+    "sub_folder": "3DTSE/6"
+  },
+  {
+    "subject": "26184",
+    "visit": "V02",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240822/26184_D_14",
+    "sub_folder": "3DTSE/9"
+  },
+  {
+    "subject": "26184",
+    "visit": "V03",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240829/26184_D_21",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V04",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240919/26184_D_42",
+    "sub_folder": "3DTSE/8"
+  },
+  {
+    "subject": "26184",
+    "visit": "V05",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20241002/26184_D_55",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V01",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240722/26184_d_minus17",
+    "sub_folder": "3DTSE/6"
+  },
+  {
+    "subject": "26184",
+    "visit": "V02",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240822/26184_D_14",
+    "sub_folder": "3DTSE/9"
+  },
+  {
+    "subject": "26184",
+    "visit": "V03",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240829/26184_D_21",
+    "sub_folder": "3DTSE/10"
+  },
+  {
+    "subject": "26184",
+    "visit": "V04",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20240919/26184_D_42",
+    "sub_folder": "3DTSE/8"
+  },
+  {
+    "subject": "26184",
+    "visit": "V05",
+    "data_folder": "niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF/IRF_071E_2_C1_20241002/26184_D_55",
+    "sub_folder": "3DTSE/10"
   }
 ]

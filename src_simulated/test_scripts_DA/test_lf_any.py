@@ -48,7 +48,7 @@ sys.path.insert(0, './data_read_code')
 from read_kea3d import kea3d
 import LFsim.keaDataProcessing as keaProc
 from LFsim.utils_sim import *
-from src_simulated.evaluate_niv_lf_test import evaluate_model, predict_volume
+from src_simulated.test_scripts_simulation.evaluate_niv_lf_test import evaluate_model, predict_volume
 from src_niv.metrics import psnr, ssim, mse, composite_loss
 from src_niv.utils import visualize_pair
 

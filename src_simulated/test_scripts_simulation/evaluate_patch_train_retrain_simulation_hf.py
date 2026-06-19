@@ -8,9 +8,9 @@ from tensorflow.keras.models import load_model
 from src_niv.metrics import psnr, ssim, mse, composite_loss
 from src_niv.utils import visualize_pair
 
-# ------------------------------------------------
+# ------------------------
 # Sliding Window Inference
-# ------------------------------------------------
+# ------------------------
 def predict_volume(model, lf_volume, patch_size=(64,64,32), overlap=0.5):
     """
     Sliding-window 3D prediction on LF volume.
@@ -257,12 +257,12 @@ if __name__ == "__main__":
         # 'residual_srr_unet_l2_ssim_mse_ssim_edge'
     ]
     
-    folder_path = "src_simulated/outputs/Output_patch_noise_updated"
+    folder_path = "niv_results/outputs_src_simulated/Output_patch_noise_updated"
 
     # ------------------------------------------------------------
     # 🔹 Load test data once
     # ------------------------------------------------------------
-    data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
+    data_folder = "niv_raw_data/Nipah_IRF_data/data_niv/data_sim_check/59228_D43_9/train_test"
     subjects = ["26184", "30366", "35528", "34507", "35547", "59228", "59877", "59233"]
     test_days = [5]
 

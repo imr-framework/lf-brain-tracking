@@ -65,13 +65,16 @@ visualize = True
 visualize_pairs = False
 padding = False
 register2_hf = True
+
 # Define the path to the IRF_3T folder (High Field Data)
-nhp_base_path = './Data/IRF_3T'
+nhp_base_path = './niv_raw_data/Nipah_IRF_data/IRF_3T'
+model_path_input = './niv_results/results_models_supervised/residual_srr_unet4_subjects_500_d1/59228'
 model_type = 'residual_srr_unet4_subjects_500_d1'  # Options: 'single_encoder_unet', 'dual_encoder_unet', 'teacher_student_unet'
 model_case = 'single_encoder_unet'
 multi_subject_train = True
 
-day_idx = 2
+day_idx = 1
+
 # unet4 as att resor resunet
 # 20184,30366,35528,59081,59228
 subject = '26184'  # Example subject number, adjust as needed 
@@ -82,7 +85,7 @@ if multi_subject_train == False:
     output_path = f'./Data/Results/{model_type}/{subject_train}'
     predictions_dir = os.path.join(output_path, 'predictions')
     model_name = f'{model_type}_model_checkpoint_day2.keras'
-    model_path = os.path.join(output_path, model_name)
+    model_path = os.path.join(model_path_input, model_name)
 else:
     output_path_model = f'./Data/Results/{model_type}/{subject_train}'
     # predictions_dir = os.path.join(output_path, 'predictions')
@@ -90,7 +93,7 @@ else:
     predictions_d = os.path.join(output_path, 'predictions')
     predictions_dir = f'{predictions_d}/{subject}'
     model_name = f'{model_type}_model_checkpoint_day2.keras'
-    model_path = os.path.join(output_path_model, model_name)
+    model_path = os.path.join(model_path_input, model_name)
 
 os.makedirs(output_path, exist_ok=True)
 os.makedirs(predictions_dir, exist_ok=True)
@@ -98,7 +101,7 @@ os.makedirs(predictions_dir, exist_ok=True)
 # Initialize data object and load data (HFMRI_data_IRF)
 print(f"\n===============================HF_MRI data processing  started .............")
 # Day1 HF data for model input
-resampled_volume_hf_norm_D1 = load_and_preprocess_hf(subject, day_idx = 3, visualize = visualize)
+resampled_volume_hf_norm_D1 = load_and_preprocess_hf(subject, day_idx = 1, visualize = visualize)
 
 # visualize all the slices of resampled_volume_hf_norm_D1 with z, x,y as stored in the volume
 import matplotlib.pyplot as plt

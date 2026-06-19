@@ -28,7 +28,7 @@ print(tf.__version__)
 
 
 # Define the path to the IRF_3T folder ( High Field Data)
-nhp_base_path = './Data/IRF_3T'
+nhp_base_path = './niv_raw_data/Nipah_IRF_data/IRF_3T'
 
 def load_and_preprocess_hf(subject, day_idx, visualize=True):
     """

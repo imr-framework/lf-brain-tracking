@@ -97,7 +97,7 @@ sys.path.insert(0, './data_read_code')
 # ------------------------------------------------------------
 # Project-Specific Imports
 # ------------------------------------------------------------
-from src_simulated.evaluate_niv_lf_test import evaluate_model, predict_volume
+from src_simulated.test_scripts_simulation.evaluate_niv_lf_test import evaluate_model, predict_volume
 from src_niv.metrics import psnr, ssim, mse, composite_loss
 from src_niv.utils import visualize_pair
 
@@ -230,7 +230,7 @@ def visualize_comparison(
     name="comparison",
     output_dir="outputs",
     affine=None,
-    slice_range=(10, 20),
+    slice_range=(10, 25),
     save_nifti=True,
     show_ortho=False
 ):
@@ -457,7 +457,8 @@ class DomainAGenerator:
             vol = out
         
         # Normalize using min-max normalization to [0, 1]
-        vol = self._normalize_volume(vol, method='minmax')
+        vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
+        # vol = self._normalize_volume(vol, method='zscore')
 
         return vol  # Do not add channel
 
@@ -480,9 +481,56 @@ class DomainAGenerator:
             print(f"[GENERATOR] Yielding {save_file}")
             yield vol, ctx[0], save_file
 
+def generate_volume_from_generator(g_model, vol_3d, context_vec, batch_size=8):
+    """
+    vol_3d: (H, W, D) in [-1,1]
+    context_vec: (C,) or (1,C)
+    returns: fake_vol_3d (H, W, D) in [-1,1]
+    """
+    if context_vec.ndim == 1:
+        context_vec = context_vec[None, :]  # (1,C)
+
+    H, W, D = vol_3d.shape
+    # (D,H,W,1)
+    x = np.transpose(vol_3d, (2, 0, 1)).astype(np.float32)[..., None]
+
+    out_slices = []
+    for s in range(0, D, batch_size):
+        xb = x[s:s+batch_size]                           # (B,H,W,1)
+        cb = np.repeat(context_vec, xb.shape[0], axis=0) # (B,C)
+        yb = g_model.predict([xb, cb], verbose=0)         # (B,H,W,1)
+        out_slices.append(yb)
+
+    y = np.concatenate(out_slices, axis=0)  # (D,H,W,1)
+    y = y[..., 0]                            # (D,H,W)
+    fake_vol = np.transpose(y, (1, 2, 0))    # (H,W,D)
+    return fake_vol
+
+
+def evaluate_one_subject_volume(g_model, X_vol, c_vol, out_path=None, nii_affine=None, batch_size=8):
+    """
+    Pulls ONE subject from `data_gen`, generates the full translated volume, and optionally saves.
+    Assumes data_gen yields (X_vol, c_vol), where X_vol is (1,H,W,D) or (H,W,D),
+    and c_vol is (1,C) or (C,).
+    """
+    if X_vol.ndim == 4:
+        X_vol = X_vol[0]
+    if c_vol.ndim == 2:
+        c_vol = c_vol[0]
+
+    fake_vol = generate_volume_from_generator(g_model, X_vol, c_vol, batch_size=batch_size)
+
+    if out_path is not None:
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        if nii_affine is None:
+            nii_affine = np.eye(4)
+        nib.save(nib.Nifti1Image(fake_vol.astype(np.float32), affine=nii_affine), out_path)
+        print(f"> Saved generated volume: {out_path}")
+
+    return X_vol, fake_vol, c_vol
 
 # Example paths (use your config_lf paths)
-path_A = config_lf.path_lf_test
+path_A = config_lf.path_lf_all
 genA = DomainAGenerator(path_A)
 
 # Fetch one batch from Domain A
@@ -495,9 +543,28 @@ for volA, ctxA, save_file in genA:
 
 model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
 folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
+model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_all"
+
 output_dir_denoise ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_denoise'
 output_dir_enhance ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_enhance'
 output_dir = output_dir_denoise
+# Resume from latest checkpoints if available
+
+model_files = {
+    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000500.keras'),
+    'g_B2A': os.path.join(model_path_da, 'g_BtoA_000500.keras'),
+    'd_A': os.path.join(model_path_da, 'd_A_000500.keras'),
+    'd_B': os.path.join(model_path_da, 'd_B_000500.keras')
+}
+
+if all(os.path.exists(f) for f in model_files.values()):
+    print(">>> Resuming from latest checkpoints...")
+    g_model_AtoB = load_model(model_files['g_A2B'], compile=False)
+    g_model_BtoA = load_model(model_files['g_B2A'], compile=False)
+    d_model_A = load_model(model_files['d_A'], compile=False)
+    d_model_B = load_model(model_files['d_B'], compile=False)
+    d_model_A.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
+    d_model_B.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
 
 for volA, ctxA, save_file in genA:
 
@@ -509,41 +576,62 @@ for volA, ctxA, save_file in genA:
     print("Final LF input shape:", volA.shape)
     
     # break
-    # Domain adaptation and get results of full volume prediction of low-field MRI Then denoise and enhancement.
+    # Domain adaptation and get results of full volume prediction of low-field MRI then denoise and enhancement.
+    # generates one full volume from genA translated by g_model_AtoB
 
+    # Print min and max range of volA before feeding into generator
+    print(f"Input volume range before generator: min={volA.min()}, max={volA.max()}")
+    real_vol, fake_vol, ctx = evaluate_one_subject_volume(
+        g_model_AtoB, volA, ctxA,
+        out_path=os.path.join(output_dir, "AtoB_generated_subject.nii.gz"),
+        batch_size=1
+    )
+
+    # add o asix to fake_vol to make it (1,H,W,D) for evaluation
+    fake_vol_1 = np.expand_dims(fake_vol, axis=0)
+    #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
+
+
+    if fake_vol_1.max() > 1:
+        fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
+    
+    # print min and max of fake_vol_1 after normalization
+    print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
+
+    # get domain adopted and perform further steps
     results, pred1, pred2, model1, model2 = evaluate_model(
         folder_path=folder_path,
         model_name=model_name,
-        X_test=volA,
-        y_test=volA,
+        X_test=fake_vol_1,
+        y_test=fake_vol_1,
         patch_size=(64, 64, 32),
         overlap=0.5,
         visualize_slices=[15]
     )
 
     print("Evaluation Results:after Stage 2 Refinement")
-    # Convert inputs to numpy
-    volA = np.squeeze(volA, axis=0)
+    # # Convert inputs to numpy
+    # volA = np.squeeze(volA, axis=0)
 
-    im_np    = _to_numpy(volA)
-    pred1_np = _to_numpy(pred1)
-    pred2_np = _to_numpy(pred2)
+    # im_np    = _to_numpy(volA)
+    # pred1_np = _to_numpy(pred1)
+    # pred2_np = _to_numpy(pred2)
 
-    # nii_original = os.path.join(output_dir, f"{name}_original.nii.gz")
-    nii_denoiser = os.path.join(output_dir, save_file)
-    # nii_srr      = os.path.join(output_dir, f"{name}_srr.nii.gz")
-    # if nii_denoiser path not present create it
-    if not os.path.exists(output_dir_denoise):
-        os.makedirs(output_dir_denoise)
+    # # nii_original = os.path.join(output_dir, f"{name}_original.nii.gz")
+    # nii_denoiser = os.path.join(output_dir, save_file)
+    # # nii_srr      = os.path.join(output_dir, f"{name}_srr.nii.gz")
+    # # if nii_denoiser path not present create it
+    # if not os.path.exists(output_dir_denoise):
+    #     os.makedirs(output_dir_denoise)
 
-    # pred1_np is saved and displayed  rotated 90 degrees back to original orientation (undoing the rotation in the generator)
-    pred1_np = np.rot90(pred1_np, k=-1, axes=(0, 1))
+    # # pred1_np is saved and displayed  rotated 90 degrees back to original orientation (undoing the rotation in the generator)
+    # pred1_np = np.rot90(pred1_np, k=-1, axes=(0, 1))
     
-    affine=None
-    # Save as NIfTI .nii.gz
-    if affine is None:
-        affine = np.eye(4, dtype=np.float32)
-        # nib.save(nib.Nifti1Image(im_np,    affine), nii_original)
-    nib.save(nib.Nifti1Image(pred1_np, affine), nii_denoiser)
+    # affine=None
+    # # Save as NIfTI .nii.gz
+    # if affine is None:
+    #     affine = np.eye(4, dtype=np.float32)
+    #    # nib.save(nib.Nifti1Image(im_np,    affine), nii_original)
+    # nib.save(nib.Nifti1Image(pred1_np, affine), nii_denoiser)
 
-    visualize_comparison(volA, pred1, pred2, name=save_file, output_dir=output_dir_denoise)
+    visualize_comparison(volA, fake_vol, pred1, name=save_file, output_dir=output_dir_denoise)

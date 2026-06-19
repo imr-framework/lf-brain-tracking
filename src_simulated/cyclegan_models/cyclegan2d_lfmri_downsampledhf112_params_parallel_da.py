@@ -687,7 +687,7 @@ for volA, ctxA in genA:
     print("Domain A context max:", volA.max())
     # visualize slices
     visualize_slices(volA)
-    break
+    # break
 
 # Path to Domain B NIfTI files
 path_B = "niv_raw_data/Nipah_IRF_data/data_niv/IRF_3T_NIFTI"

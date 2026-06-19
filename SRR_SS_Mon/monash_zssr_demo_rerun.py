@@ -67,7 +67,7 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 viewing = False
 ds_to_process = 4
-target_resolution_fact = [1, 1, 2]
+target_resolution_fact = [1, 1, 4]
 scale_factor = target_resolution_fact[2]  # Z-axis scaling factor
 snr_component = False
  
@@ -80,7 +80,7 @@ crop_sizes = [32] # size of the patches to crop from the image
 noise_stds = [0.0] # standard deviation of the noise to add to the image
 
 # Load dataset
-training_path = "Data/ULC_img enhancement/Training data"
+training_path = "niv_raw_data/3 Monash_ULC_img enhancement/Training data"
 dataset = PairedMRI(training_path)
 kernel_path = '/Users/sairamgeethanath/Documents/Contributions/Tools/Projects/R21/lf-brain-tracking/src/ZSSR_master/kernel_example/BSD100_100_lr_rand_ker_c_X2_0.mat'
 

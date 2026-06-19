@@ -9,46 +9,106 @@ def res_conv_block(x, filters, kernel_size=3):
     x = layers.Activation("relu")(x)
     return x
 
-def residual_srr_unet(input_shape=(64,128,128,1)):
+# def residual_srr_unet(input_shape=(64,128,128,1)):
+#     inputs = layers.Input(shape=input_shape)
+
+#     # ---------------- Encoder ----------------
+#     c1 = res_conv_block(inputs, 32)
+#     p1 = layers.MaxPooling3D((2,2,2))(c1)
+
+#     c2 = res_conv_block(p1, 64)
+#     p2 = layers.MaxPooling3D((2,2,2))(c2)
+
+#     c3 = res_conv_block(p2, 128)
+#     p3 = layers.MaxPooling3D((2,2,2))(c3)
+
+#     # ---------------- Bottleneck ----------------
+#     bn = res_conv_block(p3, 256)
+
+#     # ---------------- Decoder ----------------
+#     u3 = layers.Conv3DTranspose(128, kernel_size=2, strides=2, padding='same')(bn)
+#     u3 = layers.Concatenate()([u3, c3])
+#     c4 = res_conv_block(u3, 128)
+
+#     u2 = layers.Conv3DTranspose(64, kernel_size=2, strides=2, padding='same')(c4)
+#     u2 = layers.Concatenate()([u2, c2])
+#     c5 = res_conv_block(u2, 64)
+
+#     u1 = layers.Conv3DTranspose(32, kernel_size=2, strides=2, padding='same')(c5)
+#     u1 = layers.Concatenate()([u1, c1])
+#     c6 = res_conv_block(u1, 32)
+
+#     # ---------------- Output ----------------
+#     residual = layers.Conv3D(1, (1,1,1), activation="linear")(c6)
+#     outputs = layers.Add()([inputs, residual])
+
+#     model = models.Model(inputs, outputs, name="Residual_SRR_UNet3D")
+#     model.summary()
+#     return model
+
+
+def residual_srr_unet(input_shape=(128,128,32,1)):
+
     inputs = layers.Input(shape=input_shape)
 
-    # ---------------- Encoder ----------------
-    c1 = res_conv_block(inputs, 32)
+    # ======================================================
+    # Encoder (4 levels)
+    # ======================================================
+    c1 = res_conv_block(inputs, 16)
     p1 = layers.MaxPooling3D((2,2,2))(c1)
 
-    c2 = res_conv_block(p1, 64)
+    c2 = res_conv_block(p1, 32)
     p2 = layers.MaxPooling3D((2,2,2))(c2)
 
-    c3 = res_conv_block(p2, 128)
+    c3 = res_conv_block(p2, 64)
     p3 = layers.MaxPooling3D((2,2,2))(c3)
 
-    # ---------------- Bottleneck ----------------
-    bn = res_conv_block(p3, 256)
+    c4 = res_conv_block(p3, 128)
+    p4 = layers.MaxPooling3D((2,2,2))(c4)
 
-    # ---------------- Decoder ----------------
-    u3 = layers.Conv3DTranspose(128, kernel_size=2, strides=2, padding='same')(bn)
+    # ======================================================
+    # Bottleneck
+    # ======================================================
+    bn = res_conv_block(p4, 256)
+
+    # ======================================================
+    # Decoder (4 levels - SYMMETRIC)
+    # ======================================================
+
+    # Level 4
+    u4 = layers.Conv3DTranspose(128, 2, strides=2, padding='same')(bn)
+    u4 = layers.Concatenate()([u4, c4])
+    c4_dec = res_conv_block(u4, 128)
+
+    # Level 3
+    u3 = layers.Conv3DTranspose(64, 2, strides=2, padding='same')(c4_dec)
     u3 = layers.Concatenate()([u3, c3])
-    c4 = res_conv_block(u3, 128)
+    c3_dec = res_conv_block(u3, 64)
 
-    u2 = layers.Conv3DTranspose(64, kernel_size=2, strides=2, padding='same')(c4)
+    # Level 2
+    u2 = layers.Conv3DTranspose(32, 2, strides=2, padding='same')(c3_dec)
     u2 = layers.Concatenate()([u2, c2])
-    c5 = res_conv_block(u2, 64)
+    c2_dec = res_conv_block(u2, 32)
 
-    u1 = layers.Conv3DTranspose(32, kernel_size=2, strides=2, padding='same')(c5)
+    # Level 1
+    u1 = layers.Conv3DTranspose(16, 2, strides=2, padding='same')(c2_dec)
     u1 = layers.Concatenate()([u1, c1])
-    c6 = res_conv_block(u1, 32)
+    c1_dec = res_conv_block(u1, 16)
 
-    # ---------------- Output ----------------
-    residual = layers.Conv3D(1, (1,1,1), activation="linear")(c6)
+    # ======================================================
+    # Output (Residual learning)
+    # ======================================================
+    residual = layers.Conv3D(1, (1,1,1), activation="linear")(c1_dec)
+
     outputs = layers.Add()([inputs, residual])
 
     model = models.Model(inputs, outputs, name="Residual_SRR_UNet3D")
-    model.summary()
+
     return model
 
-# Example usage
-model = residual_srr_unet(input_shape=(64, 128, 128, 1))
-model.summary()
+# # Example usage
+# model = residual_srr_unet(input_shape=(64, 128, 128, 1))
+# model.summary()
 
 import tensorflow as tf
 from tensorflow.keras import layers, Model, backend as K

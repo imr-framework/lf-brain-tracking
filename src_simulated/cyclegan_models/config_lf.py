@@ -1,6 +1,5 @@
 # develop configuration file for CycleGAN model
 # define parameters such as image size, batch size, learning rate, etc. 
-
 # Check t1_t2 with the mae in cycle loss as well
 
 import sys
@@ -10,15 +9,15 @@ from functools import partial
 import os
 
 class CycleGANConfig:
-
-
+    # Data paths
     path_lf = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T2w"
 
-    path_lf_t1w = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w"
-    path_lf_t2w = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T2w"
+    path_lf_t1w = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_NIFTI_best_Corrected/30366"
+    path_lf_t2w = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_NIFTI_best_Corrected/26184"
     path_lf_all = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_ALL"
+    path_lf_subject = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_nifti_all/26184"
 
-    path_lf_test = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_denoise"
+    path_lf_test = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DA_data_all_1"
 
     # Image parameters
     BATCH_SIZE = 1
@@ -27,7 +26,6 @@ class CycleGANConfig:
     TEST = True  # Whether to run in test mode
     SLICES_TEST = False  # Whether to limit number of slices for quick testing of code
 
-    # Descriminator parameters
     # Discriminator parameters
     DISC_LOSS = 'mse'
     DISC_LEARNING_RATE = 0.0002
@@ -67,7 +65,7 @@ class CycleGANConfig:
     N_ITER_DECAY = 0 # number of epochs with linearly decaying learning rate
 
     # Output directories
-    OUTPUT_DIR = 'niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_denoisedT2w' # directory to save outputs
+    OUTPUT_DIR = 'niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_T2w_2' # directory to save outputs
     
     # Visualization parameters
     VISUALIZE = True  # Whether to visualize test examples during training

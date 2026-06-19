@@ -97,7 +97,7 @@ sys.path.insert(0, './data_read_code')
 # ------------------------------------------------------------
 # Project-Specific Imports
 # ------------------------------------------------------------
-from src_simulated.evaluate_niv_lf_test import evaluate_model, predict_volume
+from src_simulated.test_scripts_simulation.evaluate_niv_lf_test import evaluate_model, predict_volume
 from src_niv.metrics import psnr, ssim, mse, composite_loss
 from src_niv.utils import visualize_pair
 
@@ -256,6 +256,7 @@ def visualize_comparison(
 
     fig, axes = plt.subplots(len(volumes), len(slice_ids),
                              figsize=(4*len(slice_ids), 4*len(volumes)))
+    fig.suptitle(name, fontsize=18)  # Set the title at the top of the figure
 
     if len(volumes) == 1:
         axes = np.expand_dims(axes, 0)
@@ -271,7 +272,7 @@ def visualize_comparison(
             ax.axis('off')
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
     # Save NIfTI
     if save_nifti:
@@ -318,6 +319,7 @@ class DomainAGenerator:
         self.rotate = rotate
         self.visit = visit
         self.shuffle = shuffle
+        self.apply_brain_extraction = True  # Optional: set to False if you want to skip brain extraction
 
         # Context scaler for volume-wise context
         self.scaler = StandardScaler()
@@ -426,6 +428,101 @@ class DomainAGenerator:
 
         return context
 
+    def _extract_brain_volume(self, vol):
+        """
+        Perform slice-wise brain extraction using Otsu + morphology.
+
+        Additionally supports building a *combined* mask across slices (union mask),
+        and applying the same mask to the entire volume to reduce slice-to-slice flicker.
+
+        Args:
+            vol: (H, W, D) volume (your docstring says normalized [-1,1], but this works either way)
+
+        Returns:
+            brain_vol: (H, W, D) uint8-like range as produced by OpenCV masking (0..255)
+        """
+        import cv2
+
+        num_slices = vol.shape[2]
+        H, W = vol.shape[0], vol.shape[1]
+
+        # --- settings (safe defaults if attributes not present) ---
+        combine_masks = bool(getattr(self, "combine_slice_masks", True))
+        min_slices = int(getattr(self, "mask_min_slices", 1))  # require presence in >=K slices
+        kernel_size = int(getattr(self, "mask_kernel_size", 16))
+        dilate_iters = int(getattr(self, "mask_dilate_iters", 1))
+        close_iters = int(getattr(self, "mask_close_iters", 1))
+
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+
+        norm_slices = []
+        masks = []
+
+        # 1) Build per-slice normalized images + masks
+        for i in range(num_slices):
+            slice_data = vol[:, :, i]
+
+            if slice_data is None or slice_data.size == 0:
+                norm_slices.append(np.zeros((H, W), dtype=np.uint8))
+                masks.append(np.zeros((H, W), dtype=np.uint8))
+                continue
+
+            try:
+                norm = cv2.normalize(
+                    np.abs(slice_data),
+                    None, 0, 255,
+                    cv2.NORM_MINMAX,
+                    cv2.CV_8U
+                )
+                norm_slices.append(norm)
+
+                # --- Otsu threshold ---
+                _, thresh = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+                # --- Find contours ---
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                mask = np.zeros_like(norm, dtype=np.uint8)
+                if contours:
+                    for cnt in sorted(contours, key=cv2.contourArea, reverse=True)[:2]:
+                        cv2.drawContours(mask, [cnt], -1, 255, thickness=cv2.FILLED)
+
+                    # --- Morphological refinement ---
+                    mask = cv2.dilate(mask, kernel, iterations=dilate_iters)
+                    for _ in range(max(1, close_iters)):
+                        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+                masks.append(mask)
+
+            except Exception as e:
+                print(f"[WARN] Slice {i} failed: {e}")
+                norm_slices.append(np.zeros((H, W), dtype=np.uint8))
+                masks.append(np.zeros((H, W), dtype=np.uint8))
+
+        norm_vol = np.stack(norm_slices, axis=2)   # (H,W,D) uint8
+        mask_vol = np.stack(masks, axis=2)         # (H,W,D) uint8 0/255
+
+        # 2) Optionally build combined mask over depth
+        if combine_masks:
+            # presence count across slices
+            present = (mask_vol > 0).astype(np.uint8)    # (H,W,D) 0/1
+            count = np.sum(present, axis=2)              # (H,W)
+
+            k = max(1, min(int(min_slices), num_slices))
+            combined_2d = (count >= k).astype(np.uint8) * 255  # (H,W) 0/255
+
+            # optional cleanup to smooth combined mask boundary
+            combined_2d = cv2.morphologyEx(combined_2d, cv2.MORPH_CLOSE, kernel)
+
+            mask_to_apply = np.repeat(combined_2d[:, :, None], num_slices, axis=2)
+        else:
+            mask_to_apply = mask_vol
+
+        # 3) Apply mask to all slices
+        brain_vol = np.where(mask_to_apply > 0, norm_vol, 0).astype(np.uint8)
+
+        return brain_vol
+
     def _load_volume(self, fpath):
         nii = nib.load(fpath)
         
@@ -456,6 +553,10 @@ class DomainAGenerator:
             out[:, :, ds:de] = vol[:, :, d0:d0 + (de - ds)]
             vol = out
         
+        # Brain extraction
+        if self.apply_brain_extraction:
+            vol = self._extract_brain_volume(vol)
+            
         # Normalize using min-max normalization to [0, 1]
         vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
         # vol = self._normalize_volume(vol, method='zscore')
@@ -506,6 +607,7 @@ def generate_volume_from_generator(g_model, vol_3d, context_vec, batch_size=8):
     fake_vol = np.transpose(y, (1, 2, 0))    # (H,W,D)
     return fake_vol
 
+
 def evaluate_one_subject_volume(g_model, X_vol, c_vol, out_path=None, nii_affine=None, batch_size=8):
     """
     Pulls ONE subject from `data_gen`, generates the full translated volume, and optionally saves.
@@ -528,8 +630,224 @@ def evaluate_one_subject_volume(g_model, X_vol, c_vol, out_path=None, nii_affine
 
     return X_vol, fake_vol, c_vol
 
+# ------------------------------------------------
+# Sliding Window Inference
+# ------------------------------------------------
+def predict_volume(model, lf_volume, patch_size=(64,64,32), overlap=0.5):
+    """
+    Sliding-window 3D prediction on LF volume.
+    Returns predicted enhanced volume of same shape.
+    """
+    H, W, D = lf_volume.shape
+    px, py, pz = patch_size
+
+    # Strides
+    sx = int(px * (1 - overlap))
+    sy = int(py * (1 - overlap))
+    sz = int(pz * (1 - overlap))
+
+    pad_x = (px - H % px) if H % px != 0 else 0
+    pad_y = (py - W % py) if W % py != 0 else 0
+    pad_z = (pz - D % pz) if D % pz != 0 else 0
+
+    lf_padded = np.pad(lf_volume, ((0,pad_x),(0,pad_y),(0,pad_z)), mode='reflect')
+    H_pad, W_pad, D_pad = lf_padded.shape
+
+    pred_volume = np.zeros_like(lf_padded, dtype=np.float32)
+    count_volume = np.zeros_like(lf_padded, dtype=np.float32)
+
+    for x in range(0, H_pad - px + 1, sx):
+        for y in range(0, W_pad - py + 1, sy):
+            for z in range(0, D_pad - pz + 1, sz):
+                patch = lf_padded[x:x+px, y:y+py, z:z+pz]
+                patch_input = np.expand_dims(patch, axis=(0,-1))
+                pred_patch = model.predict(patch_input, verbose=0)
+                pred_patch = np.squeeze(pred_patch)
+                pred_volume[x:x+px, y:y+py, z:z+pz] += pred_patch
+                count_volume[x:x+px, y:y+py, z:z+pz] += 1.0
+
+    pred_volume /= np.maximum(count_volume, 1e-8)
+    return pred_volume[:H, :W, :D]
+
+def evaluate_model(folder_path, model_name, X_test, y_test,
+                   patch_size=(64, 64, 32), overlap=0.5,
+                   visualize_slices=[17]):
+    """
+    Evaluate a two-stage (base + retrained) SRR or denoising model pipeline.
+
+    Args:
+        folder_path (str): Path containing the model checkpoints.
+        model_name (str): Base model name (without suffixes).
+        X_test, y_test: Test LF and HF volumes (numpy arrays).
+        patch_size (tuple): Patch size for 3D inference.
+        overlap (float): Overlap ratio for sliding window inference.
+        visualize_slices (list): Slice indices for visualization.
+
+    Example:
+        evaluate_model("models/", "LFHF_SRR_Model", X_test, y_test)
+        -> loads:
+            models/LFHF_SRR_Model_checkpoint.keras
+            models/LFHF_SRR_Model_retrained_checkpoint.keras
+    """
+
+    # ------------------------------------------------------------
+    # 🔹 Define model paths
+    # ------------------------------------------------------------
+    model_path_train = os.path.join(folder_path, f"{model_name}_checkpoint.keras")
+    # model_path_retrained = os.path.join(folder_path, f"{model_name}_retrained_final.keras")
+
+    if not os.path.exists(model_path_train):
+        raise FileNotFoundError(f"Base model not found: {model_path_train}")
+    # if not os.path.exists(model_path_retrained):
+    #     raise FileNotFoundError(f"Retrained model not found: {model_path_retrained}")
+
+    print(f"🔹 Base model: {model_path_train}")
+    # print(f"🔹 Retrained model: {model_path_retrained}")
+
+    # ------------------------------------------------------------
+    # 🔹 Load models
+    # ------------------------------------------------------------
+    model1 = load_model(model_path_train,
+                        custom_objects={'psnr': psnr, 'ssim': ssim,
+                                        'mse': mse, 'composite_loss': composite_loss},
+                        compile=False)
+    # model2 = load_model(model_path_retrained,
+    #                     custom_objects={'psnr': psnr, 'ssim': ssim,
+    #                                     'mse': mse, 'composite_loss': composite_loss},
+    #                     compile=False)
+    print("✅ Both models loaded successfully.")
+
+    results = []
+
+    # ------------------------------------------------------------
+    # 🔹 Evaluate each subject
+    # ------------------------------------------------------------
+    for i in range(len(X_test)):
+        print(f"\n🧠 Evaluating subject {i+1}/{len(X_test)} ...")
+        lf = X_test[i]
+        hf = y_test[i]
+
+        # ---- Stage 1 Prediction ----
+        pred1 = predict_volume(model1, lf, patch_size=patch_size, overlap=overlap)
+
+        # # ---- Stage 2 Refinement ----
+        # pred2 = predict_volume(model2, pred1, patch_size=patch_size, overlap=overlap)
+
+        # ---- Compute Metrics ----
+        psnr1 = psnr(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
+                     tf.convert_to_tensor(pred1[np.newaxis, ..., np.newaxis])).numpy()
+        ssim1 = ssim(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
+                     tf.convert_to_tensor(pred1[np.newaxis, ..., np.newaxis])).numpy()
+
+        # psnr2 = psnr(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
+        #              tf.convert_to_tensor(pred2[np.newaxis, ..., np.newaxis])).numpy()
+        # ssim2 = ssim(tf.convert_to_tensor(hf[np.newaxis, ..., np.newaxis]),
+        #              tf.convert_to_tensor(pred2[np.newaxis, ..., np.newaxis])).numpy()
+
+        print(f"📈 Stage1 → PSNR: {psnr1:.3f}, SSIM: {ssim1:.4f}")
+        # print(f"📈 Stage2 → PSNR: {psnr2:.3f}, SSIM: {ssim2:.4f}")
+
+        # # ---- Visualization ----
+        # visualize_and_save_results(model_name, lf, hf, pred1, pred2,
+        #                   slices=visualize_slices, title_prefix=f"Subject_day5 {i}")
+
+        # ---- Collect results ----
+        results.append({
+            'subject': i,
+            'psnr_stage1': psnr1,
+            'ssim_stage1': ssim1,
+            # 'psnr_stage2': psnr2,
+            # 'ssim_stage2': ssim2
+        })
+
+    print("\n✅ Evaluation complete.")
+    return results, pred1, model1
+
+# ...existing code...
+
+def visualize_volume_all_slices(
+    vol,
+    name="volume",
+    output_dir="outputs",
+    axis=2,
+    cols=8,
+    cmap="gray",
+    save_png=False,
+    dpi=200,
+    vmin=None,
+    vmax=None
+):
+    """
+    Display all slices of a single 3D volume in a grid.
+
+    Args:
+        vol: 3D volume (H,W,D) or (1,H,W,D) or (H,W,D,1) or torch/tf tensor.
+        name: figure title (and filename if save_png=True)
+        output_dir: where to save PNG if enabled
+        axis: slice axis (0,1,2). Default 2 => vol[:,:,k]
+        cols: number of columns in the grid
+        cmap: matplotlib colormap
+        save_png: if True, saves a PNG grid to output_dir
+        dpi: PNG dpi
+        vmin/vmax: fixed display range for imshow (useful for consistent contrast)
+    """
+    _prepare_output_dir(output_dir)
+
+    v = _to_numpy(vol)
+    v = np.squeeze(v)
+
+    if v.ndim != 3:
+        raise ValueError(f"Expected 3D volume after squeeze, got shape {v.shape}")
+
+    if axis not in (0, 1, 2):
+        raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
+
+    num_slices = v.shape[axis]
+    rows = int(np.ceil(num_slices / cols))
+
+    fig, axes = plt.subplots(rows, cols, figsize=(2.2 * cols, 2.2 * rows))
+    fig.suptitle(f"{name} (axis={axis}, slices={num_slices})", fontsize=16)
+
+    # normalize axes to 2D array
+    if rows == 1 and cols == 1:
+        axes = np.array([[axes]])
+    elif rows == 1:
+        axes = np.array([axes])
+    elif cols == 1:
+        axes = axes[:, None]
+
+    axes_flat = axes.ravel()
+
+    for i in range(rows * cols):
+        ax = axes_flat[i]
+        ax.axis("off")
+
+        if i >= num_slices:
+            continue
+
+        if axis == 0:
+            img = v[i, :, :]
+        elif axis == 1:
+            img = v[:, i, :]
+        else:
+            img = v[:, :, i]
+
+        ax.imshow(img, cmap=cmap, vmin=vmin, vmax=vmax)
+        ax.set_title(f"{i}", fontsize=8)
+
+    plt.tight_layout()
+    plt.show()
+
+    if save_png:
+        os.makedirs(output_dir, exist_ok=True)
+        out_path = os.path.join(output_dir, f"{name}_all_slices_axis{axis}.png")
+        fig.savefig(out_path, dpi=dpi, bbox_inches="tight", pad_inches=0.02)
+        print(f"Saved PNG: {out_path}")
+
+    return fig
+
 # Example paths (use your config_lf paths)
-path_A = config_lf.path_lf_t1w  # LF T1w data directory
+path_A = config_lf.path_lf_t2w
 genA = DomainAGenerator(path_A)
 
 # Fetch one batch from Domain A
@@ -540,17 +858,25 @@ for volA, ctxA, save_file in genA:
     print("Domain A save file:", save_file)
     break
 
-model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
-folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
-model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_1"
+# Path for the second stage model (SRR or enhancement)
+model_name = 'residual_srr_unet_l2_ssim_edge'
+# folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
+folder_path = "niv_results/outputs_src_simulated_context/enhancement"
 
-output_dir_denoise ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_denoise'
-output_dir_enhance ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_enhance'
+# path for the domain adaptation CycleGAN model
+model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_t2w_2"
+
+# Path for saving the generated volumes from domain adaptation step
+# Path for saving the generated volumes from domain adaptation step
+output_dir_lf ='niv_raw_data/Nipah_IRF_data/data_niv/Evaluator_data/VolA'
+output_dir_denoise ='niv_raw_data/Nipah_IRF_data/data_niv/Evaluator_data/CycleGAN'
+output_dir_enhance ='niv_raw_data/Nipah_IRF_data/data_niv/Evaluator_data/Enhancement'
 output_dir = output_dir_denoise
+
 # Resume from latest checkpoints if available
 
 model_files = {
-    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000500.keras'),
+    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000800.keras'),  # 400 for other one; 700; 800, (900 better) but eyes problem for second
     'g_B2A': os.path.join(model_path_da, 'g_BtoA_000500.keras'),
     'd_A': os.path.join(model_path_da, 'd_A_000500.keras'),
     'd_B': os.path.join(model_path_da, 'd_B_000500.keras')
@@ -570,7 +896,7 @@ for volA, ctxA, save_file in genA:
     print("Domain A volume shape:", volA.shape)
     print("Domain A context:", ctxA.shape)
     print("Domain A context values:", ctxA)
-    # im = im.astype(np.float32)
+    # im = im.astype(np.float32) 
     volA = np.expand_dims(volA, axis=0)  # (1, H, W, D)
     print("Final LF input shape:", volA.shape)
     
@@ -590,7 +916,6 @@ for volA, ctxA, save_file in genA:
     fake_vol_1 = np.expand_dims(fake_vol, axis=0)
     #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
 
-
     if fake_vol_1.max() > 1:
         fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
     
@@ -598,7 +923,7 @@ for volA, ctxA, save_file in genA:
     print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
 
     # get domain adopted and perform further steps
-    results, pred1, pred2, model1, model2 = evaluate_model(
+    results, pred1, model1 = evaluate_model(
         folder_path=folder_path,
         model_name=model_name,
         X_test=fake_vol_1,
@@ -609,28 +934,13 @@ for volA, ctxA, save_file in genA:
     )
 
     print("Evaluation Results:after Stage 2 Refinement")
-    # # Convert inputs to numpy
-    # volA = np.squeeze(volA, axis=0)
-
-    # im_np    = _to_numpy(volA)
-    # pred1_np = _to_numpy(pred1)
-    # pred2_np = _to_numpy(pred2)
-
-    # # nii_original = os.path.join(output_dir, f"{name}_original.nii.gz")
-    # nii_denoiser = os.path.join(output_dir, save_file)
-    # # nii_srr      = os.path.join(output_dir, f"{name}_srr.nii.gz")
-    # # if nii_denoiser path not present create it
-    # if not os.path.exists(output_dir_denoise):
-    #     os.makedirs(output_dir_denoise)
-
-    # # pred1_np is saved and displayed  rotated 90 degrees back to original orientation (undoing the rotation in the generator)
-    # pred1_np = np.rot90(pred1_np, k=-1, axes=(0, 1))
     
-    # affine=None
-    # # Save as NIfTI .nii.gz
-    # if affine is None:
-    #     affine = np.eye(4, dtype=np.float32)
-    #    # nib.save(nib.Nifti1Image(im_np,    affine), nii_original)
-    # nib.save(nib.Nifti1Image(pred1_np, affine), nii_denoiser)
-
+    volA = np.squeeze(volA)
     visualize_comparison(volA, fake_vol, pred1, name=save_file, output_dir=output_dir_denoise)
+    visualize_comparison(fake_vol, volA, pred1, name=save_file, output_dir=output_dir_lf)
+    visualize_comparison(volA, pred1, fake_vol, name=save_file, output_dir=output_dir_enhance)
+    # print("Evaluation Results:after Stage 2 Refinement")
+    # visualize_volume_all_slices(volA, name="volA", axis=2, cols=6)
+    # visualize_volume_all_slices(fake_vol, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)
+    # visualize_volume_all_slices(pred1, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)
+    

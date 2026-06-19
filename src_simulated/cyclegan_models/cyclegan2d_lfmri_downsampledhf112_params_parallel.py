@@ -388,6 +388,8 @@ class DomainAGenerator:
         self.field_strength = field_strength
         self.rotate = rotate
         self.visit = visit
+        self.apply_brain_extraction = True
+        #no morphology
         self.shuffle = shuffle
 
         # Context scaler for volume-wise context
@@ -480,6 +482,101 @@ class DomainAGenerator:
         context = np.tile(single_row, (N, 1))  # shape: (N, 5)
 
         return context
+    
+    def _extract_brain_volume(self, vol):
+        """
+        Perform slice-wise brain extraction using Otsu + morphology.
+
+        Additionally supports building a *combined* mask across slices (union mask),
+        and applying the same mask to the entire volume to reduce slice-to-slice flicker.
+
+        Args:
+            vol: (H, W, D) volume (your docstring says normalized [-1,1], but this works either way)
+
+        Returns:
+            brain_vol: (H, W, D) uint8-like range as produced by OpenCV masking (0..255)
+        """
+        import cv2
+
+        num_slices = vol.shape[2]
+        H, W = vol.shape[0], vol.shape[1]
+
+        # --- settings (safe defaults if attributes not present) ---
+        combine_masks = bool(getattr(self, "combine_slice_masks", True))
+        min_slices = int(getattr(self, "mask_min_slices", 1))  # require presence in >=K slices
+        kernel_size = int(getattr(self, "mask_kernel_size", 16))
+        dilate_iters = int(getattr(self, "mask_dilate_iters", 1))
+        close_iters = int(getattr(self, "mask_close_iters", 1))
+
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+
+        norm_slices = []
+        masks = []
+
+        # 1) Build per-slice normalized images + masks
+        for i in range(num_slices):
+            slice_data = vol[:, :, i]
+
+            if slice_data is None or slice_data.size == 0:
+                norm_slices.append(np.zeros((H, W), dtype=np.uint8))
+                masks.append(np.zeros((H, W), dtype=np.uint8))
+                continue
+
+            try:
+                norm = cv2.normalize(
+                    np.abs(slice_data),
+                    None, 0, 255,
+                    cv2.NORM_MINMAX,
+                    cv2.CV_8U
+                )
+                norm_slices.append(norm)
+
+                # --- Otsu threshold ---
+                _, thresh = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+                # --- Find contours ---
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                mask = np.zeros_like(norm, dtype=np.uint8)
+                if contours:
+                    for cnt in sorted(contours, key=cv2.contourArea, reverse=True)[:2]:
+                        cv2.drawContours(mask, [cnt], -1, 255, thickness=cv2.FILLED)
+
+                    # --- Morphological refinement ---
+                    mask = cv2.dilate(mask, kernel, iterations=dilate_iters)
+                    for _ in range(max(1, close_iters)):
+                        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+                masks.append(mask)
+
+            except Exception as e:
+                print(f"[WARN] Slice {i} failed: {e}")
+                norm_slices.append(np.zeros((H, W), dtype=np.uint8))
+                masks.append(np.zeros((H, W), dtype=np.uint8))
+
+        norm_vol = np.stack(norm_slices, axis=2)   # (H,W,D) uint8
+        mask_vol = np.stack(masks, axis=2)         # (H,W,D) uint8 0/255
+
+        # 2) Optionally build combined mask over depth
+        if combine_masks:
+            # presence count across slices
+            present = (mask_vol > 0).astype(np.uint8)    # (H,W,D) 0/1
+            count = np.sum(present, axis=2)              # (H,W)
+
+            k = max(1, min(int(min_slices), num_slices))
+            combined_2d = (count >= k).astype(np.uint8) * 255  # (H,W) 0/255
+
+            # optional cleanup to smooth combined mask boundary
+            combined_2d = cv2.morphologyEx(combined_2d, cv2.MORPH_CLOSE, kernel)
+
+            mask_to_apply = np.repeat(combined_2d[:, :, None], num_slices, axis=2)
+        else:
+            mask_to_apply = mask_vol
+
+        # 3) Apply mask to all slices
+        brain_vol = np.where(mask_to_apply > 0, norm_vol, 0).astype(np.uint8)
+
+        return brain_vol
 
     def _load_volume(self, fpath):
         nii = nib.load(fpath)
@@ -511,7 +608,14 @@ class DomainAGenerator:
             out = np.zeros((h, w, self.target_d), dtype=vol.dtype)
             out[:, :, ds:de] = vol[:, :, d0:d0 + (de - ds)]
             vol = out
+
         
+        # ===============================
+        # ✅ INSERT BRAIN EXTRACTION HERE
+        # ===============================
+        if self.apply_brain_extraction:
+            vol = self._extract_brain_volume(vol)
+
         # Normalize [-1,1]
         vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
 
@@ -646,8 +750,8 @@ class DomainBGenerator:
         if self.add_channel:
             vol = vol[..., None]  # H x W x D x 1
 
-        # Keep vol only 0 to 25 slices in a volume  depth dimension
-        vol = vol[..., :25]
+        # Keep vol only 0 to 30 slices in a volume  depth dimension
+        vol = vol[..., :30]
 
         # Create context for this single volume
         context = self._create_context(1)[0]  # shape (9,)
@@ -668,7 +772,7 @@ class DomainBGenerator:
                     continue
 
 # Example paths (use your config_lf paths)
-path_A = config_lf.path_lf_test
+path_A = config_lf.path_lf
 genA = DomainAGenerator(path_A)
 
 # Fetch one batch from Domain A

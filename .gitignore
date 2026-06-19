@@ -195,21 +195,29 @@ motion_correction/
 *.mat
 *.fig
 *.keras
-
+*.txt
+*.npy
 
 Ajay_training/
+motion_correction/
+DataSRR_AJ/
 src_simulated/grumpifycat
 src_simulated/maps
 R21figure_pkg/
-Niftymic_related_r21/*
+Niftymic_related_r21/Data/*
+Niftymic_related_r21/DataSRR_AJ/*
+Niftymic_related_r21/freesurfer_outputs/
 Zero_shot_denoising/*
 delta/*
 niv_raw_data/*
 niv_results/*
 src_simulated/Tasks_to_Complete/*
+OneDrive_1_4-15-2026/
+OneDrive_1_4-15-2026 (copy)/
 src_simulated/cyclegan_models/details/*
 motion_correction/*
 LFsim/6_data_for_noise
 Niftymic_related_r21/*
-nnUNet_translation/*
-nnUNet_translation1/*
+nnUNet_translation/
+nnUNet_translation1/
+Retrospective_analysis/

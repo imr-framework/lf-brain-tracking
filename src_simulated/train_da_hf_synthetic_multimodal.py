@@ -926,10 +926,9 @@ def srr_batch_generator(
 
                 #  Assuming hf_patch is a NumPy 3D array (e.g., shape (H, W, D))
                 # hf_patch[hf_patch < 0.01] = 0
-
                 # # continue patche generation with patches_per_volume-1 with zeros more than 60% in hf_patch
                 # if np.sum(hf_patch == 0) / hf_patch.size > 0.7:
-                #     continue
+                # 
                 # Add original patch
 
                 x_batch.append(np.expand_dims(lf_patch, axis=-1))
@@ -948,6 +947,7 @@ def srr_batch_generator(
         # Stack and trim
         x_batch = np.stack(x_batch[:batch_size], axis=0)
         y_batch = np.stack(y_batch[:batch_size], axis=0)
+        # print(f"Generated batch: X {x_batch.shape} Y {y_batch.shape}")
         yield x_batch.astype(np.float32), y_batch.astype(np.float32)
 
 
@@ -1084,12 +1084,74 @@ def pick_random_b2a_checkpoint(model_path_da, seed=None):
     rng = np.random.default_rng(seed)
     return ckpts[int(rng.integers(0, len(ckpts)))]
 
-# -----------------------------
-# MAIN EXECUTION
-# -----------------------------
+
+# ...existing code...
+
+def pick_random_checkpoint_from_combinations(combinations, seed=None, must_exist=True):
+    """
+    Simplest picker:
+      combinations = [
+        ("path/to/folder1", "g_BtoA_000300.keras"),
+        ("path/to/folder2", "g_BtoA_000250.keras"),
+        ...
+      ]
+    Returns:
+      full_ckpt_path
+    """
+    if not combinations:
+        raise ValueError("combinations list is empty")
+
+    rng = np.random.default_rng(seed)
+    idx = int(rng.integers(0, len(combinations)))
+
+    folder, fname = combinations[idx]
+    ckpt_path = os.path.join(folder, fname)
+
+    if must_exist and not os.path.exists(ckpt_path):
+        # try a few more random picks before failing
+        for _ in range(min(10, len(combinations) - 1)):
+            idx = int(rng.integers(0, len(combinations)))
+            folder, fname = combinations[idx]
+            ckpt_path = os.path.join(folder, fname)
+            if os.path.exists(ckpt_path):
+                return ckpt_path
+        raise FileNotFoundError(f"Picked checkpoint does not exist (and retries failed): {ckpt_path}")
+
+    return ckpt_path
+
+# ...existing code...
+# ...existing code...
+from sklearn.model_selection import train_test_split
+
+def load_all_hf_from_genB(genB, n_vols=None):
+    """Load HF volumes deterministically via __getitem__ so we can split without leakage."""
+    n_total = len(genB)
+    n = n_total if n_vols is None else min(int(n_vols), n_total)
+
+    vols, ctxs = [], []
+    for i in range(n):
+        vol, ctx = genB[i]  # deterministic
+        vols.append(ensure_minus1_to_1(vol).astype(np.float32))
+        ctxs.append(np.asarray(ctx, dtype=np.float32))
+
+    return np.stack(vols, axis=0), np.stack(ctxs, axis=0)
+
+def build_synthetic_from_arrays(hf_vols, hf_ctxs, g_model_BtoA, batch_size_slices=1):
+    """Generate LF(fake) from fixed HF arrays."""
+    x_fake = []
+    for k in range(hf_vols.shape[0]):
+        volB = ensure_minus1_to_1(hf_vols[k])
+        ctxB = hf_ctxs[k]
+        _, fake_vol, _ = evaluate_one_subject_volume(
+            g_model_BtoA, volB, ctxB,
+            out_path=None,
+            batch_size=batch_size_slices
+        )
+        x_fake.append(ensure_minus1_to_1(fake_vol).astype(np.float32))
+    return np.stack(x_fake, axis=0), hf_vols.astype(np.float32), hf_ctxs.astype(np.float32)
 
 if __name__ == "__main__":
-    
+
     # Load data
     # Example paths (use your config_lf paths)
     path_A = config_lf.path_lf_t1w  # LF T1w data directory
@@ -1133,15 +1195,13 @@ if __name__ == "__main__":
         break
 
     # Model paths and names
-    model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
-    folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
+    model_name = 'residual_srr_unet_l2_ssim_edge'
+    folder_path = "niv_results/outputs_src_simulated_context/enhancement"
 
-    output_dir_denoise ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_denoise'
-    output_dir_enhance ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_enhance'
-    output_dir = output_dir_denoise
+    output_dir = folder_path
     # Resume from latest checkpoints if available
 
-    model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_denoisedT2w"
+    model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all"
     model_files = {
         'g_A2B': os.path.join(model_path_da, 'g_AtoB_000300.keras'),
         'g_B2A': os.path.join(model_path_da, 'g_BtoA_000300.keras'),
@@ -1186,7 +1246,7 @@ if __name__ == "__main__":
         # add axis to fake_vol to make it (1,H,W,D) for evaluation
         fake_vol_1 = np.expand_dims(fake_vol, axis=0)
         print(f"Generated volume shape after adding batch axis: {fake_vol_1.shape}")
-        visualize_slices(fake_vol_1)
+        # visualize_slices(fake_vol_1)
         #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
 
         if fake_vol_1.max() > 1:
@@ -1194,8 +1254,6 @@ if __name__ == "__main__":
         
         # print min and max of fake_vol_1 after normalization
         print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
-
-        print("Evaluation Results:after Stage 2 Refinement")
 
         # visualize_comparison(
         #     im=real_vol,
@@ -1208,48 +1266,104 @@ if __name__ == "__main__":
         # )
         break
 
+    # ...existing code...
+
     print("🚀 Starting refinement (second-pass) training ...")
-    
-    # # 🌀 Iterate over chosen combinations
-    
-    # Update config
-    # config.loss_type_denoise = loss_denoise
-    # config.retrain_loss_type = loss_retrain
-    # config.loss_weights_denoise = loss_weights[loss_denoise]
-    # config.loss_weights_retrain = loss_weights[loss_retrain]
-    
     tf.keras.backend.clear_session()
 
-    # Combine dynamically
-    config.model_name = f"{model_name}_{config.loss_type_denoise}_{config.retrain_loss_type}"
+    config.model_name = f"{model_name}"
     config.checkpoint_path = os.path.join(config.output_path, f"{config.model_name}_checkpoint.keras")
 
-    # Build synthetic training set (example)
-    x_train_fake, y_train_real, ctx_train = build_synthetic_lf_dataset_from_hf(
-        genB, g_model_BtoA, n_vols=3, batch_size_slices=4
-    )
+    # ---- settings ----
+    epochs_total = 500
+    refresh_every = 50
+    n_total_vols = 50
+    n_train = 35
+    n_val = 15
+    batch_size_slices = 1
 
-    x_val_fake, y_val_real, ctx_val = build_synthetic_lf_dataset_from_hf(
-        genB, g_model_BtoA, n_vols=2, batch_size_slices=4
-    )
+    # Load HF volumes ONCE and split (prevents train/val overlap)
+    hf_all, ctx_all = load_all_hf_from_genB(genB, n_vols=n_total_vols)
+    idx = np.arange(hf_all.shape[0])
+    idx_train, idx_val = train_test_split(idx, test_size=n_val, random_state=42, shuffle=True)
 
-    # Assign generated data to variables for training/validation
-    X_train, y_train = x_train_fake, y_train_real
-    X_val, y_val = x_val_fake, y_val_real
-    
-    # Train model
-    trained_model, history = run_training(
-        lf_train=X_train,
-        hf_train=y_train,
-        lf_val=X_val,
-        hf_val=y_val,
-        output_path='niv_results',
-        model_type=residual_srr_unet,
-        model_name=model_name,
-        loss_type=config.loss_type_denoise,
-        patch_xy=64,
-        patch_z=32,
-        batch_size=1,
-        steps_per_epoch=5,
-        epochs=2
-    )
+    hf_train, ctx_train = hf_all[idx_train], ctx_all[idx_train]
+    hf_val, ctx_val = hf_all[idx_val], ctx_all[idx_val]
+
+    # Build/load SRR model once
+    srr_model = build_or_load_model(residual_srr_unet, checkpoint_path=config.checkpoint_path)
+    srr_model = compile_model(srr_model, lr=0.001, loss_type=config.loss_type_denoise)
+
+    b2a_combinations = [
+        # domain adoption modelstrained;
+        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000100.keras"),
+        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000200.keras"),
+        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000300.keras"),
+        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000400.keras"),
+
+
+        # ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_all", "g_BtoA_000700.keras"),
+        # ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_all", "g_BtoA_000500.keras"),
+        # ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_1", "g_BtoA_000600.keras"),
+        # ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_t2w", "g_BtoA_000400.keras")
+    ]
+
+    if len(b2a_combinations) == 1:
+        b2a_ckpt = pick_random_checkpoint_from_combinations(b2a_combinations, seed=None)
+        g_model_BtoA = load_model(b2a_ckpt, compile=False)
+
+        X_train, y_train, _ = build_synthetic_from_arrays(hf_train, ctx_train, g_model_BtoA, batch_size_slices=batch_size_slices)
+        X_val, y_val, _     = build_synthetic_from_arrays(hf_val,   ctx_val,   g_model_BtoA, batch_size_slices=batch_size_slices)
+
+        visualize_slices(X_train[0])
+        print(f"Training on {X_train.shape[0]} synthetic volumes (from {hf_train.shape[0]} real HF volumes)")
+        print(f"Validation on {X_val.shape[0]} synthetic volumes (from {hf_val.shape[0]} real HF volumes)")
+
+        srr_model, history = run_training(
+            lf_train=X_train, hf_train=y_train,
+            lf_val=X_val,     hf_val=y_val,
+            output_path='niv_results/outputs_src_simulated_context/enhancement',
+            model_type=residual_srr_unet,
+            model_name=model_name,
+            loss_type=config.loss_type_denoise,
+            patch_xy=64, patch_z=32,
+            batch_size=2,
+            steps_per_epoch=5,
+            epochs=epochs_total,
+            model=srr_model,
+            initial_epoch=0
+        )
+    else:
+        current_epoch = 0
+        while current_epoch < epochs_total:
+            b2a_ckpt = pick_random_checkpoint_from_combinations(b2a_combinations, seed=None)
+            g_model_BtoA = load_model(b2a_ckpt, compile=False)
+
+            X_train, y_train, _ = build_synthetic_from_arrays(hf_train, ctx_train, g_model_BtoA, batch_size_slices=batch_size_slices)
+            X_val, y_val, _     = build_synthetic_from_arrays(hf_val,   ctx_val,   g_model_BtoA, batch_size_slices=batch_size_slices)
+
+            # visualize_slices(X_train[0])
+
+            print(f"Training on {X_train.shape[0]} synthetic volumes (from {hf_train.shape[0]} real HF volumes)")
+            print(f"Validation on {X_val.shape[0]} synthetic volumes (from {hf_val.shape[0]} real HF volumes)")
+            # print entire shape of X_train and y_train
+            print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+            print(f"X_val shape: {X_val.shape}, y_val shape: {y_val.shape}")
+
+            next_epoch = min(current_epoch + refresh_every, epochs_total)
+
+            srr_model, history = run_training(
+                lf_train=X_train, hf_train=y_train,
+                lf_val=X_val,     hf_val=y_val,
+                output_path='niv_results/outputs_src_simulated_context/enhancement',
+                model_type=residual_srr_unet,
+                model_name=model_name,
+                loss_type=config.loss_type_denoise,
+                patch_xy=64, patch_z=32,
+                batch_size=32,
+                steps_per_epoch=35,
+                epochs=next_epoch,
+                model=srr_model,
+                initial_epoch=current_epoch
+            )
+            current_epoch = next_epoch

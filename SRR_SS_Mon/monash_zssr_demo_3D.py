@@ -80,7 +80,7 @@ crop_sizes = [64]
 noise_stds = [0.0]
 
 # Load dataset
-training_path = "Data/ULC_img_enhancement/Training data"
+training_path = "niv_raw_data/3 Monash_ULC_img enhancement/Training data"
 dataset = PairedMRI(training_path)
 kernel_path = '/Users/sairamgeethanath/Documents/Contributions/Tools/Projects/R21/lf-brain-tracking/src/ZSSR_master/kernel_example/BSD100_100_lr_rand_ker_c_X2_0.mat'
 
