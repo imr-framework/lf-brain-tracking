@@ -18,11 +18,11 @@ from prep4srr_2step_v2 import make_nifti, pad_zeros, do_resize
 niftymic = False
 visualize = True
 
-dataFolder = r'R21_pipeline/DataSRR_AJ/SRR/ajay_scan_1/npy1'
+dataFolder = r'R21_pipeline/DataSRR_AJ/ajay_scan_1/npy1'
 subjectID = 'sub_0011'
 
 outputfolder = os.path.join(
-    r'R21_pipeline/DataSRR_AJ/SRR/ajay_scan_1/Outputs',
+    r'R21_pipeline/DataSRR_AJ/ajay_scan_1/Outputs',
     subjectID
 )
 

@@ -22,7 +22,7 @@ from src.ZSSR_master import configs, configs_2, ZSSR
 from src.ZSSR_master.ZSSR import *
 
 # Read the data from the scanner and convert to .npy files
-dataFolder = r'./Niftymic_related_r21/Data/In_vivo/2_avg'
+dataFolder = r'R21_pipeline/DataSRR_AJ/MW_5mm'
 im_yz_folder = 'axial_circshift_1yz.npy'  # axial
 im_yx_folder = 'sagittal_circshift_1yx.npy'  # sagittal
 im_zx_folder = 'coronal_circshift_1zx.npy'  # coronal
@@ -64,7 +64,7 @@ make_nifti(data=im_axial_mask, fname='axial_mask_redo.nii.gz', mask=True,
                res=[2, 2, 2], dim_info=[2, 1, 0])  # phase, freq, slice
 
 # Visualize the image and mask to confirm correctness
-# plot_anatomy_raw(im_axial, clim=[0, 2048])
+plot_anatomy_raw(im_axial, clim=[0, 2048])
 
 # ----- Sagittal -----
 # im_sag = nib.load('/Users/sairamgeethanath/Documents/Projects/Tools/Low_field/OSI/Superresolution/super_resolution/Data/In_vivo/2_avg/circ-shifted/sag.nii.gz').get_fdata()
@@ -73,7 +73,7 @@ make_nifti(data=im_sag_mask, fname='sag_mask_redo.nii.gz', mask=True,
                res=[2, 2, 2], dim_info=[2, 1, 0])  # phase, freq, slice
 
 # Visualize the image and mask to confirm correctness
-# plot_anatomy_raw(im_sag, clim=[0, 2048])
+plot_anatomy_raw(im_sag, clim=[0, 2048])
 
 # ----- Coronal -----
 # im_cor = nib.load('/Users/sairamgeethanath/Documents/Projects/Tools/Low_field/OSI/Superresolution/super_resolution/Data/In_vivo/2_avg/circ-shifted/cor.nii.gz').get_fdata()
@@ -82,35 +82,35 @@ make_nifti(data=im_cor_mask, fname='cor_mask_redo.nii.gz', mask=True,
                res=[2, 2, 2], dim_info=[2, 1, 0])  # phase, freq, slice
 
 # Visualize the image and mask to confirm correctness
-# plot_anatomy_raw(im_cor, clim=[0, 2048])
+plot_anatomy_raw(im_cor, clim=[0, 2048])
 
-# # Run the docker NiftyMIC SRR command to generate SRR output
-# print("Running NiftyMIC SRR via Docker...")
-# docker_command = [
-#     "docker", "run", "--rm",
-#     "-v", f"{os.getcwd()}:{os.getcwd()}",
-#     "-w", os.getcwd(),
-#     "renbem/niftymic",
-#     "niftymic_reconstruct_volume",
-#     "--filenames", "axial_redo.nii.gz", "cor_redo.nii.gz", "sag_redo.nii.gz",
-#     "--filenames-masks", "axial_mask_redo.nii.gz", "cor_mask_redo.nii.gz", "sag_mask_redo.nii.gz",
-#     "--alpha", "0.02",
-#     "--outlier-rejection", "0",
-#     "--threshold-first", "0.5",
-#     "--threshold", "0.7",
-#     "--intensity-correction", "1",
-#     "--two-step-cycles", "1",
-#     "--isotropic-resolution", "2",
-#     "--output", "srr_1cycle_2mm_Huber_test2.nii.gz",
-#     "--verbose", "1",
-#     "--reconstruction-type", "HuberL2"
-# ]
+# Run the docker NiftyMIC SRR command to generate SRR output
+print("Running NiftyMIC SRR via Docker...")
+docker_command = [
+    "docker", "run", "--rm",
+    "-v", f"{os.getcwd()}:{os.getcwd()}",
+    "-w", os.getcwd(),
+    "renbem/niftymic",
+    "niftymic_reconstruct_volume",
+    "--filenames", "axial_redo.nii.gz", "cor_redo.nii.gz", "sag_redo.nii.gz",
+    "--filenames-masks", "axial_mask_redo.nii.gz", "cor_mask_redo.nii.gz", "sag_mask_redo.nii.gz",
+    "--alpha", "0.02",
+    "--outlier-rejection", "0",
+    "--threshold-first", "0.5",
+    "--threshold", "0.7",
+    "--intensity-correction", "1",
+    "--two-step-cycles", "1",
+    "--isotropic-resolution", "2",
+    "--output", "srr_1cycle_2mm_Huber_test2.nii.gz",
+    "--verbose", "1",
+    "--reconstruction-type", "HuberL2"
+]
 
-# result = subprocess.run(docker_command, capture_output=True, text=True)
-# print(result.stdout)
-# print('Finished running')
-# if result.returncode != 0:
-#     print("Error:", result.stderr)
+result = subprocess.run(docker_command, capture_output=True, text=True)
+print(result.stdout)
+print('Finished running')
+if result.returncode != 0:
+    print("Error:", result.stderr)
 
 # Output: SRR
 im_srr = nib.load('srr_1cycle_2mm_Huber_test2.nii.gz').get_fdata()
