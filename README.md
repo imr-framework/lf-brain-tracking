@@ -2,7 +2,7 @@
 
 ![LF Brain Tracking](assets/logo1.png)
 
-![LF Brain pipeline](assets/assets/lf-mri-pipeline.jpeg)
+![LF Brain pipeline](assets/lf-mri-pipeline.jpeg)
 
 ### Aim 1: Dense temporal sampling and super-resolution reconstruction
 
