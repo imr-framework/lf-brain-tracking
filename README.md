@@ -1,136 +1,70 @@
-![LF Brain Tracking](assets/logo1.jpeg)
+![LF Brain Tracking](assets/logo2.jpeg)
 
-# Low-field brain tracking using 0.05T MRI
+<h1 align="center">Need for accessible Neuroimaging</h3>
+<br>
+
+Changes in brain morphology provide critical insights into a wide range of neuropsychiatric disorders. Magnetic Resonance Imaging (MRI) has been the primary tool to investigate these disorders, highlighting structural, functional, and metabolic changes. For example, 3T structural MRI data have significantly improved our understanding of the youths’ developing brain in health and disease. Recent studies have highlighted the need for densely sampled temporal neuroimaging data to maximize clinical insight in patients with mental health challenges. However, according to the World Health Organization, two-thirds of the global population does not have access to MRI. The cost, power, local expertise, and siting requirements of high-field MR systems (1.5T) impede longitudinal imaging in large populations, especially those in low-resource settings. The recent resurgence of portable, very low-field MRI (<0.1T) has provided an alternative to obtaining imaging data in an accessible and scalable manner. Currently, the major obstacle is that these portable scanners suffer from lower signal-to-noise ratio (SNR), impacting the volumetric accuracy required to monitor brain changes using structural imaging. These limitations render these scanners supplementary devices to high-field systems. For meaningful use, there is a critical need to develop novel methods to produce very low-field, structural MRI data statistically equivalent to or better than 3T data.
+
+<h1 align="center">Low-field brain tracking using 0.05T MRI</h3>
+<br>
 
 ![LF Brain pipeline](assets/lf-mri-pipeline.jpeg)
 
-📌 Overview
-
-LF-Brain-Tracking is a research framework for longitudinal brain analysis in low-field MRI (LF-MRI) environments.
-It integrates motion correction, registration, super-resolution reconstruction, and deep learning-based segmentation to enable robust brain tracking under low-SNR and low-resolution conditions.
-
-The framework is designed for:
-
-    Low-field MRI systems (≤0.064T and portable scanners)
-    Longitudinal brain studies
-    Biomedical AI research (segmentation + tracking)
-    Super-resolution MRI reconstruction pipelines
-    Resource-constrained imaging environments
-
-### Aim 1: Dense temporal sampling and super-resolution reconstruction
-
-### Aim 2: Autonomous 0.05T MRI development
-
-<h1 align="center">Virtual Scanner Tabletop Web Games</h3>
-<p float="left">
-<img title="PyPulseq Badge" src="https://img.shields.io/badge/made%20using-pypulseq-brightgreen" height="15"><img title="Virtual Scanner Badge" src="https://img.shields.io/badge/made%20using-virtual--scanner-blue" height="15">
-</p>
+<h1 align="center">Development of low-field-brain tracking tools.</h3>
 <br>
 
-This is the development branch for the games software as part of the [DELTA DIY project](https://github.com/delta-diy-mri/delta-diy-mri.github.io).
-The goal is to use this in a master's level MRI course and obtain feedback.
+![Status](https://img.shields.io/badge/status-under%20development-orange)
 
-Virtual Scanner Tabletop is an extension to [Virtual Scanner](https://github.com/imr-framework/virtual-scanner/) comprising of educational games about MRI that can be run by simulation or connected to a real educational MRI scanner. Target audience include high school, college, and post-grad students as well as members of the MR and scientific community at large.   
+# lf-brain-tracking
 
+Short project description here...
 
-## Quickstart
+## 🚧 Project Status
 
-### Docker Compose
-1. Create a .env file and fill in environment variable as listed in the .env.example  
+This repository is currently under active development. Some modules are subject to frequent updates.
 
-2. Start the stack with one compose file:
-   - `docker compose --env-file .env up -d`
-
-3. Run schema init/migrations:
-   - `docker compose --env-file .env run --rm web python scripts/init_db.py`
-
-### Method 1: `pip install`
-1. On the command line, make a new virtual environment using the command: `python -m venv myenv` For more info on creating virtual environments,
-see [here](https://docs.python.org/3/library/venv.html]). Activate the virtual environment using the command `source venv/bin/activate` on the terminal from the folder where you installed the virtual environment
-2. Install the games using the command: 'pip install vs-tabletop-lite'
-3. cd into the main folder called "vstabletop" (`venv\Lib\site-packages\vstabletop`) and run `app.py`. Click into the link in the program output (examplee: http://127.0.0.1:5000/). Log in as `admin` using password `123456`.
-   
-#### Troubleshooting 
-(version 1.0.0b5) - You might encounter problems with installing Kiwisolver which requires Visual C++. If you have trouble getting the Visual C++, you can ignore the kiwisolver and perform the following steps:
-1. Install vs-tabletop without dependencies: `pip install vs-tabletop==1.0.0b4 --no-deps`
-2. After it's installed, find `requirements.txt` in the `vstabletop` folder and remove the `kiwisolver==1.0.1` line
-3. Install the rest of the requirements: `pip install -r requirements.txt`
-4. Run `app.py` the same way as described above. The games should be able to run normally.
-
-### Method 2: Cloning 
-1. Clone the repository.
-2. Make a virtual environment as described in Method 1, activate it, and install everything specified in `requirements.txt`. Make sure that you are using `Python 3.10.x`
-3. `cd` into the app directory and run `questions.py` to set up the database.
-4. Run the app in one of two ways:
-   (a) Run `app.py` using Pycharm or other IDE,
-    or on the command line as follows:
-   ```bash
-   python ./vstabletop/main/app.py
-   ```
-   (b) On the command line, set the FLASK_APP variable (`set FLASK_APP=app` on Windows, or `export FLASK_APP=app` on non-Windows). Then run the app with: `flask run`
-
-   ```bash
-   # An example on non-Windows
-   cd vstabletop/main
-   export FLASK_APP=app
-   flask run
-   ```
-5. Click into the link in the program output (example: http://127.0.0.1:5000/) or copy & paste it into the browser. Log in as admin using password `123456`.
-
-### Method 3: Virtual Machine
-1. Please visit the wiki page [here](https://github.com/imr-framework/vs-tabletop/wiki/Virtual-Machine-with-Vagrant) if you are interested in using a virtual machine to play these games
-
-Please also use this method (recommended) if you want to contribute to the repository.
-
-If on windows, make sure to check you are not running on OneDrive but only from a local folder.
+This is the development branch for the low-field-brain tracking project. It integrates development or investigation of advanced lf-mri tools for motion correction, lf-simulations, zero-shot denoising, super-resolution reconstruction, and brain segmentation to enable robust brain tracking under low-SNR and low-resolution conditions.
 
 
-## Tabletop Games
-The eight tabletop games are grouped into 4 pairs, each containing a "beginner" game and an "advanced" game. 
-Games 1, 3, 5, 7 are beginner games and the games 2, 4, 6, 8 are advanced games. 
 
-| # | Game          | Conceptsr |
-| --- | ------------- | ------------- |
-| 1 | What's in an image?      | FOV, resolution, windowing  |
-| 2 | K-space magiK            | projection imaging, k-space  |
-| 3 | Brains, please!          | contrast, T1/T2/PD, TR/TE/FA | 
-| 4 | Fresh blood              | flow imaging |
-| 5 | Proton's got moves       | M9, precession, RF pulses, signal detection | 
-| 6 | Relaxation station       | T1 and T2 relaxation, FID | 
-| 7 | Puzzled by projection I  | 1D and 2D projection (forward) |
-| 8 | Puzzled by projection II | 1D and 2D projection (inverse)|
 
-## 7. 👥 Contributing and Community guidelines
-`vs-tabletop` adheres to a code of conduct adapted from the [Contributor Covenant](https://www.contributor-covenant.org/) code of conduct.
-Contributing guidelines can be found [here](https://github.com/imr-framework/vs-tabletop/blob/main/CONTRIBUTING.md).
+# References 
 
-# References:
-1. Please cite our article: Tong, G., Ananth, R., Vaughan Jr, J.T. and Geethanath, S., 2024. Expanding access to magnetic resonance education through open-source web tutorials. NMR in Biomedicine, pp.e5109-e5109.
-2. Brain images from the Coursera Neurohacking in R (https://www.kaggle.com/datasets/ilknuricke/neurohackinginrimages) were used in Game 2.
+Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data and DL-SRR
 
-## Feedback:
-If you have played the games, please provide your feedback [here](https://docs.google.com/forms/d/e/1FAIpQLSf_nnL1OdemcEtcI9C57LcKRiQtvmovZ4TxX30x6MR1IuSZNw/viewform).
-Your time is sincerely appreciated and will help us make this tool better.
+<h1 align="center">Conference proceddings</h3>
+<br>
 
-## Screenshots for quick reference
-Screenshots are in-development previews of the games. They will be updated at the first release. 
+1. Girish, N., Sharma, A., and Geethanath, S., "Zero-shot self-supervised super-resolution reconstruction of MRI to track brain changes using volumetry: application to high and low-field data," SPIE Medical Imaging, 2026.
+2. Sharma, A., & Geethanath, S. (2026). Learning beyond interpolation: Zero-shot resolution enhancement for low-field MRI. International Society for Magnetic Resonance in Medicine (ISMRM 2026) Annual Meeting.
+3. Sharma, A., Oiye, I. E., Byrum, R., Holbrook, M., Cong, Y., Calcagno, C., Mani, V., & Geethanath, S. (2026). Enhancing low-field MRI image quality for Nipah virus infection imaging using deep learning. International Society for Magnetic Resonance in Medicine (ISMRM) Annual Meeting. 
+4. Sharma, A., Oiye, I. E., Byrum, R., Holbrook, M., Cong, Y., Calcagno, C., Mani, V., & Geethanath, S. (2025). Physics-informed low-field Nipah virus MRI image reconstruction of non-human primates in a BSL-4 facility. International Society for Magnetic Resonance in Medicine (ISMRM) Annual Meeting.
 
-### Login page
-![login](https://user-images.githubusercontent.com/31249056/186200814-f0abacb0-a4ad-490d-9b64-76e72f4bb6a9.png)
+<h1 align="center">Preprints</h3>
+<br>
 
-### Game navigation
-![index](https://user-images.githubusercontent.com/31249056/186200755-38525e6b-4196-49d0-a23d-320a164ff2b4.png)
+1. Oiye, I. E., Sharma, A., Mohanta, Z., Sankaralayam, D. S., Uchida, Y., Akinwale, T., ... & Geethanath, S. (2025). A Hands-On Workshop for Constructing a Low-Field MRI System in Three Days. arXiv preprint arXiv:2511.20979.
 
-### Module 1 (beginner): What's in an image?
-![game1](https://user-images.githubusercontent.com/31249056/186200870-c4d1a934-bf80-4f34-95e4-698a1fe6dee5.png)
+<h1 align="center">Revision submission</h3>
+<br>
 
-### Module 2 (beginner): Brains, please!
-![game3](https://user-images.githubusercontent.com/31249056/186200887-3504892c-3367-4fe4-a222-fc35fb869f8e.png)
+1. Sharma, A., Lu, H., Greenspan, H., Lin, D. D., & Geethanath, S. (2025). Enhancing low-field magnetic resonance image quality using deep learning: Challenges, opportunities, and resources. Manuscript under revision in NMR in Biomedicine.
 
-### Module 3 (beginner): Proton's got moves
-![game5](https://user-images.githubusercontent.com/31249056/186201062-cae3af09-749e-4e0a-a254-b803f7e22772.png)
+# Aim 2: Automate 0.05T MRI (auto-MRI) to deliver consistent scanner operation and image quality for robust deployment
 
-### Module 4 (beginner): Puzzled by Projection I 
-![game7](https://user-images.githubusercontent.com/31249056/186201082-00fc2dad-a9b1-4911-8862-99fbd73cccdc.png)
+Open-source repository for Digital Twin [Auto-MRI](https://github.com/imr-framework/virtual-scanner-adt)
 
+<h1 align="center">Conference proceddings</h3>
+<br>
+
+1. Kinyera.L, Oiye, I. E., Geethanath.A, Obungoloch. J, & Geethanath, S. (2026).  An Autonomous Digital Twin Agent for the Parametric Design and Validation of Halbach Array Magnets for Low-Field MRI. International Society for Magnetic Resonance in Medicine (ISMRM) Annual Meeting.
+
+# Readings
+
+
+# Other open-source tools for MRI education.
+
+DELTA DIY MRI: Learning through building and playing [DELTA DIY project](https://github.com/delta-diy-mri/delta-diy-mri.github.io).
+
+Virtual Scanner Tabletop Games [Virtual Scanner](https://github.com/imr-framework/virtual-scanner/).
 
