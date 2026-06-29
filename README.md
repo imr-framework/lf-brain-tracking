@@ -27,7 +27,7 @@ This is the development branch for the low-field-brain tracking project. It inte
 
 # References 
 
-#Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data and DL-SRR
+# Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data and DL-SRR
 
 <h3 align="center">Conference proceddings</h3>
 <br>
