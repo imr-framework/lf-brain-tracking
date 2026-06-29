@@ -1,12 +1,14 @@
 ![LF Brain Tracking](assets/logo2.jpeg)
 
-# Need for accessible Neuroimaging
+# Need for accessible imaging
 
 Changes in brain morphology provide critical insights into a wide range of neuropsychiatric disorders. Magnetic Resonance Imaging (MRI) has been the primary tool to investigate these disorders, highlighting structural, functional, and metabolic changes. For example, 3T structural MRI data have significantly improved our understanding of the youths’ developing brain in health and disease. Recent studies have highlighted the need for densely sampled temporal neuroimaging data to maximize clinical insight in patients with mental health challenges. However, according to the World Health Organization, two-thirds of the global population does not have access to MRI. The cost, power, local expertise, and siting requirements of high-field MR systems (1.5T) impede longitudinal imaging in large populations, especially those in low-resource settings. The recent resurgence of portable, very low-field MRI (<0.1T) has provided an alternative to obtaining imaging data in an accessible and scalable manner. Currently, the major obstacle is that these portable scanners suffer from lower signal-to-noise ratio (SNR), impacting the volumetric accuracy required to monitor brain changes using structural imaging. These limitations render these scanners supplementary devices to high-field systems. For meaningful use, there is a critical need to develop novel methods to produce very low-field, structural MRI data statistically equivalent to or better than 3T data.
 
+<br>
 <h1 align="center">Low-field brain tracking using 0.05T MRI</h3>
 <br>
 Our image currently looks like ....
+
 ![LF Brain pipeline](assets/lf-mri-pipeline.jpeg)
 
 <h1 align="center">Development of lf-brain-tracking tools.</h3>
