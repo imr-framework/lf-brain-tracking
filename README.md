@@ -1,6 +1,6 @@
 # 🧠 LF-Brain-Tracking using 0.05T MRI
 
-![LF Brain Tracking](assets/logo1.png)
+![LF Brain Tracking](assets/logo1.jpeg)
 
 ![LF Brain pipeline](assets/lf-mri-pipeline.jpeg)
 
