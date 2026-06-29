@@ -11,14 +11,9 @@ Our image currently looks like ....
 
 ![LF Brain pipeline](assets/lf-mri-pipeline.jpeg)
 
-<h1 align="center">Development of lf-brain-tracking tools.</h3>
+# Development of lf-brain-tracking tools.
 <br>
-
-![Status](https://img.shields.io/badge/status-under%20development-orange)
-
-# lf-brain-tracking
-
-Short project description here...
+# lf-brain-tracking ![Status](https://img.shields.io/badge/status-under%20development-orange)
 
 ## 🚧 Project Status
 
