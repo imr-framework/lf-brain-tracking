@@ -17,10 +17,9 @@ Our image currently looks like ....
 
 ![Status](https://img.shields.io/badge/status-under%20development-orange)
 
-## 🚧 Project Status
-
 This repository is currently under active development. Some modules are subject to frequent updates.
 
+## 🚧 Description
 This is the development branch for the low-field-brain tracking project. It integrates development or investigation of advanced lf-mri tools for motion correction, lf-simulations, zero-shot denoising, super-resolution reconstruction, and brain segmentation to enable robust brain tracking under low-SNR and low-resolution conditions.
 
 
