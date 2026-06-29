@@ -28,7 +28,7 @@ This is the development branch for the low-field-brain tracking project. It inte
 
 Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data and DL-SRR
 
-<h1 align="center">Conference proceddings</h3>
+<h3 align="center">Conference proceddings</h3>
 <br>
 
 1. Girish, N., Sharma, A., and Geethanath, S., "Zero-shot self-supervised super-resolution reconstruction of MRI to track brain changes using volumetry: application to high and low-field data," SPIE Medical Imaging, 2026.
@@ -36,12 +36,12 @@ Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data
 3. Sharma, A., Oiye, I. E., Byrum, R., Holbrook, M., Cong, Y., Calcagno, C., Mani, V., & Geethanath, S. (2026). Enhancing low-field MRI image quality for Nipah virus infection imaging using deep learning. International Society for Magnetic Resonance in Medicine (ISMRM) Annual Meeting. 
 4. Sharma, A., Oiye, I. E., Byrum, R., Holbrook, M., Cong, Y., Calcagno, C., Mani, V., & Geethanath, S. (2025). Physics-informed low-field Nipah virus MRI image reconstruction of non-human primates in a BSL-4 facility. International Society for Magnetic Resonance in Medicine (ISMRM) Annual Meeting.
 
-<h1 align="center">Preprints</h3>
+<h3 align="center">Preprints</h3>
 <br>
 
 1. Oiye, I. E., Sharma, A., Mohanta, Z., Sankaralayam, D. S., Uchida, Y., Akinwale, T., ... & Geethanath, S. (2025). A Hands-On Workshop for Constructing a Low-Field MRI System in Three Days. arXiv preprint arXiv:2511.20979.
 
-<h1 align="center">Revision submission</h3>
+<h3 align="center">Revision submission</h3>
 <br>
 
 1. Sharma, A., Lu, H., Greenspan, H., Lin, D. D., & Geethanath, S. (2025). Enhancing low-field magnetic resonance image quality using deep learning: Challenges, opportunities, and resources. Manuscript under revision in NMR in Biomedicine.
@@ -50,7 +50,7 @@ Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data
 
 Open-source repository for Digital Twin [Auto-MRI](https://github.com/imr-framework/virtual-scanner-adt)
 
-<h1 align="center">Conference proceddings</h3>
+<h3 align="center">Conference proceddings</h3>
 <br>
 
 1. Kinyera.L, Oiye, I. E., Geethanath.A, Obungoloch. J, & Geethanath, S. (2026).  An Autonomous Digital Twin Agent for the Parametric Design and Validation of Halbach Array Magnets for Low-Field MRI. International Society for Magnetic Resonance in Medicine (ISMRM) Annual Meeting.
