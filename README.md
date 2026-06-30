@@ -23,19 +23,17 @@ This is the development branch for the low-field-brain tracking project. It inte
 
 
 
-# Registration and Orthogonal acquisiton combination
+## Registration and Orthogonal acquisiton combination
 
 NiftyMIC is a research-focused toolkit for motion correction and volumetric image reconstruction. NiftyMIC tool is used for motion correction and three-orthogonal acquisition combination [NiftyMIC](https://github.com/gift-surg/niftymic)
 
-# Brain Parcellation
+## Brain Parcellation
 
 Brain parcellation tools are publicly available [SynthSeg](https://surfer.nmr.mgh.harvard.edu/fswiki/SynthSeg), [SuperSynth](https://surfer.nmr.mgh.harvard.edu/fswiki/SuperSynth).
 
-    SuperSynth:
-
 # References 
 
-# Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data and DL-SRR
+## Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data and DL-SRR
 
 <h3 align="center">Conference proceddings</h3>
 <br>
@@ -55,7 +53,7 @@ Brain parcellation tools are publicly available [SynthSeg](https://surfer.nmr.mg
 
 1. Sharma, A., Lu, H., Greenspan, H., Lin, D. D., & Geethanath, S. (2025). Enhancing low-field magnetic resonance image quality using deep learning: Challenges, opportunities, and resources. Manuscript under revision in NMR in Biomedicine.
 
-# Aim 2: Automate 0.05T MRI (auto-MRI) to deliver consistent scanner operation and image quality for robust deployment
+## Aim 2: Automate 0.05T MRI (auto-MRI) to deliver consistent scanner operation and image quality for robust deployment
 
 Open-source repository for Digital Twin [Auto-MRI](https://github.com/imr-framework/virtual-scanner-adt)
 
@@ -66,10 +64,19 @@ Open-source repository for Digital Twin [Auto-MRI](https://github.com/imr-framew
 
 # Readings
 
+    Shocher, A., Cohen, N., & Irani, M. (2018). “zero-shot” super-resolution using deep internal learning. In Proceedings of the IEEE conference on computer vision and pattern recognition (pp. 3118-3126). [zero-shot super-resolution](https://arxiv.org/abs/1712.06087).
+
+    
+
+
 
 # Other open-source tools for MRI education.
 
-DELTA DIY MRI: Learning through building and playing [DELTA DIY project](https://github.com/delta-diy-mri/delta-diy-mri.github.io).
+### DELTA DIY MRI
+
+Learning through building and playing [DELTA DIY project](https://github.com/delta-diy-mri/delta-diy-mri.github.io).
+
+### Virtual Scanner
 
 Virtual Scanner Tabletop Games [Virtual Scanner](https://github.com/imr-framework/virtual-scanner/).
 
