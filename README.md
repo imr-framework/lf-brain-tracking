@@ -13,7 +13,6 @@ Our image currently looks like ....
 
 # Development of lf-brain-tracking tools.
 <br>
-# lf-brain-tracking 
 
 ![Status](https://img.shields.io/badge/status-under%20development-orange)
 
@@ -24,6 +23,15 @@ This is the development branch for the low-field-brain tracking project. It inte
 
 
 
+# Registration and Orthogonal acquisiton combination
+
+NiftyMIC is a research-focused toolkit for motion correction and volumetric image reconstruction. NiftyMIC tool is used for motion correction and three-orthogonal acquisition combination [NiftyMIC](https://github.com/gift-surg/niftymic)
+
+# Brain Parcellation
+
+Brain parcellation tools are publicly available [SynthSeg](https://surfer.nmr.mgh.harvard.edu/fswiki/SynthSeg), [SuperSynth](https://surfer.nmr.mgh.harvard.edu/fswiki/SuperSynth).
+
+    SuperSynth:
 
 # References 
 
