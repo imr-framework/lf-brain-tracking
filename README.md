@@ -31,7 +31,7 @@ NiftyMIC is a research-focused toolkit for motion correction and volumetric imag
 
 Brain parcellation tools are publicly available [SynthSeg](https://surfer.nmr.mgh.harvard.edu/fswiki/SynthSeg), [SuperSynth](https://surfer.nmr.mgh.harvard.edu/fswiki/SuperSynth).
 
-# References 
+# Publications
 
 ## Aim1: Track youth brain changes at 0.05T using densely sampled neuroimaging data and DL-SRR
 
@@ -53,9 +53,13 @@ Brain parcellation tools are publicly available [SynthSeg](https://surfer.nmr.mg
 
 1. Sharma, A., Lu, H., Greenspan, H., Lin, D. D., & Geethanath, S. (2025). Enhancing low-field magnetic resonance image quality using deep learning: Challenges, opportunities, and resources. Manuscript under revision in NMR in Biomedicine.
 
+#### Ongoing work
+
+1.	Ajay Sharma, Ivan Etoku Oiye, Kunal Aggarwal, Venkatesh Mani, Claudia Calcagno, Joseph Laux, Yu Cong, Michael R. Holbrook, and Sairam Geethanath, “Feasibility of very-low-field MRI for imaging Nipah-virus infected non-human primates in a bio-safety level four facility”.
+
 ## Aim 2: Automate 0.05T MRI (auto-MRI) to deliver consistent scanner operation and image quality for robust deployment
 
-Open-source repository for Digital Twin [Auto-MRI](https://github.com/imr-framework/virtual-scanner-adt)
+Open-source repository for digital twin publicly available [Auto-MRI](https://github.com/imr-framework/virtual-scanner-adt)
 
 #### Conference proceddings
 <br>
