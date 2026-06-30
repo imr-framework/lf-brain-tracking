@@ -1,0 +1,45 @@
+import os
+import numpy as np
+import pydicom
+import nibabel as nib
+from pydicom.filereader import dcmread
+
+def load_dicom_slices(dicom_dir):
+    slices = []
+    for filename in sorted(os.listdir(dicom_dir)):
+        filepath = os.path.join(dicom_dir, filename)
+        if os.path.isfile(filepath) and not filename.startswith("."):
+            try:
+                ds = dcmread(filepath)
+                if hasattr(ds, 'SliceLocation') or hasattr(ds, 'ImagePositionPatient'):
+                    slices.append(ds)
+            except Exception as e:
+                print(f"Skipping file {filename}: {e}")
+    # Sort by ImagePositionPatient[2] or SliceLocation
+    slices.sort(key=lambda x: float(x.ImagePositionPatient[2]) if hasattr(x, 'ImagePositionPatient') else float(x.SliceLocation))
+    return slices
+
+def dicom_to_nifti(dicom_dir, output_path):
+    slices = load_dicom_slices(dicom_dir)
+    image_shape = list(slices[0].pixel_array.shape)
+    image_shape.append(len(slices))
+    volume3d = np.zeros(image_shape, dtype=np.int16)
+
+    for i, s in enumerate(slices):
+        volume3d[:, :, i] = s.pixel_array
+
+    # Get voxel spacing
+    pixel_spacing = slices[0].PixelSpacing
+    slice_thickness = float(slices[0].SliceThickness)
+    voxel_spacing = (float(pixel_spacing[0]), float(pixel_spacing[1]), slice_thickness)
+
+    # Create affine matrix
+    affine = np.diag(voxel_spacing + (1.0,))
+    nifti_img = nib.Nifti1Image(volume3d, affine)
+    nib.save(nifti_img, output_path)
+    print(f"NIfTI file saved to {output_path}")
+
+# Example usage
+dicom_dir = "Data/IRF_3T/26184/AFRICAN.GREEN^African^Green^Monkey_26184_MR_2024-07-18_101226_MR-Brain-WWO_cs.T2_n100__00000"
+output_nifti = "Data/temp files/output_image.nii.gz"
+dicom_to_nifti(dicom_dir, output_nifti)
