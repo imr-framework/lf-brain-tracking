@@ -80,14 +80,6 @@ git clone https://github.com/your-username/lf-brain-tracking.git
 cd lf-brain-tracking
 ```
 
-## 🐍 (Optional) Create a virtual environment
-
-```bash
-python -m venv venv
-source venv/bin/activate   # Linux / macOS
-venv\Scripts\activate      # Windows
-```
-
 ## 📦 Install dependencies
 
 ```bash
@@ -95,13 +87,6 @@ pip install -r requirements.txt
 ```
 
 ---
-
-## 🚀 Verify installation
-
-```bash
-python -c "import torch; print('Environment setup successful')"
-```
-
 
 # Registration and Orthogonal Acquisition Combination
 
