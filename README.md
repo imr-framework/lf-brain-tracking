@@ -104,9 +104,9 @@ This repository supports research on **low-field MRI**, **deep learning**, **sup
 
 | Project | Description |
 |----------|-------------|
-| 🛠 **DELTA DIY MRI** | Learning MRI through hands-on system construction |
-| 🎮 **Virtual Scanner** | MRI education through simulation and tabletop games |
-| 🤖 **Auto-MRI** | Autonomous digital twin framework for low-field MRI |
+| 🛠 **[DELTA DIY MRI](https://github.com/delta-diy-mri/delta-diy-mri.github.io)** | Learn MRI through hands-on system construction, experiments, and interactive educational resources. |
+| 🎮 **[Virtual Scanner](https://github.com/imr-framework/virtual-scanner)** | An educational MRI simulation platform featuring virtual scanner tabletop games and MRI concepts. |
+| 🤖 **[Auto-MRI](https://github.com/imr-framework/virtual-scanner-adt)** | Autonomous digital twin framework for low-field MRI scanner design, optimization, and validation. |
 
 ---
 
