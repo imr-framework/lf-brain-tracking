@@ -23,13 +23,19 @@ This is the development branch for the low-field-brain tracking project. It inte
 
 
 
-## Registration and Orthogonal acquisiton combination
+# Registration and Orthogonal Acquisition Combination
 
-NiftyMIC is a research-focused toolkit for motion correction and volumetric image reconstruction. NiftyMIC tool is used for motion correction and three-orthogonal acquisition combination [NiftyMIC](https://github.com/gift-surg/niftymic)
+[![NiftyMIC](https://img.shields.io/badge/NiftyMIC-Motion%20Correction-blue)](https://github.com/gift-surg/NiftyMIC)
 
-## Brain Parcellation
+NiftyMIC is a research-focused toolkit for motion correction and volumetric image reconstruction. In **lf-brain-tracking**, NiftyMIC is used for motion correction and the combination of three orthogonal MRI acquisitions into a single high-quality reconstructed volume.
 
-Brain parcellation tools are publicly available [SynthSeg](https://surfer.nmr.mgh.harvard.edu/fswiki/SynthSeg), [SuperSynth](https://surfer.nmr.mgh.harvard.edu/fswiki/SuperSynth).
+
+# Brain Parcellation
+
+[![SynthSeg](https://img.shields.io/badge/SynthSeg-Brain%20Parcellation-green)](https://surfer.nmr.mgh.harvard.edu/fswiki/SynthSeg)
+[![SuperSynth](https://img.shields.io/badge/SuperSynth-Low--Field%20Parcellation-orange)](https://github.com/shuohan-cao/SuperSynth)
+
+Brain parcellation tools such as **SynthSeg** and **SuperSynth** are integrated to enable automated segmentation and anatomical parcellation of low-field MRI scans.
 
 # Publications
 
