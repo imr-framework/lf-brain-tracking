@@ -1,5 +1,80 @@
 ![LF Brain Tracking](assets/logo2.jpeg)
 
+# 🧠 Low-Field Brain Tracking Using 0.05T MRI
+
+> **Developing open-source tools for motion correction, image enhancement, super-resolution reconstruction, and brain analysis for accessible low-field MRI.**
+
+![Status](https://img.shields.io/badge/status-under%20development-orange)
+![Version](https://img.shields.io/badge/version-v1.0.0-blue)
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+---
+
+## 🌍 Why Accessible MRI?
+
+Brain morphology provides critical biomarkers for understanding neurodevelopment, aging, and neuropsychiatric disorders. Although **3T MRI** has substantially advanced brain imaging research, access to conventional MRI remains limited worldwide.
+
+According to the **World Health Organization (WHO)**, nearly **two-thirds of the global population lacks access to MRI** because of the high cost, infrastructure requirements, power consumption, and specialized expertise needed to operate conventional high-field scanners.
+
+Recent advances in **portable very-low-field MRI (<0.1T)** provide a promising alternative for longitudinal neuroimaging in community and resource-limited settings. However, these systems suffer from:
+
+- Low signal-to-noise ratio (SNR)
+- Lower spatial resolution
+- Motion artifacts
+- Reduced volumetric accuracy
+- Limited diagnostic quality
+
+To enable reliable longitudinal brain tracking, new computational methods are required to generate low-field MRI with image quality approaching that of conventional **3T MRI**.
+
+---
+
+## 🧠 Project Overview
+
+**lf-brain-tracking** is an open-source framework that develops AI-powered tools for improving very-low-field MRI acquired at **0.05T**.
+
+The project focuses on:
+
+- Motion correction
+- Orthogonal acquisition fusion
+- Low-field MRI simulation
+- Zero-shot denoising
+- Super-resolution reconstruction
+- Brain segmentation
+- Brain parcellation
+- Longitudinal brain volumetry
+- Image quality assessment
+
+---
+
+## 🖼️ Pipeline
+
+<p align="center">
+  <img src="assets/lf-mri-pipeline.jpeg" width="900">
+</p>
+
+---
+
+# 🚧 Development Status
+
+This repository is **under active development**.
+
+New modules, documentation, and examples are continuously being added as the project evolves.
+
+Current development areas include:
+
+- Motion correction
+- Low-field MRI simulation
+- Zero-shot denoising
+- Super-resolution reconstruction
+- Brain segmentation
+- Brain parcellation
+- Volumetric brain tracking
+- Benchmark datasets
+- Evaluation metrics
+
+> **Note:** APIs and directory structures may change before the first stable release.
+
 # Need for accessible imaging
 
 Changes in brain morphology provide critical insights into a wide range of neuropsychiatric disorders. Magnetic Resonance Imaging (MRI) has been the primary tool to investigate these disorders, highlighting structural, functional, and metabolic changes. For example, 3T structural MRI data have significantly improved our understanding of the youths’ developing brain in health and disease. Recent studies have highlighted the need for densely sampled temporal neuroimaging data to maximize clinical insight in patients with mental health challenges. However, according to the World Health Organization, two-thirds of the global population does not have access to MRI. The cost, power, local expertise, and siting requirements of high-field MR systems (1.5T) impede longitudinal imaging in large populations, especially those in low-resource settings. The recent resurgence of portable, very low-field MRI (<0.1T) has provided an alternative to obtaining imaging data in an accessible and scalable manner. Currently, the major obstacle is that these portable scanners suffer from lower signal-to-noise ratio (SNR), impacting the volumetric accuracy required to monitor brain changes using structural imaging. These limitations render these scanners supplementary devices to high-field systems. For meaningful use, there is a critical need to develop novel methods to produce very low-field, structural MRI data statistically equivalent to or better than 3T data.
