@@ -1,4 +1,4 @@
-# 🧠 0.05 T Brain Tracking – **Setup & Usage Guide**
+# 0.05 T Brain Tracking – **Setup & Usage Guide**
 
 *Branch: `high_school_projects`*
 
@@ -6,7 +6,7 @@ This README is a **how‑to** for installing and running the low‑field (0.05�
 
 ---
 
-## 🌍 Why 0.05 T + ZSSR?
+## Why 0.05 T + ZSSR?
 Conventional 3 T MRI offers high resolution but is expensive and scarce in many regions. Portable very‑low‑field scanners (< 0.1 T) are cheaper and easier to deploy, yet suffer from low signal‑to‑noise and limited spatial resolution.
 
 **ZSSR** enhances each slice without needing an external training set, making it ideal for:
@@ -17,7 +17,7 @@ Conventional 3 T MRI offers high resolution but is expensive and scarce in man
 
 ---
 
-## ⚙️ Prerequisites
+## Prerequisites
 | Requirement | Notes |
 |-------------|-------|
 | **macOS 12+** or **Ubuntu 20.04+** | Tested on Apple Silicon and x86_64. |
@@ -51,7 +51,7 @@ pip install -r requirements_high_school.txt
 ```
 ---
 
-## 🚀 Typical Workflow
+## Typical Workflow
 
 ### A. Enhance an image with ZSSR
 ```bash
@@ -80,7 +80,7 @@ freeview -v \
 ```
 ---
 
-## 🩹 Common Issues & Fixes
+## Common Issues & Fixes
 | Issue | Fix |
 |-------|-----|
 | **Terminal hang during TensorFlow step** | Force CPU: `export CUDA_VISIBLE_DEVICES="-1"` & `export TF_ENABLE_ONEDNN_OPTS=0` |
@@ -92,7 +92,7 @@ More troubleshooting tips live in `docs/wiki_freesurfer_zssr.md`.
 
 ---
 
-## 📂 Directory Layout (this branch)
+## Directory Layout (this branch)
 ```
 high_school_projects/
 ├── data/              # sample NIfTI files
@@ -104,13 +104,13 @@ high_school_projects/
 
 ---
 
-## 🤝 Contributors
-* **Ajay Sharma** — PI & maintainer  
-* **Niyathi Girish** — ZSSR growth‑rate pipeline  
-* **Gabriel <LastName>** — ZSSR volumetry pipeline
+## Contributors
+* **Sairam Geethanath — Principal Investigator
+* **Ajay Sharma** — ?? 
+* **Niyathi Girish** — ??
 
 ---
 
-## 📄 License
+## License
 Released under the **MIT License**. See `LICENSE` for details.
 
