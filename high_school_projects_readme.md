@@ -1,4 +1,4 @@
-# 🧠 Low‑Field Brain Tracking Using 0.05 T MRI — *High‑School Projects*
+# Low‑Field Brain Tracking Using 0.05 T MRI — *High‑School Projects*
 
 > **Branch:** `high_school_projects`   |   *Focused feasibility studies that extend the [`lf-brain-tracking`](https://github.com/imr-framework/lf-brain-tracking) framework to very‑low‑field (0.05 T) data.*
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 🎯 Aims
+## Aims
 
 | # | Title | Goal |
 |---|-------|------|
@@ -17,7 +17,7 @@
 
 ---
 
-## 🔍 Mini‑Projects
+## Mini‑Projects
 
 | Project | Lead | Objective | Status |
 |---------|------|-----------|--------|
@@ -28,7 +28,7 @@
 
 ---
 
-## 🖼️ Pipeline Overview
+## Pipeline Overview
 
 ```
 ┌──────────────┐     ┌────────────────────┐     ┌──────────────────┐
@@ -43,7 +43,7 @@
 
 ---
 
-## ⚙️ Installation & Environment
+## Installation & Environment
 
 <details>
 <summary><strong>1. Install FreeSurfer ( macOS )</strong></summary>
@@ -59,7 +59,7 @@ export SUBJECTS_DIR=$FREESURFER_HOME/subjects
 ```
 4. Reload: `source ~/.zshrc`  or `source ~/.bash_profile`.
 
-ℹ️ Validate with `echo $FREESURFER_HOME` and `freeview --version`. fileciteturn2file1
+Validate with `echo $FREESURFER_HOME` and `freeview --version`. fileciteturn2file1
 </details>
 
 <details>
@@ -87,7 +87,7 @@ docker build -t lowfield_zssr -f docker/Dockerfile.zssr .
 
 ---
 
-## 🚀 Quick‑Start Demo
+## Quick‑Start Demo
 
 ```bash
 # Enhance & segment a sample scan
@@ -109,7 +109,7 @@ export TF_ENABLE_ONEDNN_OPTS=0
 
 ---
 
-## 🛠️ Command Cheat‑Sheet
+## Command Cheat‑Sheet
 
 | Task | Command | Notes |
 |------|---------|-------|
@@ -122,7 +122,7 @@ See *`docs/Freesurfer_Commands_Reference.md`* for the full list. filecite
 
 ---
 
-## 🩹 Troubleshooting
+## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
@@ -135,7 +135,7 @@ More issues & fixes are documented in **docs/wiki_freesurfer_zssr.md**. file
 
 ---
 
-## 📊 Comparing Volumes
+## Comparing Volumes
 
 The pipeline outputs `synthseg.vol.csv` per session. Use the helper notebook `notebooks/compare_volumes.ipynb` or any spreadsheet to review differences between **Regular** and **ZSSR** volumes.
 
@@ -148,7 +148,7 @@ The pipeline outputs `synthseg.vol.csv` per session. Use the helper notebook `no
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork & create a feature branch: `feat/<brief_desc>`.
 2. Adhere to **PEP‑8** and run `pre‑commit`.
@@ -157,18 +157,17 @@ The pipeline outputs `synthseg.vol.csv` per session. Use the helper notebook `no
 
 ---
 
-## 👥 Contributors
+## Contributors
 
 | Name | Role |
 |------|------|
-| **Ajay Sharma** | Principal Investigator |
-| **Niyathi Girish** | ZSSR‑Growth‑Rates lead |
-| **Gabriel <Last Name>** | ZSSR‑Volumetry lead |
-| *You?* | See *Contributing* |
+| **Sairam Geethanath** | Principal Investigator |
+| **Ajay Sharma** | ?? |
+| **Niyathi Girish** | ?? |
 
 ---
 
-## 📚 Cite Us
+## Cite Us
 
 ```bibtex
 @inproceedings{girish2026_zssr_lowfield,
