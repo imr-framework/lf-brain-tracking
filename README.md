@@ -19,8 +19,8 @@ This README is a **how‑to** for installing and running the low‑field (0.05�
 
 | Project | Lead | Objective | Status |
 |---------|------|-----------|--------|
-| **ZSSR‑Volumetry** | Gabriel | Can ZSSR‑enhanced single‑orientation scans yield accurate volumes (ICV, GM, WM, etc.)? | 🟡 Data analysis |
-| **ZSSR‑Growth‑Rates** | Niyathi Girish | Use ZSSR reconstructions to compute longitudinal brain‑growth slopes across dense timepoints. | 🟡 Data prep |
+| **ZSSR‑Volumetry** | Gabriel | Can ZSSR‑enhanced single‑orientation scans yield accurate volumes (ICV, GM, WM, etc.)? | Data analysis |
+| **ZSSR‑Growth‑Rates** | Niyathi Girish | Use ZSSR reconstructions to compute longitudinal brain‑growth slopes across dense timepoints. | Data prep |
 
 ## Pipeline Overview
 
