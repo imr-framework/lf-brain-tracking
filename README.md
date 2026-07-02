@@ -136,9 +136,9 @@ high_school_projects/
 ---
 
 ## Contributors
-* **Sairam Geethanath — Principal Investigator
-* **Ajay Sharma** — ?? 
-* **Niyathi Girish** — ??
+* **Sairam Geethanath** — Principal Investigator 
+* **Ajay Sharma** — Post-Doctoral Researcher 
+* **Niyathi Girish** — Student Researcher
 
 ---
 
