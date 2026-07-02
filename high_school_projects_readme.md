@@ -6,6 +6,22 @@ This README is a **how‑to** for installing and running the low‑field (0.05�
 
 ---
 
+## Aims
+
+| # | Title | Goal |
+|---|-------|------|
+| **1** | Dense temporal sampling + ZSSR | Acquire frequent 0.05 T scans and apply **Z**ero‑**S**hot **S**elf‑super‑**R**esolution to approach 3 T volumetric accuracy. |
+| **2** | Autonomous 0.05 T MRI | Provide containerised, on‑scanner pipelines for immediate QC and brain‑metric extraction. |
+
+---
+
+## Mini‑Projects
+
+| Project | Lead | Objective | Status |
+|---------|------|-----------|--------|
+| **ZSSR‑Volumetry** | Gabriel | Can ZSSR‑enhanced single‑orientation scans yield accurate volumes (ICV, GM, WM, etc.)? | 🟡 Data analysis |
+| **ZSSR‑Growth‑Rates** | Niyathi Girish | Use ZSSR reconstructions to compute longitudinal brain‑growth slopes across dense timepoints. | 🟡 Data prep |
+
 ## Why 0.05 T + ZSSR?
 Conventional 3 T MRI offers high resolution but is expensive and scarce in many regions. Portable very‑low‑field scanners (< 0.1 T) are cheaper and easier to deploy, yet suffer from low signal‑to‑noise and limited spatial resolution.
 
