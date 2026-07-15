@@ -679,7 +679,7 @@ checkpoint    Display corresponding slices from four 3D volumes in a grid for co
 # MAIN EXECUTION
 # -----------------------------
 if __name__ == "__main__":
-    
+
     # Load data
     # 🎯 Define selected combinations (denoise → retrain)
     # selected_combinations = [
@@ -692,6 +692,7 @@ if __name__ == "__main__":
     selected_combinations = [
         ("l2_edge_gram_matrix_loss", "l2_ssim_edge"),
         ]
+    
     # 🌀 Iterate over chosen combinations
     for loss_denoise, loss_retrain in selected_combinations:
         # Update config
@@ -714,12 +715,17 @@ if __name__ == "__main__":
         print(f"   checkpoint_path:  {config.checkpoint_path} ")
         print("------------------------------------------------------\n")
 
-
         # Load Data
-        X_train, y_train = load_data_for_days(config.subjects, [config.train_day])
-        X_val, y_val     = load_data_for_days(config.subjects, [config.val_day])
+        X_train, y_train = load_data_for_days(config.subjects, config.train_day)
+        X_val, y_val     = load_data_for_days(config.subjects, config.val_day)
         X_test, y_test   = load_data_for_days(config.subjects, config.test_days)
 
+        #print shapes
+
+        # print(f"🧩 X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
+        # print(f"🧩 X_val shape:   {X_val.shape}, y_val shape:   {y_val.shape}")
+        # print(f"🧩 X_test shape:  {X_test.shape}, y_test shape:  {y_test.shape}")
+        
         X_train, y_train = normalize_dataset(X_train, y_train)
         X_val, y_val     = normalize_dataset(X_val, y_val)
         X_test, y_test   = normalize_dataset(X_test, y_test)
@@ -743,7 +749,6 @@ if __name__ == "__main__":
         X_val = np.array([gaussian_filter(X_val[i], sigma=lf_sigma) for i in range(len(X_val))])
         X_test = np.array([gaussian_filter(X_test[i], sigma=lf_sigma) for i in range(len(X_test))])
 
-        
         # -----------------------------
         # Print shapes for confirmation
         # -----------------------------
@@ -773,7 +778,7 @@ if __name__ == "__main__":
             batch_size=config.batch_size,
             steps_per_epoch=config.steps_per_epoch,
             epochs=config.epochs,
-            gaussian_blur=True
+            gaussian_blur=False
         )
 
         # Refinement (2nd pass)
@@ -795,95 +800,6 @@ if __name__ == "__main__":
             gaussian_blur=False
         )
         
-        config.checkpoint_path = config.refined_model_name
-        config.refined_model_name = f"{config.checkpoint_path}_retrained"
-
-        # Refinement (2nd pass)
-        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
-            checkpoint_path=config.checkpoint_path,
-            refined_model_name=config.refined_model_name,
-            X_train=X_train,
-            y_train=y_train,
-            X_val=X_val,
-            y_val=y_val,
-            output_path=config.output_path,
-            batch_size=config.retrain_batch_size,
-            loss_type=config.retrain_loss_type,
-            patch_xy=config.patch_xy,
-            patch_z=config.patch_z,
-            steps_per_epoch=config.retrain_steps_per_epoch,
-            epochs=config.retrain_epochs,
-            visualize=config.visualize,
-            gaussian_blur=False
-        )
-
-
-        config.checkpoint_path = config.refined_model_name
-        config.refined_model_name = f"{config.checkpoint_path}_retrained"
-
-        # Refinement (2nd pass)
-        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
-            checkpoint_path=config.checkpoint_path,
-            refined_model_name=config.refined_model_name,
-            X_train=X_train,
-            y_train=y_train,
-            X_val=X_val,
-            y_val=y_val,
-            output_path=config.output_path,
-            batch_size=config.retrain_batch_size,
-            loss_type=config.retrain_loss_type,
-            patch_xy=config.patch_xy,
-            patch_z=config.patch_z,
-            steps_per_epoch=config.retrain_steps_per_epoch,
-            epochs=config.retrain_epochs,
-            visualize=config.visualize,
-            gaussian_blur=False
-        )
-
-        config.checkpoint_path = config.refined_model_name
-        config.refined_model_name = f"{config.checkpoint_path}_retrained"
-
-        # Refinement (2nd pass)
-        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
-            checkpoint_path=config.checkpoint_path,
-            refined_model_name=config.refined_model_name,
-            X_train=X_train,
-            y_train=y_train,
-            X_val=X_val,
-            y_val=y_val,
-            output_path=config.output_path,
-            batch_size=config.retrain_batch_size,
-            loss_type=config.retrain_loss_type,
-            patch_xy=config.patch_xy,
-            patch_z=config.patch_z,
-            steps_per_epoch=config.retrain_steps_per_epoch,
-            epochs=config.retrain_epochs,
-            visualize=config.visualize,
-            gaussian_blur=False
-        )
-
-        config.checkpoint_path = config.refined_model_name
-        config.refined_model_name = f"{config.checkpoint_path}_retrained"
-
-        # Refinement (2nd pass)
-        refined_model, history, lf_train_refined, lf_val_refined = run_retraining(
-            checkpoint_path=config.checkpoint_path,
-            refined_model_name=config.refined_model_name,
-            X_train=X_train,
-            y_train=y_train,
-            X_val=X_val,
-            y_val=y_val,
-            output_path=config.output_path,
-            batch_size=config.retrain_batch_size,
-            loss_type=config.retrain_loss_type,
-            patch_xy=config.patch_xy,
-            patch_z=config.patch_z,
-            steps_per_epoch=config.retrain_steps_per_epoch,
-            epochs=config.retrain_epochs,
-            visualize=config.visualize,
-            gaussian_blur=False
-        )
-
         refined_model_name = config.refined_model_name
         refined_checkpoint_path = os.path.join(config.output_path, f"{refined_model_name}_checkpoint.keras")
         print(f"📥 Loading base model from checkpoint: {refined_checkpoint_path}")

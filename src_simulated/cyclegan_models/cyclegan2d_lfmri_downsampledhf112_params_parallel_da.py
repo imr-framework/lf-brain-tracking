@@ -13,6 +13,8 @@ Or install keras_contrib using guidelines here: https://github.com/keras-team/ke
 
 # Model SNR & Visit ID into the training
 
+# This file was used to train against all the files prediction (Step 2).
+
 import sys
 sys.path.insert(0, './')
 

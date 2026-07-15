@@ -250,19 +250,19 @@ if __name__ == "__main__":
     # 🔹 Model list and paths
     # ------------------------------------------------------------
     model_names = [
-        'residual_srr_unet_l1_l2_ssim_l2_ssim_edge',
+        'residual_srr_unet_l2_edge_gram_matrix_loss_l2_ssim_edge',
         # 'residual_srr_unet_l2_ssim_mse_ssim_edge',
-        # 'residual_srr_unet_l1_l2_ssim_l2_ssim',
+        # 'residual_srr_unet_l1_l2_ssim_l2_ssim_edger',
         # 'residual_srr_unet_l2_ssim_l2_ssim'
         # 'residual_srr_unet_l2_ssim_mse_ssim_edge'
     ]
     
-    folder_path = "niv_results/outputs_src_simulated/Output_patch_noise_updated"
+    folder_path = "niv_results/outputs_src_simulated/enhancement"
 
     # ------------------------------------------------------------
     # 🔹 Load test data once
     # ------------------------------------------------------------
-    data_folder = "niv_raw_data/Nipah_IRF_data/data_niv/data_sim_check/59228_D43_9/train_test"
+    data_folder = "niv_raw_data/data_sim_check/59228_D43_9/train_test"
     subjects = ["26184", "30366", "35528", "34507", "35547", "59228", "59877", "59233"]
     test_days = [5]
 

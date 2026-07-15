@@ -7,10 +7,10 @@ import tkinter as tk
 # -----------------------------
 # Settings
 # -----------------------------
-source_dir = 'Data/Nipah_IRF_data/LFMRI_DATA_IRF_NIFTI_best_Corrected'
+source_dir = 'niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_all'
 
-target_t2w = 'Data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T2w'
-target_t1w = 'Data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T1w'
+target_t2w = 'niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T2W'
+target_t1w = 'niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T1W'
 
 os.makedirs(target_t2w, exist_ok=True)
 os.makedirs(target_t1w, exist_ok=True)
@@ -64,6 +64,9 @@ class MRIReviewer:
         try:
             img = nib.load(fpath)
             data = img.get_fdata()
+            #print min and max
+            print(f"Min: {data.min()}, Max: {data.max()}")
+
             self.slicer = OrthoSlicer3D(data)
             self.slicer.show()
         except Exception as e:

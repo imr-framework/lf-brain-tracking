@@ -1,15 +1,17 @@
 """
-cycleGAN model
+CycleGAN model
 Based on the code by Jason Brownlee from his blogs on https://machinelearningmastery.com/
 I am adapting his code to various applications but original credit goes to Jason.
 The model uses instance normalization layer:
 Normalize the activations of the previous layer at each step,
 i.e. applies a transformation that maintains the mean activation
-close to 0 and the activation standard deviation close to 1.
+Close to 0 and the activation standard deviation close to 1.
 Standardizes values on each output feature map rather than across features in a batch.
 Download instance normalization code from here: https://github.com/keras-team/keras-contrib/blob/master/keras_contrib/layers/normalization/instancenormalization.py
 Or install keras_contrib using guidelines here: https://github.com/keras-team/keras-contrib
 """
+
+# Step 1: Individual for T1w and T2w training.
 
 import sys
 sys.path.insert(0, './')
@@ -310,18 +312,22 @@ def load_data_for_days(subjects, days):
         return None, None
     
 # write a function to visualize slices from the random volume
-def visualize_slices(volume, n_cols=5):
+def visualize_slices(volume, n_cols=5, vmin=None, vmax=None):
     """
     Visualize slices from a 3D volume.
     """
     n_slices = volume.shape[2]
     n_rows = (n_slices + n_cols - 1) // n_cols
 
+    # robust contrast if not provided
+    if vmin is None or vmax is None:
+        vmin, vmax = np.percentile(volume, (1, 99))
+
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 3 * n_rows))
     axes = axes.flatten()
 
     for i in range(n_slices):
-        axes[i].imshow(volume[:, :, i], cmap="gray")
+        axes[i].imshow(volume[:, :, i], cmap="gray", vmin=vmin, vmax=vmax)
         axes[i].axis("off")
 
     plt.tight_layout()
@@ -373,7 +379,7 @@ from sklearn.preprocessing import StandardScaler
 
 class DomainAGenerator:
     def __init__(self, path, batch_size=1, target_h=128, target_w=128, target_d=35, 
-                 target_spacing=(1,1,2), field_strength=0.05, rotate=True, visit=1, shuffle=True):
+                 target_spacing=(1,1,2), field_strength=0.05, rotate=False, visit=1, shuffle=True):
         """
         Generator for Domain A (LF MRI)
         Returns 3D volume + context per volume
@@ -388,7 +394,7 @@ class DomainAGenerator:
         self.field_strength = field_strength
         self.rotate = rotate
         self.visit = visit
-        self.apply_brain_extraction = True
+        self.apply_brain_extraction = False
         #no morphology
         self.shuffle = shuffle
 
@@ -498,6 +504,8 @@ class DomainAGenerator:
         """
         import cv2
 
+        print("[INFO] Performing slice-wise brain extraction...")
+
         num_slices = vol.shape[2]
         H, W = vol.shape[0], vol.shape[1]
 
@@ -580,9 +588,11 @@ class DomainAGenerator:
 
     def _load_volume(self, fpath):
         nii = nib.load(fpath)
-        vol = np.abs(nii.get_fdata().astype(np.float32))  # Fix negatives
-        current_spacing = nii.header.get_zooms()[:3]
-        # print(f"[INFO] Loaded {os.path.basename(fpath)} with shape {vol.shape}")
+        vol = nii.get_fdata().astype(np.float32)  # Fix negatives
+        # current_spacing = nii.header.get_zooms()[:3]
+        # visualize_slices(vol)
+        current_spacing = (1.0,1.0,2.0)
+        print(f"[INFO] Loaded {os.path.basename(fpath)} with shape {vol.shape}")
         # print(f"[INFO] Loading spacing {current_spacing}")
 
         # Resample to target spacing
@@ -609,7 +619,6 @@ class DomainAGenerator:
             out[:, :, ds:de] = vol[:, :, d0:d0 + (de - ds)]
             vol = out
 
-        
         # ===============================
         # ✅ INSERT BRAIN EXTRACTION HERE
         # ===============================
@@ -617,7 +626,8 @@ class DomainAGenerator:
             vol = self._extract_brain_volume(vol)
 
         # Normalize [-1,1]
-        vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
+        # vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
+        # visualize_slices(vol)
 
         return vol  # Do not add channel
 
@@ -633,16 +643,10 @@ class DomainAGenerator:
                 # Rotate 90 degrees k times along the in-plane axes (0,1)
                 # You can change k to random 0-3 for random rotation
                 vol = np.rot90(vol, k=1, axes=(0, 1))
-            base_params_path = 'niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_ALL_PARAMS_1'
+            base_params_path = 'niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF_ALL_PARAMS_1'
             ctx = self._create_context(base_params_path, fpath=fpath, default_context=False)
             ctx = self.scaler.transform(ctx)
             yield vol, ctx[0]
-
-import os
-import numpy as np
-import nibabel as nib
-from scipy.ndimage import zoom
-from sklearn.preprocessing import StandardScaler
 
 class DomainBGenerator:
     def __init__(self, path, substring=None, target_spacing=(1,1,2),
@@ -781,15 +785,15 @@ for volA, ctxA in genA:
     print("Domain A context:", ctxA.shape)
     print("Domain A context values:", ctxA)
     # min and max
-    print("Domain A context min:", volA.min())
-    print("Domain A context max:", volA.max())
+    print("Domain A min:", volA.min())
+    print("Domain A max:", volA.max())
     # visualize slices
     visualize_slices(volA)
     break
 
 # Path to Domain B NIfTI files
-path_B = "niv_raw_data/Nipah_IRF_data/data_niv/IRF_3T_NIFTI"
-substring_B = "T2_n100"
+path_B = "niv_raw_data/Nipah_IRF_data/HF_data"
+substring_B = ""
 
 genB = DomainBGenerator(
     path=path_B,
@@ -809,8 +813,8 @@ for volB, ctxB in genB:
     print("Domain B context:", ctxB.shape)
     print("Domain B context values:", ctxB)
     # min and max
-    print("Domain B context min:", volB.min())
-    print("Domain B context max:", volB.max())
+    print("Domain B min:", volB.min())
+    print("Domain B max:", volB.max())
     # visualize slices
     visualize_slices(volB)
     break

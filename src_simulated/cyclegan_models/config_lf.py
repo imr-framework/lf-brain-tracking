@@ -10,20 +10,20 @@ import os
 
 class CycleGANConfig:
     # Data paths
-    path_lf = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T2w"
+    path_lf = "niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T2W"
 
-    path_lf_t1w = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_NIFTI_best_Corrected/30366"
-    path_lf_t2w = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_NIFTI_best_Corrected/26184"
-    path_lf_all = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_ALL"
-    path_lf_subject = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_nifti_all/26184"
+    path_lf_t1w = "niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T1W"
+    path_lf_t2w = "niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T2W"
+    path_lf_all = "niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_ALL"
+    path_lf_subject = "niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DATA_T1W"
 
-    path_lf_test = "niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DA_data_all_1"
+    path_lf_test = "niv_raw_data/Nipah_IRF_data/Low_field_data_DA/LFMRI_DA_data_all_1"
 
     # Image parameters
     BATCH_SIZE = 1
 
     # code testing mode
-    TEST = True  # Whether to run in test mode
+    TEST = False  # Whether to run in test mode
     SLICES_TEST = False  # Whether to limit number of slices for quick testing of code
 
     # Discriminator parameters
@@ -59,19 +59,19 @@ class CycleGANConfig:
     GEN_LOSS_WEIGHTS = [0.25, 1, 30, 30] # weights for [adv, identity, cycle_A, cycle_B]
 
     #train parameters
-    EPOCHS = 1000 # total number of epochs
+    EPOCHS = 700 # total number of epochs
     INITIAL_LR = 0.002 # initial learning rate
     N_ITER = 300 # number of epochs with initial learning rate
     N_ITER_DECAY = 0 # number of epochs with linearly decaying learning rate
 
     # Output directories
-    OUTPUT_DIR = 'niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_T2w_2' # directory to save outputs
+    OUTPUT_DIR = 'niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_lfsimulated_context_700' # directory to save outputs
     
     # Visualization parameters
     VISUALIZE = True  # Whether to visualize test examples during training
 
     #Model Evaluation loading
-    MODEL_EVAL_PATH = 'niv_results/outputs_src_simulated/cyclegan_lfmri20t2w_1_lfsimulated/' # path to load model for evaluation
+    MODEL_EVAL_PATH = 'niv_results/outputs_src_simulated/cyclegan_lfmri20t2w_lfsimulated_context_700/' # path to load model for evaluation
 
     # Specific model names to load using MODEL_EVAL_PATH
     MODEL_NAME_D_A = os.path.join(MODEL_EVAL_PATH, 'd_A_030000.keras')

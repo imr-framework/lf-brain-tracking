@@ -8,18 +8,19 @@ class Config:
     # -----------------------------
     # 🔧 DATA PARAMETERS
     # -----------------------------
-    data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
-    subjects = ["26184", "30366", "35528", "34507", "35547", "59228", "59877", "59233"]
-    train_day = 1
-    val_day = 2
-    test_days = [3, 4, 5]
+    data_folder = "niv_raw_data/data_sim_check/59228_D43_9/train_test/"
+    # subjects = ["30366", "35528", "34507", "35547", "59228", "59877", "59233"]
+    subjects = ['30366', '34507', '35547', '35528', '59233', '59877', '59175']
+    train_day = [1,2,3,4]
+    val_day = [5]
+    test_days = [5]
 
     # -----------------------------
     # 🧠 MODEL PARAMETERS
     # -----------------------------
     model_name = "residual_srr_unet"
     # model_type = residual_srr_unet  # symbolic name; loaded dynamically if needed
-    output_path = "niv_results/outputs_src_simulated_context/enhancement"
+    output_path = "niv_results/outputs_src_simulated/enhancement"
     os.makedirs(output_path, exist_ok=True)
     
     # -----------------------
@@ -30,7 +31,7 @@ class Config:
     input_shape = (64,64,32,1)
     batch_size = 32
     steps_per_epoch = 32
-    epochs = 3
+    epochs = 500
     learning_rate = 0.001
     loss_type_denoise = "l2_ssim_edge"
 

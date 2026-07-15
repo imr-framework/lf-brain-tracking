@@ -162,7 +162,7 @@ import numpy as np
 # ------------------------------------------------
 if __name__ == "__main__":
     # Paths
-    folder_path = "Output_patch_noise_updated"
+    folder_path = "niv_results/outputs_src_simulated/enhancement"
 
     # Loop through all items in the folder
     for item in os.listdir(folder_path):
@@ -176,7 +176,7 @@ if __name__ == "__main__":
         print(model_path)
 
         # Load test data
-        data_folder = "Data/data_sim_check/3T_1simulated_LF/train_test"
+        data_folder = "niv_raw_data/data_sim_check/59228_D43_9/train_test"
         subjects = ["26184", "30366", "35528", "34507", "35547", "59228", "59877", "59233"]
         test_days = [3]
 

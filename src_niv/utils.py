@@ -28,7 +28,7 @@ print(tf.__version__)
 
 
 # Define the path to the IRF_3T folder ( High Field Data)
-nhp_base_path = './niv_raw_data/Nipah_IRF_data/IRF_3T'
+nhp_base_path = 'niv_raw_data/71E-2_All_MR_Not_Anonymized'
 
 def load_and_preprocess_hf(subject, day_idx, visualize=True):
     """
@@ -785,19 +785,27 @@ def visualize_pair(x_vol, y_vol, slice_indices):
     # Remove batch & channel dims
     x_vol = np.squeeze(x_vol)  # shape (X, Y, Z)
     y_vol = np.squeeze(y_vol)  # shape (X, Y, Z)
+
+    # If batch dimension exists, select one subject
+    if x_vol.ndim == 4:
+        x_vol = x_vol[0]      # first subject
+    if y_vol.ndim == 4:
+        y_vol = y_vol[0]
+
+    print(x_vol.shape)   # (32,128,128)
+    print(y_vol.shape)
     
     num_slices = len(slice_indices)
     fig, axes = plt.subplots(2, num_slices, figsize=(3 * num_slices, 4))
     
     for i, idx in enumerate(slice_indices):
         # Row 1: X slices
-        # axes[0, i].imshow(x_vol[:, :, idx], cmap='gray')
-        axes[0, i].imshow(np.abs(x_vol[:, :, idx]), cmap='gray')
+        axes[0, i].imshow(np.abs(x_vol[idx, :, :]), cmap='gray')
         axes[0, i].set_title(f"X slice {idx}")
         axes[0, i].axis('off')
         
         # Row 2: Y slices
-        axes[1, i].imshow(y_vol[:, :, idx], cmap='gray')
+        axes[1, i].imshow(np.abs(y_vol[idx, :, :]), cmap='gray')
         axes[1, i].set_title(f"Y slice {idx}")
         axes[1, i].axis('off')
     

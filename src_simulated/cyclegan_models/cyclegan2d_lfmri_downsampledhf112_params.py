@@ -306,8 +306,8 @@ visualize_slices(dataA[1, :, :, :])
 print("DataA range: ", np.min(dataA), np.max(dataA))
 
 # Load Data
-path_raw_t2 = "niv_raw_data/Nipah_IRF_data/data_niv/IRF_3T_NIFTI"
-substring_filter = "T2_n100"
+path_raw_t2 = "niv_raw_data/Nipah_IRF_data/HF_data"
+substring_filter = ""
 
 def load_nii_volumes_downsampled(path, target_spacing=(1,1,2), add_channel=False, 
                      target_h=140, target_w=140, target_d=35, 
@@ -333,18 +333,18 @@ def load_nii_volumes_downsampled(path, target_spacing=(1,1,2), add_channel=False
                 nii_files.append(os.path.join(dirpath, fname))
 
     nii_files.sort(key=lambda x: (os.path.dirname(x), os.path.basename(x)))
-    import shutil
+    # import shutil
     # copy all nii.gz files to save folder if save_path is provided
-    if save_path is not None:
-        os.makedirs(save_path, exist_ok=True)
-        for i, fpath in enumerate(nii_files, 1):
-            fname = os.path.basename(fpath)
-            # change substring in filename with image {i}
-            fname = fname.replace(substring, f"image_{i}")
-            dest_path = os.path.join(save_path, fname)
-            if not os.path.exists(dest_path):
-                shutil.copy2(fpath, dest_path)
-        print(f"[INFO] Copied {len(nii_files)} files to {save_path}")
+    # if save_path is not None:
+    #     os.makedirs(save_path, exist_ok=True)
+    #     for i, fpath in enumerate(nii_files, 1):
+    #         fname = os.path.basename(fpath)
+    #         # change substring in filename with image {i}
+    #         fname = fname.replace(substring, f"image_{i}")
+    #         dest_path = os.path.join(save_path, fname)
+    #         if not os.path.exists(dest_path):
+    #             shutil.copy2(fpath, dest_path)
+    #     print(f"[INFO] Copied {len(nii_files)} files to {save_path}")
 
     # Limit number of files if test mode is on
     if test:
@@ -408,7 +408,7 @@ dataB_all = load_nii_volumes_downsampled(
     substring=substring_filter,
     rotate=True,
     test=TEST,
-    save_path="Data/Nipah_IRF_data/IRF_3T_t1-t2/T2"
+    save_path="niv_raw_data/IRF_3T_t1-t2"
 )
 
 print("Loaded volumes shape:", dataB_all.shape)
@@ -542,8 +542,8 @@ B_context = scaler.transform(B_context)
 dataset = [A_2D, B_2D, A_context, B_context]
 # dataset = data
 
-if VISUALIZE:
-    inspect_domains(dataset[0], dataset[1], n_samples=5)
+# if VISUALIZE:
+#     inspect_domains(dataset[0], dataset[1], n_samples=5)
 
 # from cycleGAN_model import define_generator, define_discriminator, define_composite_model, train
 # define input shape based on the loaded dataset

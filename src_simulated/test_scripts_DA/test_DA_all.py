@@ -542,12 +542,13 @@ for volA, ctxA, save_file in genA:
     break
 
 model_name = 'residual_srr_unet_l1_l2_ssim_l2_ssim_edge'
-folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
+folder_path = "niv_results/outputs_src_simulated/output_patch_noise"
 model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_all"
 
 output_dir_denoise ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_denoise'
 output_dir_enhance ='niv_raw_data/Nipah_IRF_data/data_niv/Low_field_data_DA/LFMRI_DATA_T1w_enhance'
 output_dir = output_dir_denoise
+
 # Resume from latest checkpoints if available
 
 model_files = {

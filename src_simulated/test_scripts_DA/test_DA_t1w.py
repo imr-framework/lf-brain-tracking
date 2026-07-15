@@ -759,7 +759,7 @@ model_name = 'residual_srr_unet_l2_ssim_edge'
 # folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
 folder_path = "niv_results/outputs_src_simulated_context/enhancement"
 
-model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_1"
+model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t1w_lfsimulated_context_700"
 
 # Path for saving the generated volumes from domain adaptation step
 output_dir_lf ='niv_raw_data/Nipah_IRF_data/data_niv/Evaluator_data/VolA'

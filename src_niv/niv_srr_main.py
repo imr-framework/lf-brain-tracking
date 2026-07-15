@@ -64,7 +64,7 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
             epochs = 50,batch_size = 1,visualize_pairs = False):
     
     print("inside Train function ........................")
-    output_path = f'./Data/Results/{model_type}/{subject}'
+    output_path = f'niv_results/Supervised/{model_type}/{subject}'
     os.makedirs(output_path, exist_ok=True)
 
     # #save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index
@@ -203,26 +203,10 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
             )
 
             model.summary()
-            # --- Build and Compile the Dual-Encoder Model ---
-
-            # # Input shapes for the model should match the shape of a single sample (H, W, D, C)
-            # if model_case == 'single_encoder_unet':
-            #     model = model_(input_shape=(32,128,128,1))
-            # else:
-            #     raise ValueError("Invalid model_type. Choose from 'single_encoder_unet', 'dual_encoder_unet'.")
-            
-            # print(f"\nBuilt {model_type} model for training.")
-            # # --- Compile the model ---
-            # model.compile(
-            #     optimizer='adam',
-            #     loss=composite_loss,
-            #     metrics=[psnr, ssim, MeanSquaredError(name='mse')])  # Added metrics her) # Mean Squared Error is common for regression
-            # # Mean Squared Error is common for regression
-            # model.summary()
 
             # --- Train the CNN ---
             print("\nStarting encoder model training...")
-            
+
             steps_per_epoch = steps_per_epoch # Number of steps per epoch
             epochs = epochs # Number of training epochs
             batch_size = batch_size # Batch size (1 for a single volume)

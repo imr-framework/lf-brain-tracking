@@ -5,8 +5,8 @@
 #   Loads LF .3d data, performs preprocessing, applies trained SRR model,
 #   and visualizes results (denoising + super-resolution).
 # ------------------------------------------------------------
-"""
 
+"""
 cycleGAN model
 Based on the code by Jason Brownlee from his blogs on https://machinelearningmastery.com/
 I am adapting his code to various applications but original credit goes to Jason.
@@ -230,7 +230,7 @@ def visualize_comparison(
     name="comparison",
     output_dir="outputs",
     affine=None,
-    slice_range=(10, 25),
+    slice_range=(11, 22),
     save_nifti=True,
     show_ortho=False
 ):
@@ -272,7 +272,48 @@ def visualize_comparison(
             ax.axis('off')
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+
+    import math
+
+    # ---------------- Save PNG of pred1 ----------------
+    n_cols = 4                              # Fixed number of columns
+    n_slices = len(slice_ids)
+    n_rows = math.ceil(n_slices / n_cols)
+
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(4 * n_cols, 4 * n_rows),
+        squeeze=False
+    )
+
+    for i, idx in enumerate(slice_ids):
+        r = i // n_cols
+        c = i % n_cols
+
+        axes[r, c].imshow(_get_slice(pred1, idx), cmap="gray")
+        axes[r, c].set_title(f"Slice {idx}", fontsize=10)
+        axes[r, c].axis("off")
+
+    # Hide unused subplots
+    for j in range(n_slices, n_rows * n_cols):
+        r = j // n_cols
+        c = j % n_cols
+        axes[r, c].axis("off")
+
+    plt.tight_layout()
+
+    # Save PNG with the same base name as the NIfTI
+    png_path = os.path.join(
+        output_dir,
+        os.path.splitext(os.path.splitext(name)[0])[0] + ".png"
+    )
+
+    plt.savefig(png_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    print(f"✅ Saved PNG: {png_path}")
 
     # Save NIfTI
     if save_nifti:
@@ -302,8 +343,8 @@ def visualize_comparison(
     return paths if save_nifti else None
 
 class DomainAGenerator:
-    def __init__(self, path, batch_size=1, target_h=128, target_w=128, target_d=40, 
-                 target_spacing=(1,1,2), field_strength=0.05, rotate=True, visit=1, shuffle=True):
+    def __init__(self, path, batch_size=1, target_h=128, target_w=128, target_d=35, 
+                 target_spacing=(1,1,2), field_strength=0.05, rotate=False, visit=1, shuffle=True):
         """
         Generator for Domain A (LF MRI)
         Returns 3D volume + context per volume
@@ -318,6 +359,8 @@ class DomainAGenerator:
         self.field_strength = field_strength
         self.rotate = rotate
         self.visit = visit
+        self.apply_brain_extraction = False
+        #no morphology
         self.shuffle = shuffle
 
         # Context scaler for volume-wise context
@@ -346,23 +389,7 @@ class DomainAGenerator:
             return float(val)
         except:
             return float(default)
-    
-    # NORMALIZATION
-    # -----------------------------
-    def _normalize_volume(self, vol, method='minmax'):
-        if method=='minmax':
-            vol_min, vol_max = vol.min(), vol.max()
-            if vol_max - vol_min > 0:
-                vol = (vol - vol_min) / (vol_max - vol_min)
-            else:
-                vol = np.zeros_like(vol)
-        elif method=='zscore':
-            mean, std = vol.mean(), vol.std()
-            if std>0:
-                vol = (vol - mean) / std
-            else:
-                vol = np.zeros_like(vol)
-        return vol
+
 
     def _create_context(self, base_params_path, fpath=None, default_context=True, N=1):
         """
@@ -426,12 +453,112 @@ class DomainAGenerator:
         context = np.tile(single_row, (N, 1))  # shape: (N, 5)
 
         return context
+    
+    def _extract_brain_volume(self, vol):
+        """
+        Perform slice-wise brain extraction using Otsu + morphology.
+
+        Additionally supports building a *combined* mask across slices (union mask),
+        and applying the same mask to the entire volume to reduce slice-to-slice flicker.
+
+        Args:
+            vol: (H, W, D) volume (your docstring says normalized [-1,1], but this works either way)
+
+        Returns:
+            brain_vol: (H, W, D) uint8-like range as produced by OpenCV masking (0..255)
+        """
+        import cv2
+
+        print("[INFO] Performing slice-wise brain extraction...")
+
+        num_slices = vol.shape[2]
+        H, W = vol.shape[0], vol.shape[1]
+
+        # --- settings (safe defaults if attributes not present) ---
+        combine_masks = bool(getattr(self, "combine_slice_masks", True))
+        min_slices = int(getattr(self, "mask_min_slices", 1))  # require presence in >=K slices
+        kernel_size = int(getattr(self, "mask_kernel_size", 16))
+        dilate_iters = int(getattr(self, "mask_dilate_iters", 1))
+        close_iters = int(getattr(self, "mask_close_iters", 1))
+
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+
+        norm_slices = []
+        masks = []
+
+        # 1) Build per-slice normalized images + masks
+        for i in range(num_slices):
+            slice_data = vol[:, :, i]
+
+            if slice_data is None or slice_data.size == 0:
+                norm_slices.append(np.zeros((H, W), dtype=np.uint8))
+                masks.append(np.zeros((H, W), dtype=np.uint8))
+                continue
+
+            try:
+                norm = cv2.normalize(
+                    np.abs(slice_data),
+                    None, 0, 255,
+                    cv2.NORM_MINMAX,
+                    cv2.CV_8U
+                )
+                norm_slices.append(norm)
+
+                # --- Otsu threshold ---
+                _, thresh = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+                # --- Find contours ---
+                contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+                mask = np.zeros_like(norm, dtype=np.uint8)
+                if contours:
+                    for cnt in sorted(contours, key=cv2.contourArea, reverse=True)[:2]:
+                        cv2.drawContours(mask, [cnt], -1, 255, thickness=cv2.FILLED)
+
+                    # --- Morphological refinement ---
+                    mask = cv2.dilate(mask, kernel, iterations=dilate_iters)
+                    for _ in range(max(1, close_iters)):
+                        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+                masks.append(mask)
+
+            except Exception as e:
+                print(f"[WARN] Slice {i} failed: {e}")
+                norm_slices.append(np.zeros((H, W), dtype=np.uint8))
+                masks.append(np.zeros((H, W), dtype=np.uint8))
+
+        norm_vol = np.stack(norm_slices, axis=2)   # (H,W,D) uint8
+        mask_vol = np.stack(masks, axis=2)         # (H,W,D) uint8 0/255
+
+        # 2) Optionally build combined mask over depth
+        if combine_masks:
+            # presence count across slices
+            present = (mask_vol > 0).astype(np.uint8)    # (H,W,D) 0/1
+            count = np.sum(present, axis=2)              # (H,W)
+
+            k = max(1, min(int(min_slices), num_slices))
+            combined_2d = (count >= k).astype(np.uint8) * 255  # (H,W) 0/255
+
+            # optional cleanup to smooth combined mask boundary
+            combined_2d = cv2.morphologyEx(combined_2d, cv2.MORPH_CLOSE, kernel)
+
+            mask_to_apply = np.repeat(combined_2d[:, :, None], num_slices, axis=2)
+        else:
+            mask_to_apply = mask_vol
+
+        # 3) Apply mask to all slices
+        brain_vol = np.where(mask_to_apply > 0, norm_vol, 0).astype(np.uint8)
+
+        return brain_vol
 
     def _load_volume(self, fpath):
         nii = nib.load(fpath)
-        
-        vol = np.abs(nii.get_fdata().astype(np.float32))  # Fix negatives
-        current_spacing = nii.header.get_zooms()[:3]
+        vol = nii.get_fdata().astype(np.float32)  # Fix negatives
+        # current_spacing = nii.header.get_zooms()[:3]
+        # visualize_slices(vol)
+        current_spacing = (1.0,1.0,2.0)
+        print(f"[INFO] Loaded {os.path.basename(fpath)} with shape {vol.shape}")
+        # print(f"[INFO] Loading spacing {current_spacing}")
 
         # Resample to target spacing
         zoom_factors = (
@@ -456,10 +583,16 @@ class DomainAGenerator:
             out = np.zeros((h, w, self.target_d), dtype=vol.dtype)
             out[:, :, ds:de] = vol[:, :, d0:d0 + (de - ds)]
             vol = out
-        
-        # Normalize using min-max normalization to [0, 1]
-        vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
-        # vol = self._normalize_volume(vol, method='zscore')
+
+        # ===============================
+        # ✅ INSERT BRAIN EXTRACTION HERE
+        # ===============================
+        if self.apply_brain_extraction:
+            vol = self._extract_brain_volume(vol)
+
+        # Normalize [-1,1]
+        # vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
+        # visualize_slices(vol)
 
         return vol  # Do not add channel
 
@@ -475,12 +608,193 @@ class DomainAGenerator:
                 # Rotate 90 degrees k times along the in-plane axes (0,1)
                 # You can change k to random 0-3 for random rotation
                 vol = np.rot90(vol, k=1, axes=(0, 1))
-            base_params_path = 'niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_ALL_PARAMS_1'
+            base_params_path = 'niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF_ALL_PARAMS_1'
             ctx = self._create_context(base_params_path, fpath=fpath, default_context=False)
             ctx = self.scaler.transform(ctx)
             save_file = os.path.basename(fpath)
             print(f"[GENERATOR] Yielding {save_file}")
             yield vol, ctx[0], save_file
+
+# class DomainAGenerator:
+#     def __init__(self, path, batch_size=1, target_h=128, target_w=128, target_d=40, 
+#                  target_spacing=(1,1,2), field_strength=0.05, rotate=True, visit=1, shuffle=True):
+#         """
+#         Generator for Domain A (LF MRI)
+#         Returns 3D volume + context per volume
+#         """
+#         self.path = path
+#         self.files = [os.path.join(path,f) for f in os.listdir(path) if f.endswith((".nii",".nii.gz"))]
+#         self.batch_size = batch_size
+#         self.target_h = target_h
+#         self.target_w = target_w
+#         self.target_d = target_d
+#         self.target_spacing = target_spacing
+#         self.field_strength = field_strength
+#         self.rotate = rotate
+#         self.visit = visit
+#         self.shuffle = shuffle
+
+#         # Context scaler for volume-wise context
+#         self.scaler = StandardScaler()
+#         dummy_ctx = self._create_context(len(self.files))
+#         self.scaler.fit(dummy_ctx)
+
+#         self.on_epoch_end()
+    
+#     def __len__(self):
+#         return len(self.files) // self.batch_size
+
+#     def on_epoch_end(self):
+#         if self.shuffle:
+#             random.shuffle(self.files)
+
+#     def _parse_value(self, val, default):
+#         """
+#         Convert string values like '20e3', '50.0', '2.068d' to float safely.
+#         """
+#         try:
+#             if isinstance(val, str):
+#                 val = val.replace('d', '')  # remove trailing 'd'
+#                 val = val.replace('"', '')  # remove quotes
+#                 return float(eval(val))     # handles '20e3'
+#             return float(val)
+#         except:
+#             return float(default)
+    
+#     # NORMALIZATION
+#     # -----------------------------
+#     def _normalize_volume(self, vol, method='minmax'):
+#         if method=='minmax':
+#             vol_min, vol_max = vol.min(), vol.max()
+#             if vol_max - vol_min > 0:
+#                 vol = (vol - vol_min) / (vol_max - vol_min)
+#             else:
+#                 vol = np.zeros_like(vol)
+#         elif method=='zscore':
+#             mean, std = vol.mean(), vol.std()
+#             if std>0:
+#                 vol = (vol - mean) / std
+#             else:
+#                 vol = np.zeros_like(vol)
+#         return vol
+
+#     def _create_context(self, base_params_path, fpath=None, default_context=True, N=1):
+#         """
+#         Create context vector (N, 5) for each volume.
+#         N: number of slices or samples per volume
+#         """
+
+#         if default_context:
+#             TE = np.random.uniform(80, 120)
+#             TR = np.random.uniform(2000, 3000)
+#             bandwidth = np.random.uniform(150, 250)
+#             rxGain = np.random.uniform(20, 40)
+#             etLength = np.random.uniform(8, 16)
+#             dwellTime = np.random.uniform(5, 10)
+#             SNR = (self.field_strength * 10) + np.random.normal(0, 2)
+
+#         else:
+#             if fpath is None:
+#                 raise ValueError("fpath must be provided when default_context=False")
+
+#             # -----------------------------
+#             # Convert .nii/.nii.gz → .json
+#             # -----------------------------
+#             if fpath.endswith('.nii.gz'):
+#                 json_name = os.path.basename(fpath[:-7] + '.json')
+#             elif fpath.endswith('.nii'):
+#                 json_name = os.path.basename(fpath[:-4] + '.json')
+#             else:
+#                 raise ValueError("Unsupported file extension")
+
+#             json_path = os.path.join(base_params_path, json_name)
+
+#             if not os.path.exists(json_path):
+#                 print(f"[WARNING] JSON not found: {json_path}, using defaults")
+#                 return self._create_context(base_params_path, fpath, default_context=True, N=N)
+
+#             # -----------------------------
+#             # Load JSON
+#             # -----------------------------
+#             with open(json_path, 'r') as jf:
+#                 params = json.load(jf)
+
+#             params = params.get("ImageScanParameters", {})
+#             # print(f"\n[INFO] Loaded params from {json_path}")
+
+#             # Extract parameters
+#             TE = self._parse_value(params.get('echoTime', 100), 100)
+#             TR = self._parse_value(params.get('repTime', 2500), 2500)
+#             bandwidth = self._parse_value(params.get('bandwidth', 200), 200)
+#             etLength = self._parse_value(params.get('etLength', 12), 12)
+
+#             # Visit from filename
+#             visit_match = re.search(r'V(\d+)', fpath)
+#             if visit_match:
+#                 self.visit = int(visit_match.group(1))
+
+#         # ---------------------
+#         # Create context vector repeated N times
+#         # ---------------------
+#         single_row = np.array([TE, TR, bandwidth, etLength, self.field_strength], dtype=np.float32)
+#         context = np.tile(single_row, (N, 1))  # shape: (N, 5)
+
+#         return context
+
+#     def _load_volume(self, fpath):
+#         nii = nib.load(fpath)
+        
+#         vol = np.abs(nii.get_fdata().astype(np.float32))  # Fix negatives
+#         current_spacing = nii.header.get_zooms()[:3]
+
+#         # Resample to target spacing
+#         zoom_factors = (
+#             current_spacing[0] / self.target_spacing[0],
+#             current_spacing[1] / self.target_spacing[1],
+#             current_spacing[2] / self.target_spacing[2]
+#         )
+#         vol = zoom(vol, zoom_factors, order=1)
+#         vol = np.ascontiguousarray(vol)
+
+#         # Accept only target in-plane resolution
+#         h, w, d = vol.shape
+#         if h != self.target_h or w != self.target_w:
+#             print(f"[SKIP] {os.path.basename(fpath)} wrong in-plane size {vol.shape}")
+#             return None
+
+#         # Crop or pad depth
+#         if d != self.target_d:
+#             ds = max((self.target_d - d) // 2, 0)
+#             de = ds + min(d, self.target_d)
+#             d0 = max((d - self.target_d) // 2, 0)
+#             out = np.zeros((h, w, self.target_d), dtype=vol.dtype)
+#             out[:, :, ds:de] = vol[:, :, d0:d0 + (de - ds)]
+#             vol = out
+        
+#         # Normalize using min-max normalization to [0, 1]
+#         vol = (vol / np.max(vol) - 0.5) * 2 if np.max(vol) > 0 else vol
+#         # vol = self._normalize_volume(vol, method='zscore')
+
+#         return vol  # Do not add channel
+
+#     def __iter__(self):
+#         for fpath in self.files:
+#             vol = self._load_volume(fpath)
+#             if vol is None:
+#                 continue
+            
+#             # print(f"[LOAD] {os.path.basename(fpath)}: final shape {vol.shape}")
+#             # Apply rotation if needed
+#             if self.rotate:
+#                 # Rotate 90 degrees k times along the in-plane axes (0,1)
+#                 # You can change k to random 0-3 for random rotation
+#                 vol = np.rot90(vol, k=1, axes=(0, 1))
+#             base_params_path = 'niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_ALL_PARAMS_1'
+#             ctx = self._create_context(base_params_path, fpath=fpath, default_context=False)
+#             ctx = self.scaler.transform(ctx)
+#             save_file = os.path.basename(fpath)
+#             print(f"[GENERATOR] Yielding {save_file}")
+#             yield vol, ctx[0], save_file
 
 def generate_volume_from_generator(g_model, vol_3d, context_vec, batch_size=8):
     """
@@ -661,6 +975,7 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
 
     print("\n✅ Evaluation complete.")
     return results, pred1, model1
+
 def visualize_volume_all_slices(
     vol,
     name="volume",
@@ -728,7 +1043,7 @@ def visualize_volume_all_slices(
     # ---- REMOVE ALL SPACING ----
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.margins(0, 0)
-    
+
     # Optional: remove outer padding completely
     plt.tight_layout(pad=0)
 
@@ -743,7 +1058,7 @@ def visualize_volume_all_slices(
     return fig
 
 # Example paths (use your config_lf paths)
-path_A = config_lf.path_lf_subject  # LF T1w data directory
+path_A = config_lf.path_lf_t2w  # LF T1w data directory
 genA = DomainAGenerator(path_A)
 
 # Fetch one batch from Domain A
@@ -754,22 +1069,290 @@ for volA, ctxA, save_file in genA:
     print("Domain A save file:", save_file)
     break
 
+def crop_or_pad_2d(vol, target_h, target_w):
 
+    H,W,D = vol.shape
+
+    out = np.zeros((target_h,target_w,D), dtype=vol.dtype)
+
+    h_start = max((target_h-H)//2,0)
+    w_start = max((target_w-W)//2,0)
+
+    h_end = min(H,target_h)
+    w_end = min(W,target_w)
+
+    src_h_start = max((H-target_h)//2,0)
+    src_w_start = max((W-target_w)//2,0)
+
+    out[
+        h_start:h_start+h_end,
+        w_start:w_start+w_end,
+        :
+    ] = vol[
+        src_h_start:src_h_start+h_end,
+        src_w_start:src_w_start+w_end,
+        :
+    ]
+
+    return out
+
+
+def normalize_volume(vol):
+    """
+    Normalize an MRI volume to [-1, 1] for CycleGAN.
+    Args:
+        vol: numpy array, shape (H,W,D,C) or (H,W,D) or (N,H,W,D,C)
+    Returns:
+        normalized volume in [-1,1]
+    """
+    vol = np.abs(vol)           # remove negative artifacts
+    max_val = np.max(vol)
+    if max_val > 0:
+        vol = vol / max_val     # scale to [0,1]
+    vol = (vol - 0.5) * 2       # scale to [-1,1]
+    return vol
+
+def visualize_slice_range(volume,
+                          start_slice=11,
+                          end_slice=20,
+                          vmin=None,
+                          vmax=None):
+
+    start_slice = max(0, start_slice)
+    end_slice = min(volume.shape[2] - 1, end_slice)
+
+    slices = range(start_slice, end_slice + 1)
+
+    n = len(list(slices))
+    cols = 5
+    rows = int(np.ceil(n / cols))
+
+    fig, axes = plt.subplots(rows, cols, figsize=(15, 3 * rows))
+    axes = np.array(axes).ravel()
+
+    if vmin is None or vmax is None:
+        vmin, vmax = np.percentile(volume, (1, 99))
+
+    # Rotate 90 degrees clockwise to match the orientation of the original NIfTI image
+    # volume = np.rot90(volume, k=1, axes=(0, 1))
+
+    for ax, idx in zip(axes, slices):
+        ax.imshow(volume[:, :, idx],
+                  cmap="gray",
+                  origin="lower",
+                  vmin=vmin,
+                  vmax=vmax)
+        ax.set_title(f"Slice {idx}")
+        ax.axis("off")
+
+    for ax in axes[n:]:
+        ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+# write a function to visualize slices from the random volume
+def visualize_slices(volume, n_cols=5, vmin=None, vmax=None):
+    """
+    Visualize slices from a 3D volume.
+    """
+    n_slices = volume.shape[2]
+    n_rows = (n_slices + n_cols - 1) // n_cols
+
+    # robust contrast if not provided
+    if vmin is None or vmax is None:
+        vmin, vmax = np.percentile(volume, (1, 99))
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 3 * n_rows))
+    axes = axes.flatten()
+
+    for i in range(n_slices):
+        axes[i].imshow(volume[:, :, i], cmap="gray", vmin=vmin, vmax=vmax)
+        axes[i].axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+class DomainBGenerator:
+    def __init__(self, path, substring=None, target_spacing=(1,1,2),
+                 target_h=140, target_w=140, target_d=35, crop_size=128,
+                 rotate=False, add_channel=False, test=False):
+        
+        """
+        Generator for Domain B volumes and context vectors.
+        """
+        self.path = path
+        self.substring = substring
+        self.target_spacing = target_spacing
+        self.target_h = target_h
+        self.target_w = target_w
+        self.target_d = target_d
+        self.crop_size = crop_size
+        self.rotate = rotate
+        self.add_channel = add_channel
+        self.test = test
+
+        # -----------------------------
+        # Find valid NIfTI files
+        # -----------------------------
+        self.files = []
+        for dirpath, dirnames, filenames in os.walk(path):
+            dirnames.sort()
+            filenames.sort()
+            for fname in filenames:
+                if fname.endswith((".nii", ".nii.gz")) and (substring is None or substring in fname):
+                    self.files.append(os.path.join(dirpath, fname))
+
+        self.files.sort(key=lambda x: (os.path.dirname(x), os.path.basename(x)))
+
+        if len(self.files) == 0:
+            raise ValueError(f"No files found in {path} with substring={substring}")
+
+        # Limit for test mode
+        if self.test:
+            self.files = self.files[:5]
+
+        # Fit context scaler on dummy context
+        self.scaler = StandardScaler()
+        dummy_ctx = self._create_context(len(self.files))
+        self.scaler.fit(dummy_ctx)
+
+    def _create_context(self, N):
+
+        params = {
+            "TE": 20000,
+            "TR": 3000,
+            "bandwidth": 200,
+            "etLength": 12,
+            "field_strength": 3.0
+        }
+
+        context = np.stack(
+            [np.full(N, v) for v in params.values()],
+            axis=1
+        )
+
+        return context.astype(np.float32)
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        """
+        Load one volume (with preprocessing) and return (volume, context)
+        """
+        fpath = self.files[idx]
+        nii = nib.load(fpath)
+        # nii = nib.as_closest_canonical(nii)
+        
+        vol = np.abs(nii.get_fdata().astype(np.float32))  # remove negatives
+        vol = np.rot90(vol, k=1, axes=(0, 1))
+        header = nii.header
+        current_spacing = header.get_zooms()[:3]
+
+        # Resample
+        zoom_factors = (
+            current_spacing[0] / self.target_spacing[0],
+            current_spacing[1] / self.target_spacing[1],
+            current_spacing[2] / self.target_spacing[2]
+        )
+
+        vol = zoom(vol, zoom_factors, order=1)
+        # vol = np.ascontiguousarray(vol)
+
+        h, w, d = vol.shape
+        # Skip if in-plane resolution wrong
+        h, w, d = vol.shape
+
+        vol = crop_or_pad_2d(
+            vol,
+            target_h=self.target_h,
+            target_w=self.target_w
+        )
+
+        # Normalize
+        vol = normalize_volume(vol)
+
+        # Rotate if needed
+        if self.rotate:
+            vol = np.rot90(vol, k=1, axes=(0,1))
+
+        # ---- Apply crop BEFORE adding channel ---
+        # H, W, D = vol.shape
+        # if self.crop_size is not None and (H > self.crop_size or W > self.crop_size):
+        #     vol = center_crop_volume(vol, self.crop_size)
+        
+        if self.add_channel:
+            vol = vol[..., None]  # H x W x D x 1
+
+        # Keep vol only 0 to 30 slices in a volume  depth dimension
+        if vol.shape[2] > 30:
+            vol = vol[:, :, :30]
+
+        # Create context for this single volume
+        context = self._create_context(1)[0]  # shape (9,)
+
+        # Return filename also
+        filename = os.path.basename(fpath)
+
+        return vol, context, filename
+
+    def generator(self):
+        """
+        Python generator yielding (volume, context) indefinitely
+        """
+        while True:
+            idxs = np.random.permutation(len(self.files))
+            for idx in idxs:
+                try:
+                    vol, ctx, fname = self.__getitem__(idx)
+                    yield vol, ctx
+                except ValueError:
+                    continue
+
+# Path to Domain B NIfTI files
+path_B = "niv_raw_data/Nipah_IRF_data/Retro_data/test"
+substring_B = ""
+
+genB = DomainBGenerator(
+    path=path_B,
+    substring=substring_B,
+    target_spacing=(1,1,2),
+    target_h=128,
+    target_w=128,
+    target_d=30,
+    rotate=False,
+    add_channel=False,
+    test=False
+)
+
+# Example: get first volume and its context
+for volB, ctxB, fnameB in genB:
+    print("Domain B volume shape:", volB.shape)
+    print("Domain B context:", ctxB.shape)
+    print("Domain B context values:", ctxB)
+    # min and max
+    print("Domain B min:", volB.min())
+    print("Domain B max:", volB.max())
+    # visualize slices
+    visualize_slice_range(volB)
+    break
 
 # Path for the second stage model (SRR or enhancement)
 model_name = 'residual_srr_unet_l2_ssim_edge'
 # folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
 folder_path = "niv_results/outputs_src_simulated_context/enhancement"
+model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_lfsimulated_context_700"
 
-model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_1"
-
-# Path for saving the generated volumes from domain adaptation step
-output_dir_lf ='niv_raw_data/Nipah_IRF_data/data_niv/Evaluator_data/VolA'
-output_dir_denoise ='niv_raw_data/Nipah_IRF_data/data_niv/Evaluator_data/CycleGAN'
-output_dir_enhance ='niv_raw_data/Nipah_IRF_data/data_niv/Evaluator_data/Enhancement'
-# output_dir = output_dir_denoise
+# Path for saving the generated volumes from domain adaptation
+output_dir_lf ='niv_results/Retro_Evaluator_t2w/volume_hf'
+output_dir_denoise ='niv_results/Retro_Evaluator_t2w/Synthetic_LF'
+output_dir_enhance ='niv_results/Retro_Evaluator_t2w/Synthetic_HF'
+output_dir = output_dir_denoise
 
 # Resume from latest checkpoints if available
+# For T1w, file 000400.keras, for T2w, file 000500.keras
+
 model_files = {
     'g_A2B': os.path.join(model_path_da, 'g_AtoB_000500.keras'),
     'g_B2A': os.path.join(model_path_da, 'g_BtoA_000500.keras'),
@@ -786,69 +1369,61 @@ if all(os.path.exists(f) for f in model_files.values()):
     d_model_A.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
     d_model_B.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
 
-for volA, ctxA, save_file in genA:
+for (volA, ctxA, fileA), (volB, ctxB, fileB) in zip(genA, genB):
+    print(fileB)
 
-    print("Domain A volume shape:", volA.shape)
-    print("Domain A context:", ctxA.shape)
-    print("Domain A context values:", ctxA)
+    print("Domain A volume shape:", volB.shape)
+    print("Domain A context:", ctxB.shape)
+    print("Domain A context values:", ctxB)
     # im = im.astype(np.float32)
-    volA = np.expand_dims(volA, axis=0)  # (1, H, W, D)
-    print("Final LF input shape:", volA.shape)
-    
+    volB = np.expand_dims(volB, axis=0)  # (1, H, W, D)
+    print("Final LF input shape:", volB.shape)
+
     # break
     # Domain adaptation and get results of full volume prediction of low-field MRI then denoise and enhancement.
     # generates one full volume from genA translated by g_model_AtoB
 
-    # Print min and max range of volA before feeding into generator
-    print(f"Input volume range before generator: min={volA.min()}, max={volA.max()}")
-    real_vol, fake_vol, ctx = evaluate_one_subject_volume(
-        g_model_AtoB, volA, ctxA,
-        out_path=os.path.join(output_dir, "AtoB_generated_subject.nii.gz"),
+    # Print min and max range of volB before feeding into generator
+    print(f"Input volume range before generator: min={volB.min()}, max={volB.max()}")
+    real_vol, synth_lf, ctx = evaluate_one_subject_volume(
+        g_model_BtoA, volB, ctxB,
+        out_path=os.path.join(output_dir, fileB),
         batch_size=1
     )
 
-    # add o asix to fake_vol to make it (1,H,W,D) for evaluation
-    fake_vol_1 = np.expand_dims(fake_vol, axis=0)
-    #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
-
-
-    if fake_vol_1.max() > 1:
-        fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
-    
-    # print min and max of fake_vol_1 after normalization
-    print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
-
-    # get domain adopted and perform further steps
-    results, pred1, model1 = evaluate_model(
-        folder_path=folder_path,
-        model_name=model_name,
-        X_test=fake_vol_1,
-        y_test=fake_vol_1,
-        patch_size=(64, 64, 32),
-        overlap=0.5,
-        visualize_slices=[15]
+    real_vol, Synth_hf, ctx = evaluate_one_subject_volume(
+        g_model_AtoB, synth_lf, ctxA,
+        out_path=os.path.join(output_dir, fileA),
+        batch_size=1
     )
+
+    # # add o asix to fake_vol to make it (1,H,W,D) for evaluation
+    # fake_vol_1 = np.expand_dims(fake_vol, axis=0)
+    # #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
+
+    # if fake_vol_1.max() > 1:
+    #     fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
     
-    # print shape of each volume for visualization
-    print("Original LF volume shape:", volA.shape)
-    print("Domain adapted volume shape:", fake_vol.shape)
-    print("Enhanced volume shape:", pred1.shape)
-    # squeeze volA
-    volA = np.squeeze(volA)
-    visualize_comparison(volA, fake_vol, pred1, name=save_file, output_dir=output_dir_denoise)
-    visualize_comparison(fake_vol, volA, pred1, name=save_file, output_dir=output_dir_lf)
-    visualize_comparison(volA, pred1, fake_vol, name=save_file, output_dir=output_dir_enhance)
+    # # print min and max of fake_vol_1 after normalization
+    # print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
 
-    # # Function to save a single NIfTI file
-    # def save_nii_file(volume, output_path, name):
-    #     os.makedirs(output_path, exist_ok=True)
-    #     nib.save(nib.Nifti1Image(volume, np.eye(4)), os.path.join(output_path, f"{name}.nii.gz"))
+    # # get domain adopted and perform further steps
+    # results, pred1, model1 = evaluate_model(
+    #     folder_path=folder_path,
+    #     model_name=model_name,
+    #     X_test=fake_vol_1,
+    #     y_test=fake_vol_1,
+    #     patch_size=(64, 64, 32),
+    #     overlap=0.5,
+    #     visualize_slices=[15]
+    # )
 
-    # save_nii_file(volA, output_dir_lf, f"{save_file}_volA")
-    # save_nii_file(fake_vol, output_dir_denoise, f"{save_file}_denoised")
-    # save_nii_file(pred1, output_dir_enhance, f"{save_file}_enhanced")
+    volB = np.squeeze(volB)
+    visualize_comparison(volB, synth_lf, Synth_hf, name=fileB, output_dir=output_dir_denoise)
+    visualize_comparison(synth_lf, volB, Synth_hf, name=fileB, output_dir=output_dir_lf)
+    visualize_comparison(volB, Synth_hf, synth_lf, name=fileB, output_dir=output_dir_enhance)
 
-    # print("Evaluation Results:after Stage 2 Refinement")
-    # visualize_volume_all_slices(volA, name="volA", axis=2, cols=8)
-    # visualize_volume_all_slices(fake_vol, name="pred1", axis=2, cols=8, vmin=-1, vmax=1)
-    # visualize_volume_all_slices(pred1, name="pred1", axis=2, cols=8, vmin=-1, vmax=1)
+    # # print("Evaluation Results:after Stage 2 Refinement")
+    # visualize_volume_all_slices(volA, name="volA", axis=2, cols=6)
+    # visualize_volume_all_slices(fake_vol, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)
+    # visualize_volume_all_slices(pred1, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)

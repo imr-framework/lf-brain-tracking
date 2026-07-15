@@ -10,7 +10,7 @@ from src_niv.niv_srr_main import train
 from src_niv.models.ResUNet import residual_srr_unet
 from src_niv.models.residual_linear import build_3d_residual
 from src_niv.models.DenseUNet import build_dense_unet_3d
-from src_niv.models.Inception import build_inception_unet_3d
+# from src_niv.models.Inception import build_inception_unet_3d
 from demo_read_data import read_lf_data
 from src_niv.prep_lf import register_to_hf
 
@@ -39,24 +39,25 @@ tf.keras.backend.clear_session()
 # 35547 -- 1st can be included for training; 59877 can be included in training IST; 59877
 # List of observations
 
-subjects1 = ['26184', '30366', '35528', '59081', '59228']
+subjects1 = ['26184','30366','59081','35528','35547','59233','59877']
+# subjects1 = ['30366', '34507', '35547', '35528', '59233', '59877', '59175']
 
 # subjects1 = ['26184', '30366', '35528']
 # subjects1 = ['26184', '30366', '35528']
 # Mismatch due to high field shape
 
 # Define the path to the IRF_3T folder (High Field Data)
-nhp_base_path = './Data/IRF_3T'
-day_idx = 3
-visualize = True
-visualize_pairs = True
+nhp_base_path = 'niv_raw_data/71E-2_All_MR_Not_Anonymized'
+day_idx = 1
+visualize = False
+visualize_pairs = False
 padding = False
 register2_hf = True
 augmentation = True
 
 # Training parameters
 steps_per_epoch = 40
-epochs = 500
+epochs = 300
 batch_size = 2
 
 # Training data
@@ -66,7 +67,7 @@ hf_input_volume_combined = []
 hf_target_volume_combined = []
 
 for subject in subjects1:
-    for day_idx in [1]:  # Assuming 0 = Day 1, 1 = Day 2
+    for day_idx in [1,2,3]:  # Assuming 0 = Day 1, 1 = Day 2
         
         print(f"\n=============================== Processing subject: {subject}, Day: {day_idx + 1} ===============================")
         # ----- Load HF data -----
@@ -173,7 +174,7 @@ for subject_v in subjects_val:
         print("HF volume shape:", hf_target_volume_val.shape)
 
 # Calling the residual_srr_unet model
-model_type = 'residual_linear_srr_unet5_subjects_500_d1_final'
+model_type = 'residual_srr_unet5_subjects_500_d1_2'
 model_case = 'single_encoder_unet'
 model_ = residual_srr_unet
 
