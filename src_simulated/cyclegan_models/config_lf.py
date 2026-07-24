@@ -59,19 +59,19 @@ class CycleGANConfig:
     GEN_LOSS_WEIGHTS = [0.25, 1, 30, 30] # weights for [adv, identity, cycle_A, cycle_B]
 
     #train parameters
-    EPOCHS = 700 # total number of epochs
+    EPOCHS = 510 # total number of epochs
     INITIAL_LR = 0.002 # initial learning rate
     N_ITER = 300 # number of epochs with initial learning rate
     N_ITER_DECAY = 0 # number of epochs with linearly decaying learning rate
 
     # Output directories
-    OUTPUT_DIR = 'niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_lfsimulated_context_700' # directory to save outputs
+    OUTPUT_DIR = 'niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_da_v1' # directory to save outputs
     
     # Visualization parameters
     VISUALIZE = True  # Whether to visualize test examples during training
 
     #Model Evaluation loading
-    MODEL_EVAL_PATH = 'niv_results/outputs_src_simulated/cyclegan_lfmri20t2w_lfsimulated_context_700/' # path to load model for evaluation
+    MODEL_EVAL_PATH = 'niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_da/' # path to load model for evaluation
 
     # Specific model names to load using MODEL_EVAL_PATH
     MODEL_NAME_D_A = os.path.join(MODEL_EVAL_PATH, 'd_A_030000.keras')

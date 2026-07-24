@@ -64,7 +64,7 @@ def train(lf_input_volume, hf_input_volume, hf_target_volume,
             epochs = 50,batch_size = 1,visualize_pairs = False):
     
     print("inside Train function ........................")
-    output_path = f'niv_results/Supervised/{model_type}/{subject}'
+    output_path = f'niv_results/supervised_training/{model_type}/{subject}'
     os.makedirs(output_path, exist_ok=True)
 
     # #save the preprocessed volumes for reference as Nifti files in the output path with appropriate name and day index

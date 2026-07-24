@@ -85,7 +85,6 @@ VISUALIZE = config_lf.VISUALIZE  # Whether to visualize test examples during tra
 num_slices = config_lf.N_SLICES
 
 # Read dataset
-
 data_folder = "Data/data_sim_check/35528simulated_LF/train_test"
 subjects = ["26184", "30366", "35528","34507", "35547", "59228", "59877","59233"]
 train_day = [1,2,3,4,5]
@@ -96,12 +95,9 @@ train_day = [1,2,3,4,5]
 #     """
 #     h, w, d = vol.shape
 #     out = np.zeros((h, w, target_D), dtype=vol.dtype)
-
 #     ds = max((target_D - d) // 2, 0)
 #     de = ds + min(d, target_D)
-
 #     d0 = max((d - target_D) // 2, 0)
-
 #     out[:, :, ds:de] = vol[:, :, d0:d0 + (de - ds)]
 #     return out
 
@@ -717,7 +713,7 @@ class DomainBGenerator:
         """
         fpath = self.files[idx]
         nii = nib.load(fpath)
-        vol = np.abs(nii.get_fdata().astype(np.float32))  # remove negatives
+        vol = nii.get_fdata().astype(np.float32)  # remove negatives
         header = nii.header
         current_spacing = header.get_zooms()[:3]
 

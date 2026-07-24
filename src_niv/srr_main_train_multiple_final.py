@@ -39,7 +39,7 @@ tf.keras.backend.clear_session()
 # 35547 -- 1st can be included for training; 59877 can be included in training IST; 59877
 # List of observations
 
-subjects1 = ['26184','30366','59081','35528','35547','59233','59877']
+subjects1 = ['26184','30366','59081', '35528', '35547', '59228','59877']
 # subjects1 = ['30366', '34507', '35547', '35528', '59233', '59877', '59175']
 
 # subjects1 = ['26184', '30366', '35528']
@@ -57,7 +57,7 @@ augmentation = True
 
 # Training parameters
 steps_per_epoch = 40
-epochs = 300
+epochs = 500
 batch_size = 2
 
 # Training data
@@ -67,7 +67,7 @@ hf_input_volume_combined = []
 hf_target_volume_combined = []
 
 for subject in subjects1:
-    for day_idx in [1,2,3]:  # Assuming 0 = Day 1, 1 = Day 2
+    for day_idx in [1]:  # Assuming 0 = Day 1, 1 = Day 2
         
         print(f"\n=============================== Processing subject: {subject}, Day: {day_idx + 1} ===============================")
         # ----- Load HF data -----
@@ -128,7 +128,7 @@ print("HF volume shape:", hf_target_volume_combined.shape)
 print('-----------------------------\n\nLoading validation data .................................-----------------')
 subjects_val = ['30366']
 for subject_v in subjects_val:
-    for day_idx in [1]:  # Assuming 0 = Day 1, 1 = Day 2
+    for day_idx in [2]:  # Assuming 0 = Day 1, 1 = Day 2
         print(f"\n=============================== Processing subject: {subject_v}, Day: {day_idx + 1} ===============================")
         # ----- Load HF data -----
         print(f"\n=============================== HF_MRI data processing started .............")
@@ -174,7 +174,7 @@ for subject_v in subjects_val:
         print("HF volume shape:", hf_target_volume_val.shape)
 
 # Calling the residual_srr_unet model
-model_type = 'residual_srr_unet5_subjects_500_d1_2'
+model_type = 'residual_srr_unet5_subjects_500_d1_3'
 model_case = 'single_encoder_unet'
 model_ = residual_srr_unet
 

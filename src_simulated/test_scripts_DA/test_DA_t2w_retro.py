@@ -227,9 +227,11 @@ def visualize_comparison(
     im,
     pred1,
     pred2=None,
+    pred3=None,
     name="comparison",
     output_dir="outputs",
     affine=None,
+    header=None,
     slice_range=(11, 22),
     save_nifti=True,
     show_ortho=False
@@ -243,11 +245,13 @@ def visualize_comparison(
     im = _to_numpy(im)
     pred1 = _to_numpy(pred1)
     pred2 = _to_numpy(pred2) if pred2 is not None else None
+    pred3 = _to_numpy(pred3) if pred3 is not None else None
 
-    volumes = [im, pred1] + ([pred2] if pred2 is not None else [])
-    titles = ["Original", "Denoised"] + (["SRR"] if pred2 is not None else [])
+    volumes = [im, pred1] + ([pred2] if pred2 is not None else []) + ([pred3] if pred3 is not None else [])
+    titles = ["Original", "Denoised"] + (["SRR"] if pred2 is not None else []) + (["SRR2"] if pred3 is not None else [])
+    print(f"Volume shapes: {[v.shape for v in volumes if v is not None]}")
 
-    # Slice handling
+    # slice handling
     start, end = slice_range
     max_depth = min(v.shape[-1] for v in volumes if v is not None)
     end = min(end, max_depth - 1)
@@ -264,7 +268,7 @@ def visualize_comparison(
     for col, idx in enumerate(slice_ids):
         for row, (vol, title) in enumerate(zip(volumes, titles)):
             ax = axes[row, col]
-            ax.imshow(_get_slice(vol, idx), cmap='gray')
+            ax.imshow(_get_slice(vol, idx), origin="lower", cmap='gray')
             if col == 0:
                 ax.set_ylabel(title)
             if row == 0:
@@ -272,7 +276,7 @@ def visualize_comparison(
             ax.axis('off')
 
     plt.tight_layout()
-    # plt.show()
+    plt.show()
 
     import math
 
@@ -317,30 +321,34 @@ def visualize_comparison(
 
     # Save NIfTI
     if save_nifti:
-        if affine is None:
-            affine = np.eye(4)
-
         paths = {}
         paths["denoised"] = os.path.join(output_dir, f"{name}")
-        nib.save(nib.Nifti1Image(pred1, affine), paths["denoised"])
+        if header is not None:
+            save_header = header.copy()
 
-        # if pred2 is not None:
-        #     paths["srr"] = os.path.join(output_dir, f"{name}_srr.nii.gz")
-        #     nib.save(nib.Nifti1Image(pred2, affine), paths["srr"])
-
+            nifti_img = nib.Nifti1Image(
+                pred1.astype(np.float32),
+                affine,
+                save_header
+            )
+        else:
+            nifti_img = nib.Nifti1Image(
+                pred1.astype(np.float32),
+                affine
+            )
+        nib.save(nifti_img, paths["denoised"])
         print(f"✅ Saved NIfTI: {paths}")
 
-    # Optional Ortho view
-    if show_ortho:
-        for label, vol in zip(titles, volumes):
-            if vol is None:
-                continue
-            try:
-                OrthoSlicer3D(vol).show()
-            except Exception as e:
-                print(f"⚠️ Ortho view failed for {label}: {e}")
-
-    return paths if save_nifti else None
+        # Optional Ortho view
+        if show_ortho:
+            for label, vol in zip(titles, volumes):
+                if vol is None:
+                    continue
+                try:
+                    OrthoSlicer3D(vol).show()
+                except Exception as e:
+                    print(f"⚠️ Ortho view failed for {label}: {e}")
+        return paths if save_nifti else None
 
 class DomainAGenerator:
     def __init__(self, path, batch_size=1, target_h=128, target_w=128, target_d=35, 
@@ -608,7 +616,7 @@ class DomainAGenerator:
                 # Rotate 90 degrees k times along the in-plane axes (0,1)
                 # You can change k to random 0-3 for random rotation
                 vol = np.rot90(vol, k=1, axes=(0, 1))
-            base_params_path = 'niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF_ALL_PARAMS_1'
+            base_params_path = 'niv_raw_data/Nipah_IRF_data/LFMRI_DATA_IRF_ALL_PARAMS'
             ctx = self._create_context(base_params_path, fpath=fpath, default_context=False)
             ctx = self.scaler.transform(ctx)
             save_file = os.path.basename(fpath)
@@ -1071,30 +1079,41 @@ for volA, ctxA, save_file in genA:
 
 def crop_or_pad_2d(vol, target_h, target_w):
 
-    H,W,D = vol.shape
+    H, W, D = vol.shape
 
-    out = np.zeros((target_h,target_w,D), dtype=vol.dtype)
+    out = np.zeros((target_h, target_w, D), dtype=vol.dtype)
 
-    h_start = max((target_h-H)//2,0)
-    w_start = max((target_w-W)//2,0)
+    h_start = max((target_h - H) // 2, 0)
+    w_start = max((target_w - W) // 2, 0)
 
-    h_end = min(H,target_h)
-    w_end = min(W,target_w)
+    h_end = min(H, target_h)
+    w_end = min(W, target_w)
 
-    src_h_start = max((H-target_h)//2,0)
-    src_w_start = max((W-target_w)//2,0)
+    src_h_start = max((H - target_h) // 2, 0)
+    src_w_start = max((W - target_w) // 2, 0)
 
     out[
-        h_start:h_start+h_end,
-        w_start:w_start+w_end,
+        h_start:h_start + h_end,
+        w_start:w_start + w_end,
         :
     ] = vol[
-        src_h_start:src_h_start+h_end,
-        src_w_start:src_w_start+w_end,
+        src_h_start:src_h_start + h_end,
+        src_w_start:src_w_start + w_end,
         :
     ]
 
-    return out
+    crop_info = {
+        "original_shape": (H, W, D),
+        "target_shape": (target_h, target_w, D),
+        "dst_h_start": h_start,
+        "dst_w_start": w_start,
+        "src_h_start": src_h_start,
+        "src_w_start": src_w_start,
+        "copy_h": h_end,
+        "copy_w": w_end,
+    }
+
+    return out, crop_info
 
 
 def normalize_volume(vol):
@@ -1173,6 +1192,26 @@ def visualize_slices(volume, n_cols=5, vmin=None, vmax=None):
     plt.tight_layout()
     plt.show()
 
+def undo_preprocessing(vol, crop_info, rotate=False):
+    """
+    Undo preprocessing:
+      1. Undo rotation (if applied before inference)
+      2. Remove padding / restore cropped size
+    """
+
+    # Undo rotation
+    if rotate:
+        vol = np.rot90(vol, k=-1, axes=(0, 1))
+
+    # Undo crop/pad
+    restored = vol[
+        crop_info["dst_h_start"]:crop_info["dst_h_start"] + crop_info["copy_h"],
+        crop_info["dst_w_start"]:crop_info["dst_w_start"] + crop_info["copy_w"],
+        :
+    ]
+
+    return restored
+
 class DomainBGenerator:
     def __init__(self, path, substring=None, target_spacing=(1,1,2),
                  target_h=140, target_w=140, target_d=35, crop_size=128,
@@ -1246,9 +1285,15 @@ class DomainBGenerator:
         # nii = nib.as_closest_canonical(nii)
         
         vol = np.abs(nii.get_fdata().astype(np.float32))  # remove negatives
-        vol = np.rot90(vol, k=1, axes=(0, 1))
-        header = nii.header
+
+        # Keep original spatial information
+        affine = nii.affine.copy()
+        header = nii.header.copy()
+
+        #print voxel size
+        # vol = np.rot90(vol, k=1, axes=(0, 1))
         current_spacing = header.get_zooms()[:3]
+        print(f"[INFO] Loaded {os.path.basename(fpath)} with shape {vol.shape} and voxel size {current_spacing}")
 
         # Resample
         zoom_factors = (
@@ -1258,13 +1303,35 @@ class DomainBGenerator:
         )
 
         vol = zoom(vol, zoom_factors, order=1)
-        # vol = np.ascontiguousarray(vol)
-
         h, w, d = vol.shape
-        # Skip if in-plane resolution wrong
-        h, w, d = vol.shape
+        # -----------------------------
+        # Create affine for resampled image
+        # target spacing = (1,1,2)
+        # -----------------------------
+        new_affine = affine.copy()
 
-        vol = crop_or_pad_2d(
+        for i, spacing in enumerate(self.target_spacing):
+            direction = new_affine[:3, i]
+            # preserve direction
+            direction = direction / np.linalg.norm(direction)
+            # apply new voxel size
+            new_affine[:3, i] = direction * spacing
+        
+        # Update header spacing
+        new_header = header.copy()
+        new_header.set_zooms(
+            (
+                self.target_spacing[0],
+                self.target_spacing[1],
+                self.target_spacing[2]
+            )
+        )
+
+        # print voxel size after resampling from the new header
+        new_spacing = new_header.get_zooms()[:3]
+        print(f"[INFO] Resampled {os.path.basename(fpath)} to shape {vol.shape} and voxel size {new_spacing}")
+
+        vol, crop_info = crop_or_pad_2d(
             vol,
             target_h=self.target_h,
             target_w=self.target_w
@@ -1295,7 +1362,7 @@ class DomainBGenerator:
         # Return filename also
         filename = os.path.basename(fpath)
 
-        return vol, context, filename
+        return vol, context, filename, new_affine, new_header, crop_info
 
     def generator(self):
         """
@@ -1305,8 +1372,8 @@ class DomainBGenerator:
             idxs = np.random.permutation(len(self.files))
             for idx in idxs:
                 try:
-                    vol, ctx, fname = self.__getitem__(idx)
-                    yield vol, ctx
+                    vol, ctx, fname, affine, header, crop_info = self.__getitem__(idx)
+                    yield vol, ctx, fname, affine, header, crop_info
                 except ValueError:
                     continue
 
@@ -1321,34 +1388,59 @@ genB = DomainBGenerator(
     target_h=128,
     target_w=128,
     target_d=30,
-    rotate=False,
+    rotate=True,
     add_channel=False,
     test=False
 )
 
 # Example: get first volume and its context
-for volB, ctxB, fnameB in genB:
+for volB, ctxB, fnameB, new_affineB, new_headerB, crop_infoB in genB:
     print("Domain B volume shape:", volB.shape)
     print("Domain B context:", ctxB.shape)
     print("Domain B context values:", ctxB)
     # min and max
     print("Domain B min:", volB.min())
     print("Domain B max:", volB.max())
+
+    # print the new affine and header zooms
+    print("Domain B new affine:\n", new_affineB)
+    print("Domain B new header zooms:", new_headerB.get_zooms()[:3])
+
     # visualize slices
     visualize_slice_range(volB)
     break
 
 # Path for the second stage model (SRR or enhancement)
-model_name = 'residual_srr_unet_l2_ssim_edge'
-# folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
-folder_path = "niv_results/outputs_src_simulated_context/enhancement"
-model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_lfsimulated_context_700"
+#Domain adaptation model path
+model_path_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_700"
+# Resume from latest checkpoints if available
+model_files = {
+    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000500.keras'),
+    'g_B2A': os.path.join(model_path_da, 'g_BtoA_000500.keras'),
+    'd_A': os.path.join(model_path_da, 'd_A_000500.keras'),
+    'd_B': os.path.join(model_path_da, 'd_B_000500.keras')
+}
+
+# Image enhancement model name
+model_name = 'residual_srr_unet_l2_ssim_edge_final'
+folder_path = "niv_results/outputs_src_cyclegan_context/enhancement"
 
 # Path for saving the generated volumes from domain adaptation
-output_dir_lf ='niv_results/Retro_Evaluator_t2w/volume_hf'
-output_dir_denoise ='niv_results/Retro_Evaluator_t2w/Synthetic_LF'
-output_dir_enhance ='niv_results/Retro_Evaluator_t2w/Synthetic_HF'
-output_dir = output_dir_denoise
+output_dir_hf = 'niv_results/Retro_Evaluator_t2w_new/volume_hf'
+output_dir_synth_lf = 'niv_results/Retro_Evaluator_t2w_new/Synthetic_LF'
+output_dir_synth_hf = 'niv_results/Retro_Evaluator_t2w_new/Synthetic_HF'
+output_dir_enhance = 'niv_results/Retro_Evaluator_t2w_new/Enhancement'
+output_dir = output_dir_synth_lf
+
+#make the above if not present
+if not os.path.exists(output_dir_hf):
+    os.makedirs(output_dir_hf, exist_ok=True)
+if not os.path.exists(output_dir_synth_lf):
+    os.makedirs(output_dir_synth_lf, exist_ok=True)
+if not os.path.exists(output_dir_synth_hf):
+    os.makedirs(output_dir_synth_hf, exist_ok=True)
+if not os.path.exists(output_dir_enhance):
+    os.makedirs(output_dir_enhance, exist_ok=True)
 
 # Resume from latest checkpoints if available
 # For T1w, file 000400.keras, for T2w, file 000500.keras
@@ -1369,7 +1461,7 @@ if all(os.path.exists(f) for f in model_files.values()):
     d_model_A.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
     d_model_B.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
 
-for (volA, ctxA, fileA), (volB, ctxB, fileB) in zip(genA, genB):
+for (volA, ctxA, fileA), (volB, ctxB, fileB, new_affineB, new_headerB, crop_infoB) in zip(genA, genB):
     print(fileB)
 
     print("Domain A volume shape:", volB.shape)
@@ -1397,33 +1489,43 @@ for (volA, ctxA, fileA), (volB, ctxB, fileB) in zip(genA, genB):
         batch_size=1
     )
 
-    # # add o asix to fake_vol to make it (1,H,W,D) for evaluation
-    # fake_vol_1 = np.expand_dims(fake_vol, axis=0)
-    # #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
+    # add o asix to fake_vol to make it (1,H,W,D) for evaluation
+    fake_vol_1 = np.expand_dims(Synth_hf, axis=0)
+    #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
 
-    # if fake_vol_1.max() > 1:
-    #     fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
+    if fake_vol_1.max() > 1:
+        fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
     
     # # print min and max of fake_vol_1 after normalization
-    # print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
+    print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
 
-    # # get domain adopted and perform further steps
-    # results, pred1, model1 = evaluate_model(
-    #     folder_path=folder_path,
-    #     model_name=model_name,
-    #     X_test=fake_vol_1,
-    #     y_test=fake_vol_1,
-    #     patch_size=(64, 64, 32),
-    #     overlap=0.5,
-    #     visualize_slices=[15]
-    # )
+    # get domain adopted and perform further steps
+    results, pred1, model1 = evaluate_model(
+        folder_path=folder_path,
+        model_name=model_name,
+        X_test=fake_vol_1,
+        y_test=fake_vol_1,
+        patch_size=(64, 64, 32),
+        overlap=0.5,
+        visualize_slices=[15]
+    )
 
     volB = np.squeeze(volB)
-    visualize_comparison(volB, synth_lf, Synth_hf, name=fileB, output_dir=output_dir_denoise)
-    visualize_comparison(synth_lf, volB, Synth_hf, name=fileB, output_dir=output_dir_lf)
-    visualize_comparison(volB, Synth_hf, synth_lf, name=fileB, output_dir=output_dir_enhance)
+    volB = undo_preprocessing(volB, crop_infoB, rotate=True)
+    synth_lf = undo_preprocessing(synth_lf, crop_infoB, rotate=True)
+    Synth_hf = undo_preprocessing(Synth_hf, crop_infoB, rotate=True)
+    pred1 = undo_preprocessing(pred1, crop_infoB, rotate=True)
 
-    # # print("Evaluation Results:after Stage 2 Refinement")
-    # visualize_volume_all_slices(volA, name="volA", axis=2, cols=6)
-    # visualize_volume_all_slices(fake_vol, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)
-    # visualize_volume_all_slices(pred1, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)
+    # print the new affine and header zooms after undoing preprocessing
+    # print all information of affine and header important for viewing on 3D slicer
+    print("Domain B new affine after undoing preprocessing:\n", new_affineB)
+    print("Domain B new header zooms after undoing preprocessing:", new_headerB.get_zooms()[:3])
+    # orientation RAS, LPS etc ?
+    print("Orientation:", nib.aff2axcodes(new_affineB))
+
+    volB = np.squeeze(volB)
+    visualize_slice_range(volB, start_slice=11, end_slice=20)
+    visualize_comparison(volB, synth_lf, Synth_hf, pred3=pred1, name=fileB, output_dir=output_dir_synth_lf, affine=new_affineB, header=new_headerB)
+    visualize_comparison(synth_lf, volB, Synth_hf, pred3=pred1, name=fileB, output_dir=output_dir_hf, affine=new_affineB, header=new_headerB)
+    visualize_comparison(volB, Synth_hf, synth_lf, pred3=pred1, name=fileB, output_dir=output_dir_synth_hf, affine=new_affineB, header=new_headerB)
+    visualize_comparison(volB, pred1, synth_lf, pred3=pred1, name=fileB, output_dir=output_dir_enhance, affine=new_affineB, header=new_headerB)

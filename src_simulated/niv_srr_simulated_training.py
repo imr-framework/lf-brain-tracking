@@ -783,7 +783,7 @@ if __name__ == "__main__":
     
     # 🌀 Iterate over chosen combinations
     for loss_denoise, loss_retrain in selected_combinations:
-        # Update config
+        # Update config+
         config.loss_type_denoise = loss_denoise
         config.retrain_loss_type = loss_retrain
         # config.loss_weights_denoise = loss_weights[loss_denoise]

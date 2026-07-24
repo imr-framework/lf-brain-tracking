@@ -40,8 +40,7 @@ from scipy.ndimage import (
     binary_fill_holes
 )
 
-
-from src_simulated.train_scripts.niv_srr_simulated_training_patch import (
+from src_simulated.train_scripts.niv_srr_simulated_training_patch_final import (
     load_data_for_days,
     normalize_dataset,
     srr_batch_generator,
@@ -49,6 +48,7 @@ from src_simulated.train_scripts.niv_srr_simulated_training_patch import (
     compile_model,
     train_model
 )
+
 from src_niv.models.ResUNet import residual_srr_unet
 # ------------------------------------------------------------
 # Visualization
@@ -866,7 +866,7 @@ def rotation_3d(volume, angle, axes=(0,1)):
 
 def srr_batch_generator(
         lf_volumes, hf_volumes,
-        batch_size=32,
+        batch_size=24,
         patch_xy=64, patch_z=32,
         patches_per_volume=8,
         augment=True,
@@ -1163,12 +1163,12 @@ if __name__ == "__main__":
         print("Domain A context:", ctxA.shape)
         print("Domain A context values:", ctxA)
         print("Domain A save file:", save_file)
-        # visualize_slices(volA)
+        visualize_slices(volA)
         break
 
     # Path to Domain B NIfTI files
-    path_B = "niv_raw_data/Nipah_IRF_data/data_niv/IRF_3T_NIFTI"
-    substring_B = "T2_n100"
+    path_B = "niv_raw_data/Nipah_IRF_data/HF_data"
+    substring_B = ""
 
     genB = DomainBGenerator(
         path=path_B,
@@ -1191,22 +1191,22 @@ if __name__ == "__main__":
         print("Domain B context min:", volB.min())
         print("Domain B context max:", volB.max())
         # visualize slices
-        # visualize_slices(volB)
+        visualize_slices(volB)
         break
 
     # Model paths and names
     model_name = 'residual_srr_unet_l2_ssim_edge'
-    folder_path = "niv_results/outputs_src_simulated_context/enhancement"
+    folder_path = "niv_results/outputs_src_cyclegan_context/enhancement"
 
     output_dir = folder_path
     # Resume from latest checkpoints if available
 
-    model_path_da = "niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all"
+    model_path_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_da_v1"
     model_files = {
-        'g_A2B': os.path.join(model_path_da, 'g_AtoB_000300.keras'),
-        'g_B2A': os.path.join(model_path_da, 'g_BtoA_000300.keras'),
-        'd_A': os.path.join(model_path_da, 'd_A_000300.keras'),
-        'd_B': os.path.join(model_path_da, 'd_B_000300.keras')
+        'g_A2B': os.path.join(model_path_da, 'g_AtoB_000400.keras'),
+        'g_B2A': os.path.join(model_path_da, 'g_BtoA_000400.keras'),
+        'd_A': os.path.join(model_path_da, 'd_A_000400.keras'),
+        'd_B': os.path.join(model_path_da, 'd_B_000400.keras')
     }
 
     # make index to randomly select on of files and generate synthetic volume to train for diversity in training data; this is for models to generate synthetic data
@@ -1219,7 +1219,6 @@ if __name__ == "__main__":
         d_model_B = load_model(model_files['d_B'], compile=False)
         d_model_A.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
         d_model_B.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
-
 
     for volB, ctxB in genB:
 
@@ -1275,11 +1274,11 @@ if __name__ == "__main__":
     config.checkpoint_path = os.path.join(config.output_path, f"{config.model_name}_checkpoint.keras")
 
     # ---- settings ----
-    epochs_total = 500
+    epochs_total = 300
     refresh_every = 50
-    n_total_vols = 50
-    n_train = 35
-    n_val = 15
+    n_total_vols = 35
+    n_train = 32
+    n_val = 3
     batch_size_slices = 1
 
     # Load HF volumes ONCE and split (prevents train/val overlap)
@@ -1296,11 +1295,8 @@ if __name__ == "__main__":
 
     b2a_combinations = [
         # domain adoption modelstrained;
-        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000100.keras"),
-        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000200.keras"),
-        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000300.keras"),
-        ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_1000_da_all", "g_BtoA_000400.keras"),
-
+        ("niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_da_v1", "g_BtoA_000400.keras"),
+        ("niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_da_v1", "g_BtoA_000500.keras"),
 
         # ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_all", "g_BtoA_000700.keras"),
         # ("niv_results/outputs_src_simulated_context/cyclegan_lfmri20t2w_2_lfsimulated_context_2000_all", "g_BtoA_000500.keras"),
@@ -1322,7 +1318,7 @@ if __name__ == "__main__":
         srr_model, history = run_training(
             lf_train=X_train, hf_train=y_train,
             lf_val=X_val,     hf_val=y_val,
-            output_path='niv_results/outputs_src_simulated_context/enhancement',
+            output_path='niv_results/outputs_src_cyclegan_context/enhancement',
             model_type=residual_srr_unet,
             model_name=model_name,
             loss_type=config.loss_type_denoise,
@@ -1355,7 +1351,7 @@ if __name__ == "__main__":
             srr_model, history = run_training(
                 lf_train=X_train, hf_train=y_train,
                 lf_val=X_val,     hf_val=y_val,
-                output_path='niv_results/outputs_src_simulated_context/enhancement',
+                output_path='niv_results/outputs_src_cyclegan_context/enhancement',
                 model_type=residual_srr_unet,
                 model_name=model_name,
                 loss_type=config.loss_type_denoise,

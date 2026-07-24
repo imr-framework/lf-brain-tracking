@@ -162,7 +162,7 @@ def evaluate_model(folder_path, model_name, X_test, y_test,
     # ------------------------------------------------------------
     # 🔹 Define model paths
     # ------------------------------------------------------------
-    model_path_train = os.path.join(folder_path, f"{model_name}_checkpoint.keras")
+    model_path_train = os.path.join(folder_path, f"{model_name}_final.keras")
     model_path_retrained = os.path.join(folder_path, f"{model_name}_retrained_final.keras")
 
     if not os.path.exists(model_path_train):

@@ -800,12 +800,12 @@ def visualize_pair(x_vol, y_vol, slice_indices):
     
     for i, idx in enumerate(slice_indices):
         # Row 1: X slices
-        axes[0, i].imshow(np.abs(x_vol[idx, :, :]), cmap='gray')
+        axes[0, i].imshow(np.abs(x_vol[:, :, idx]), cmap='gray')
         axes[0, i].set_title(f"X slice {idx}")
         axes[0, i].axis('off')
         
         # Row 2: Y slices
-        axes[1, i].imshow(np.abs(y_vol[idx, :, :]), cmap='gray')
+        axes[1, i].imshow(np.abs(y_vol[:, :, idx]), cmap='gray')
         axes[1, i].set_title(f"Y slice {idx}")
         axes[1, i].axis('off')
     

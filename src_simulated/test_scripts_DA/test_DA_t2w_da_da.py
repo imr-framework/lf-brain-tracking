@@ -222,14 +222,35 @@ def visualize_single_volume(generator, axis=2):
     plt.tight_layout()
     plt.show()
 
+def undo_preprocessing(vol, crop_infoB=None, rotate=False):
+    """
+    Undo preprocessing:
+      1. Undo rotation (if applied before inference)
+      2. Remove padding / restore cropped size
+    """
+
+    # Undo rotation
+    if rotate:
+        vol = np.rot90(vol, k=-1, axes=(0, 1))
+
+    # Undo cropping
+    if crop_infoB is not None:
+        vol = vol[crop_infoB["dst_h_start"]:crop_infoB["dst_h_start"] + crop_infoB["copy_h"],
+                  crop_infoB["dst_w_start"]:crop_infoB["dst_w_start"] + crop_infoB["copy_w"],
+                  :]
+
+    return vol
+
 def visualize_comparison(
     im,
     pred1,
     pred2=None,
+    pred3=None,
     name="comparison",
     output_dir="outputs",
     affine=None,
-    slice_range=(10, 30),
+    header=None,
+    slice_range=(11, 22),
     save_nifti=True,
     show_ortho=False
 ):
@@ -241,12 +262,14 @@ def visualize_comparison(
 
     im = _to_numpy(im)
     pred1 = _to_numpy(pred1)
-    # pred2 = _to_numpy(pred2) if pred2 is not None else None
+    pred2 = _to_numpy(pred2) if pred2 is not None else None
+    pred3 = _to_numpy(pred3) if pred3 is not None else None
 
-    volumes = [im, pred1] + ([pred2] if pred2 is not None else [])
-    titles = ["Original", "Denoised"] + (["SRR"] if pred2 is not None else [])
+    volumes = [im, pred1] + ([pred2] if pred2 is not None else []) + ([pred3] if pred3 is not None else [])
+    titles = ["Original", "Denoised"] + (["SRR"] if pred2 is not None else []) + (["SRR2"] if pred3 is not None else [])
+    print(f"Volume shapes: {[v.shape for v in volumes if v is not None]}")
 
-    # Slice handling
+    # slice handling
     start, end = slice_range
     max_depth = min(v.shape[-1] for v in volumes if v is not None)
     end = min(end, max_depth - 1)
@@ -263,7 +286,7 @@ def visualize_comparison(
     for col, idx in enumerate(slice_ids):
         for row, (vol, title) in enumerate(zip(volumes, titles)):
             ax = axes[row, col]
-            ax.imshow(_get_slice(vol, idx), cmap='gray')
+            ax.imshow(_get_slice(vol, idx), origin="lower", cmap='gray')
             if col == 0:
                 ax.set_ylabel(title)
             if row == 0:
@@ -271,34 +294,80 @@ def visualize_comparison(
             ax.axis('off')
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+
+    import math
+
+    # ---------------- Save PNG of pred1 ----------------
+    n_cols = 4                              # Fixed number of columns
+    n_slices = len(slice_ids)
+    n_rows = math.ceil(n_slices / n_cols)
+
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(4 * n_cols, 4 * n_rows),
+        squeeze=False
+    )
+
+    for i, idx in enumerate(slice_ids):
+        r = i // n_cols
+        c = i % n_cols
+
+        axes[r, c].imshow(_get_slice(pred1, idx), cmap="gray")
+        axes[r, c].set_title(f"Slice {idx}", fontsize=10)
+        axes[r, c].axis("off")
+
+    # Hide unused subplots
+    for j in range(n_slices, n_rows * n_cols):
+        r = j // n_cols
+        c = j % n_cols
+        axes[r, c].axis("off")
+
+    plt.tight_layout()
+
+    # Save PNG with the same base name as the NIfTI
+    png_path = os.path.join(
+        output_dir,
+        os.path.splitext(os.path.splitext(name)[0])[0] + ".png"
+    )
+
+    plt.savefig(png_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    print(f"✅ Saved PNG: {png_path}")
 
     # Save NIfTI
     if save_nifti:
-        if affine is None:
-            affine = np.eye(4)
-
         paths = {}
         paths["denoised"] = os.path.join(output_dir, f"{name}")
-        nib.save(nib.Nifti1Image(pred1, affine), paths["denoised"])
+        if header is not None:
+            save_header = header.copy()
 
-        # if pred2 is not None:
-        #     paths["srr"] = os.path.join(output_dir, f"{name}_srr.nii.gz")
-        #     nib.save(nib.Nifti1Image(pred2, affine), paths["srr"])
-
+            nifti_img = nib.Nifti1Image(
+                pred1.astype(np.float32),
+                affine,
+                save_header
+            )
+        else:
+            nifti_img = nib.Nifti1Image(
+                pred1.astype(np.float32),
+                affine
+            )
+        nib.save(nifti_img, paths["denoised"])
         print(f"✅ Saved NIfTI: {paths}")
 
-    # Optional Ortho view
-    if show_ortho:
-        for label, vol in zip(titles, volumes):
-            if vol is None:
-                continue
-            try:
-                OrthoSlicer3D(vol).show()
-            except Exception as e:
-                print(f"⚠️ Ortho view failed for {label}: {e}")
+        # Optional Ortho view
+        if show_ortho:
+            for label, vol in zip(titles, volumes):
+                if vol is None:
+                    continue
+                try:
+                    OrthoSlicer3D(vol).show()
+                except Exception as e:
+                    print(f"⚠️ Ortho view failed for {label}: {e}")
+        return paths if save_nifti else None
 
-    return paths if save_nifti else None
 
 
 class DomainAGenerator:
@@ -1016,8 +1085,47 @@ def visualize_volume_all_slices(
 
     return fig
 
+def visualize_slice_range(volume,
+                          start_slice=11,
+                          end_slice=20,
+                          vmin=None,
+                          vmax=None):
+
+    start_slice = max(0, start_slice)
+    end_slice = min(volume.shape[2] - 1, end_slice)
+
+    slices = range(start_slice, end_slice + 1)
+
+    n = len(list(slices))
+    cols = 5
+    rows = int(np.ceil(n / cols))
+
+    fig, axes = plt.subplots(rows, cols, figsize=(15, 3 * rows))
+    axes = np.array(axes).ravel()
+
+    if vmin is None or vmax is None:
+        vmin, vmax = np.percentile(volume, (1, 99))
+
+    # Rotate 90 degrees clockwise to match the orientation of the original NIfTI image
+    # volume = np.rot90(volume, k=1, axes=(0, 1))
+
+    for ax, idx in zip(axes, slices):
+        ax.imshow(volume[:, :, idx],
+                  cmap="gray",
+                  origin="lower",
+                  vmin=vmin,
+                  vmax=vmax)
+        ax.set_title(f"Slice {idx}")
+        ax.axis("off")
+
+    for ax in axes[n:]:
+        ax.axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
 # Example paths (use your config_lf paths)
-path_A = config_lf.path_lf_t2w  # LF T2w data directory
+path_A = config_lf.path_lf  # LF T1w data directory
 genA = DomainAGenerator(path_A)
 
 # Fetch one batch from Domain A
@@ -1026,31 +1134,29 @@ for volA, ctxA, save_file in genA:
     print("Domain A context:", ctxA.shape)
     print("Domain A context values:", ctxA)
     print("Domain A save file:", save_file)
+
+    visualize_slice_range(volA)
     break
 
-# Path for the second stage model (SRR or enhancement)
-model_name = 'residual_srr_unet_l2_ssim_edge'
-# folder_path = "niv_results/outputs_src_simulated/Output_patch_noise"
-folder_path = "niv_results/outputs_src_simulated_context/enhancement"
-
-model_path_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_v1"
-
 # Path for saving the generated volumes from domain adaptation
-output_dir_lf ='niv_results/Evaluator_data_v1/VolA'
-output_dir_denoise ='niv_results/Evaluator_data_v1/CycleGAN_T1w'
-output_dir_enhance ='niv_results/Evaluator_data_v1/Enhancement'
+output_dir_lf ='niv_results/Evaluator_data_final_500_da_v1/VolA_t2w'
+output_dir_denoise ='niv_results/Evaluator_data_final_500_da_v1/CycleGAN_T2w'
+output_dir_enhance ='niv_results/Evaluator_data_final_500_da_v1/EnhancementT2w'
 output_dir = output_dir_denoise
 
-#   Resume from latest checkpoints if available.
-#   500 for the t2w prediction using T1w training folders.
+# if path does not exist, create it
+os.makedirs(output_dir_lf, exist_ok=True)
+os.makedirs(output_dir_denoise, exist_ok=True)
+os.makedirs(output_dir_enhance, exist_ok=True)
 
+#Domain adaptation model path for CycleGAN
+model_path_lf_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_v1"
 model_files = {
-    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000400.keras'),
-    'g_B2A': os.path.join(model_path_da, 'g_BtoA_000400.keras'),
-    'd_A': os.path.join(model_path_da, 'd_A_000400.keras'),
-    'd_B': os.path.join(model_path_da, 'd_B_000400.keras')
+    'g_A2B': os.path.join(model_path_lf_da, 'g_AtoB_000500.keras'),
+    'g_B2A': os.path.join(model_path_lf_da, 'g_BtoA_000500.keras'),
+    'd_A': os.path.join(model_path_lf_da, 'd_A_000500.keras'),
+    'd_B': os.path.join(model_path_lf_da, 'd_B_000500.keras')
 }
-
 if all(os.path.exists(f) for f in model_files.values()):
     print(">>> Resuming from latest checkpoints...")
     g_model_AtoB = load_model(model_files['g_A2B'], compile=False)
@@ -1059,6 +1165,25 @@ if all(os.path.exists(f) for f in model_files.values()):
     d_model_B = load_model(model_files['d_B'], compile=False)
     d_model_A.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
     d_model_B.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
+
+
+# Domain adaptation model path for CycleGAN # Step 2;
+model_path_da_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_500_da_v1"
+model_files = {
+    'g_A2B': os.path.join(model_path_da_da, 'g_AtoB_000500.keras'),
+    'g_B2A': os.path.join(model_path_da_da, 'g_BtoA_000500.keras'),
+    'd_A': os.path.join(model_path_da_da, 'd_A_000500.keras'),
+    'd_B': os.path.join(model_path_da_da, 'd_B_000500.keras')
+}
+
+if all(os.path.exists(f) for f in model_files.values()):
+    print(">>> Resuming from latest checkpoints...")
+    g_model_AtoB_da = load_model(model_files['g_A2B'], compile=False)
+    g_model_BtoA_da = load_model(model_files['g_B2A'], compile=False)
+    d_model_A_da = load_model(model_files['d_A'], compile=False)
+    d_model_B_da = load_model(model_files['d_B'], compile=False)
+    d_model_A_da.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
+    d_model_B_da.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
 
 for volA, ctxA, save_file in genA:
 
@@ -1082,34 +1207,57 @@ for volA, ctxA, save_file in genA:
         out_path=os.path.join(output_dir, save_file),
         batch_size=1
     )
+    # visualize_slice_range(fake_vol)
+    # add o asix to fake_vol to make it (1,H,W,D) for evaluation
+    fake_vol_1 = np.expand_dims(fake_vol, axis=0)
+    #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
 
-    # # add o asix to fake_vol to make it (1,H,W,D) for evaluation
-    # fake_vol_1 = np.expand_dims(fake_vol, axis=0)
-    # #check in max and min of fake_vol_1 and if max > 1 then normalize in range 0 to 1
-
-    # if fake_vol_1.max() > 1:
-    #     fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
+    #shape of fake_vol_1
+    print(f"Fake volume shape after generator: {fake_vol_1.shape}")
     
-    # # print min and max of fake_vol_1 after normalization
-    # print(f"Generated volume range after normalization: min={fake_vol_1.min()}, max={fake_vol_1.max()}")
 
-    # # get domain adopted and perform further steps
-    # results, pred1, model1 = evaluate_model(
-    #     folder_path=folder_path,
-    #     model_name=model_name,
-    #     X_test=fake_vol_1,
-    #     y_test=fake_vol_1,
-    #     patch_size=(64, 64, 32),
-    #     overlap=0.5,
-    #     visualize_slices=[15]
-    # )
+    if fake_vol_1.max() > 1:
+        fake_vol_1 = (fake_vol_1 / np.max(fake_vol_1) - 0.5) * 2
+    
+    # use second DA model to translate back to domain A (LF MRI) for evaluation
+    real_vol_back, fake_vol_da, ctx_back = evaluate_one_subject_volume(
+        g_model_BtoA_da, fake_vol_1, ctxA,
+        out_path=os.path.join(output_dir_lf, save_file),
+        batch_size=1
+    )
+    # visualize_slice_range(fake_vol_da)
+    print(f"Fake volume after second DA model shape: {fake_vol_da.shape}")
 
     volA = np.squeeze(volA)
-    visualize_comparison(volA, fake_vol, name=save_file, output_dir=output_dir_denoise)
-    visualize_comparison(fake_vol, volA, name=save_file, output_dir=output_dir_lf)
-    # visualize_comparison(volA, pred1, fake_vol, name=save_file, output_dir=output_dir_enhance)
+    fake_vol_1 = np.squeeze(fake_vol_1)
+    volA = undo_preprocessing(volA, crop_infoB=None, rotate=True)
+    # visualize_slice_range(volA)
+    fake_vol_1 = undo_preprocessing(fake_vol_1, crop_infoB=None, rotate=True)
+    # visualize_slice_range(fake_vol_1)
+    fake_vol_da = undo_preprocessing(fake_vol_da, crop_infoB=None, rotate=True)
+    # visualize_slice_range(fake_vol_da)
 
-    # # print("Evaluation Results:after Stage 2 Refinement")
-    # visualize_volume_all_slices(volA, name="volA", axis=2, cols=6)
-    # visualize_volume_all_slices(fake_vol, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)
-    # visualize_volume_all_slices(pred1, name="pred1", axis=2, cols=6, vmin=-1, vmax=1)
+    new_affineB = np.array([
+    [1.0, 0.0, 0.0, 0.0],   # Right
+    [0.0, 1.0, 0.0, 0.0],   # Anterior
+    [0.0, 0.0, 2.0, 0.0],   # Superior (2 mm spacing)
+    [0.0, 0.0, 0.0, 1.0]
+    ], dtype=np.float32)
+
+    new_headerB = nib.Nifti1Header()
+    new_headerB.set_data_shape(fake_vol_da.shape)
+    new_headerB.set_zooms((1.0, 1.0, 2.0))
+
+    #save volA, fake_vol, pred1 as nifti files
+    img_volA = nib.Nifti1Image(volA.astype(np.float32), new_affineB, new_headerB)
+    nib.save(img_volA, "volA.nii.gz")
+    img_fake_vol = nib.Nifti1Image(fake_vol_1.astype(np.float32), new_affineB, new_headerB)
+    nib.save(img_fake_vol, "fake_vol.nii.gz")
+    img_pred1 = nib.Nifti1Image(fake_vol_da.astype(np.float32), new_affineB, new_headerB)
+    nib.save(img_pred1, "pred1.nii.gz")
+
+    print(f"✅ Saved NIfTI files: volA.nii.gz, fake_vol.nii.gz, pred1.nii.gz in {output_dir_denoise}")
+
+    visualize_comparison(volA, fake_vol_1, fake_vol_da, name=save_file, output_dir=output_dir_denoise, affine=new_affineB, header=new_headerB)
+    visualize_comparison(fake_vol_1, volA, fake_vol_da, name=save_file, output_dir=output_dir_lf, affine=new_affineB, header=new_headerB)
+    visualize_comparison(volA, fake_vol_da, fake_vol_1, name=save_file, output_dir=output_dir_enhance, affine=new_affineB, header=new_headerB)

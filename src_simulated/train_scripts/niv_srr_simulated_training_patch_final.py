@@ -46,7 +46,7 @@ output_path = "Output_patch_noise"
 os.makedirs(output_path, exist_ok=True)
 batch_size = 16
 patch_z, patch_xy = 32, 64
-visualize = False
+visualize = True
 angles = [10, 20, 25, -10, -20, -25]
 
 # -----------------------------
