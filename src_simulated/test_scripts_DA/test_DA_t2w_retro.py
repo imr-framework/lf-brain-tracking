@@ -1412,13 +1412,15 @@ for volB, ctxB, fnameB, new_affineB, new_headerB, crop_infoB in genB:
 
 # Path for the second stage model (SRR or enhancement)
 #Domain adaptation model path
-model_path_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t1w_lfsimulated_context_700"
+model_path_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t2w_lfsimulated_context_700"
 # Resume from latest checkpoints if available
+#With T2w
+
 model_files = {
-    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000500.keras'),
-    'g_B2A': os.path.join(model_path_da, 'g_BtoA_000500.keras'),
-    'd_A': os.path.join(model_path_da, 'd_A_000500.keras'),
-    'd_B': os.path.join(model_path_da, 'd_B_000500.keras')
+    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000400.keras'),
+    'g_B2A': os.path.join(model_path_da, 'g_BtoA_000400.keras'),
+    'd_A': os.path.join(model_path_da, 'd_A_000400.keras'),
+    'd_B': os.path.join(model_path_da, 'd_B_000400.keras')
 }
 
 # Image enhancement model name
@@ -1432,7 +1434,7 @@ output_dir_synth_hf = 'niv_results/Retro_Evaluator_t2w_new/Synthetic_HF'
 output_dir_enhance = 'niv_results/Retro_Evaluator_t2w_new/Enhancement'
 output_dir = output_dir_synth_lf
 
-#make the above if not present
+# Make the above if not present
 if not os.path.exists(output_dir_hf):
     os.makedirs(output_dir_hf, exist_ok=True)
 if not os.path.exists(output_dir_synth_lf):
@@ -1478,13 +1480,13 @@ for (volA, ctxA, fileA), (volB, ctxB, fileB, new_affineB, new_headerB, crop_info
     # Print min and max range of volB before feeding into generator
     print(f"Input volume range before generator: min={volB.min()}, max={volB.max()}")
     real_vol, synth_lf, ctx = evaluate_one_subject_volume(
-        g_model_BtoA, volB, ctxB,
+        g_model_BtoA, volB, ctxA,
         out_path=os.path.join(output_dir, fileB),
         batch_size=1
     )
 
     real_vol, Synth_hf, ctx = evaluate_one_subject_volume(
-        g_model_AtoB, synth_lf, ctxA,
+        g_model_AtoB, synth_lf, ctxB,
         out_path=os.path.join(output_dir, fileA),
         batch_size=1
     )
