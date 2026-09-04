@@ -5,6 +5,7 @@ __pycache__/
 
 # Directories
 Data/
+make_figures_/
 
 # C extensions
 *.so
