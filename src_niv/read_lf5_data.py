@@ -165,7 +165,7 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
 
                             # Make nifti in case of need for further inputs to other software
                             
-                            subject_folder = os.path.join('niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_wrap1', subject)
+                            subject_folder = os.path.join('niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_5visits', subject)
                             if not os.path.exists(subject_folder):
                                 os.makedirs(subject_folder)
 
@@ -201,11 +201,30 @@ def process_subject(subject='26184', fix_wrap = True, wrap_around = int(2), fov_
                             print("Skipping due to read error.")
                             continue
 
+                        subject_folder = os.path.join('niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_5visits_all', subject)
+                        if not os.path.exists(subject_folder):
+                            os.makedirs(subject_folder)
+
+                        fname_nii = os.path.join(subject_folder, name)
+                        make_nifti(
+                            im,
+                            fname=fname_nii,
+                            mask=False,
+                            res=[im_props.res_dim1,  im_props.res_dim2, im_props.res_dim3],
+                            dim_info=[0, 1, 2]
+                        )
+                        # Save the NIfTI file
+                        print(f"Saved NIfTI file: {fname_nii}")
+
+                        # with open(fname_nii_params, 'w') as f:
+                        #     json.dump(params_dict, f)
+
+                        #     print(f"Saved ImageScanParameters to {fname_nii_params}")
+
                         print(np.max(np.abs(im)))
                         print("Min value:", np.min(np.abs(im)))
                         print("Data type of np.abs(im):", np.abs(im).dtype)
                         print("Shape of im:", im.shape)
-                        
 
                         # save im in npy format
                         # np.save(f'./data/{subject}_{Visit_id}_{sub_folder}.npy', im)
@@ -239,9 +258,9 @@ from scipy.ndimage import zoom, binary_fill_holes
 from skimage.morphology import ball, binary_closing, binary_opening, remove_small_objects, label
 from skimage.measure import regionprops
 
-# ----------------------------
+# ---------------------
 # Visualization Utility
-# ----------------------------
+# ---------------------
 def visualize_volume(volume, title="Volume Slices", cols=8):
     """Display all slices of a 3D volume in a grid."""
     num_slices = volume.shape[2]

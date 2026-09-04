@@ -40,7 +40,7 @@ for i in range(70):
     root = tk.Tk()
     root.withdraw()  # hide the main window
 
-    initial_dir = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_nifti_all"
+    initial_dir = "niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_5visits_all"
     filename = filedialog.askopenfilename(
         title="Select a NIfTI file",
         filetypes=[("NIfTI files", "*.nii *.nii.gz")],
@@ -59,10 +59,10 @@ for i in range(70):
     folder_name = Path(filename).parent.name  # gets '35528'
     print("Folder name extracted:", folder_name)
 
-    # -----------------------------
+    # -------------------------------
     # Set output directory and output filename
-    # -----------------------------
-    out_dir = f"niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_nifti_all/{folder_name}"
+    # -------------------------------
+    out_dir = f"niv_raw_data/Nipah_IRF_data/data_niv/LFMRI_DATA_IRF_5visits_corrected_extra/{folder_name}"
     os.makedirs(out_dir, exist_ok=True)
 
     out_name = Path(filename).name  # just the file name

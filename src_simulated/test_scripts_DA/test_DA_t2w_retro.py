@@ -191,7 +191,6 @@ def visualize_volume_samples(gen_small, gen_large, num_samples=5):
     plt.tight_layout()
     plt.show()
 
-
 def visualize_single_volume(generator, axis=2):
     """Display all slices of one volume."""
     
@@ -221,7 +220,6 @@ def visualize_single_volume(generator, axis=2):
 
     plt.tight_layout()
     plt.show()
-
 
 def visualize_comparison(
     im,
@@ -296,7 +294,7 @@ def visualize_comparison(
         r = i // n_cols
         c = i % n_cols
 
-        axes[r, c].imshow(_get_slice(pred1, idx), cmap="gray")
+        axes[r, c].imshow(_get_slice(pred1, idx).T, cmap="gray")
         axes[r, c].set_title(f"Slice {idx}", fontsize=10)
         axes[r, c].axis("off")
 
@@ -846,8 +844,8 @@ def evaluate_one_subject_volume(g_model, X_vol, c_vol, out_path=None, nii_affine
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         if nii_affine is None:
             nii_affine = np.eye(4)
-        nib.save(nib.Nifti1Image(fake_vol.astype(np.float32), affine=nii_affine), out_path)
-        print(f"> Saved generated volume: {out_path}")
+        # nib.save(nib.Nifti1Image(fake_vol.astype(np.float32), affine=nii_affine), out_path)
+        # print(f"> Saved generated volume: {out_path}")
 
     return X_vol, fake_vol, c_vol
 
@@ -855,10 +853,12 @@ def evaluate_one_subject_volume(g_model, X_vol, c_vol, out_path=None, nii_affine
 # Sliding Window Inference
 # ------------------------------------------------
 def predict_volume(model, lf_volume, patch_size=(64,64,32), overlap=0.5):
+    
     """
     Sliding-window 3D prediction on LF volume.
     Returns predicted enhanced volume of same shape.
     """
+
     H, W, D = lf_volume.shape
     px, py, pz = patch_size
 
@@ -1212,10 +1212,333 @@ def undo_preprocessing(vol, crop_info, rotate=False):
 
     return restored
 
+import numpy as np
+import SimpleITK as sitk
+
+
+def robust_intensity_clip(vol, mask=None, lower=1, upper=99):
+    """
+    Robustly clip MRI intensities using percentiles.
+
+    Parameters
+    ----------
+    vol : np.ndarray
+        3D MRI volume.
+    mask : np.ndarray, optional
+        Brain mask. If None, use vol > 0.
+    lower : float
+        Lower percentile.
+    upper : float
+        Upper percentile.
+
+    Returns
+    -------
+    vol : np.ndarray
+        Clipped volume.
+    """
+
+    vol = vol.astype(np.float32)
+
+    if mask is None:
+        mask = vol > 0
+
+    values = vol[mask]
+
+    if values.size == 0:
+        return vol
+
+    p_low = np.percentile(values, lower)
+    p_high = np.percentile(values, upper)
+
+    if p_high <= p_low:
+        return vol
+
+    vol = np.clip(vol, p_low, p_high)
+
+    return vol
+
+
+def histogram_match_volume(vol, reference_volume):
+    """
+    Histogram-match a retrospective MRI volume to a
+    representative training-domain MRI volume.
+
+    Both volumes should already be resampled to the
+    same voxel spacing.
+    """
+
+    vol = vol.astype(np.float32)
+    reference_volume = reference_volume.astype(np.float32)
+
+    moving = sitk.GetImageFromArray(vol)
+    reference = sitk.GetImageFromArray(reference_volume)
+
+    matcher = sitk.HistogramMatchingImageFilter()
+
+    matcher.SetNumberOfHistogramLevels(256)
+    matcher.SetNumberOfMatchPoints(50)
+
+    matcher.ThresholdAtMeanIntensityOn()
+
+    matched = matcher.Execute(moving, reference)
+
+    return sitk.GetArrayFromImage(matched).astype(np.float32)
+
+
+def harmonize_volume(vol, reference_volume=None):
+    """
+    Harmonize retrospective HF MRI before the existing
+    normalize_volume() function.
+
+    Steps:
+        1. Robust percentile clipping
+        2. Optional histogram matching
+    """
+
+    # ---------------------------------
+    # Step 1: robust clipping
+    # ---------------------------------
+    vol = robust_intensity_clip(
+        vol,
+        lower=1,
+        upper=99
+    )
+
+    # ---------------------------------
+    # Step 2: histogram matching
+    # ---------------------------------
+    if reference_volume is not None:
+
+        reference_volume = robust_intensity_clip(
+            reference_volume,
+            lower=1,
+            upper=99
+        )
+
+        vol = histogram_match_volume(
+            vol,
+            reference_volume
+        )
+
+    return vol
+
+
+
+def create_reference_quantiles(values, n=1001):
+
+    probabilities = np.linspace(
+        0.0,
+        1.0,
+        n
+    )
+
+    reference_quantiles = np.quantile(
+        values,
+        probabilities
+    )
+
+    return probabilities, reference_quantiles
+
+def load_training_reference(reference_file):
+
+    data = np.load(reference_file)
+
+    return (
+        data["probabilities"],
+        data["reference_quantiles"]
+    )
+
+
+# def harmonize_to_training(vol, reference_quantiles):
+#     """
+#     Conservative intensity harmonization.
+
+#     Adjusts global brightness/contrast of the retrospective
+#     volume toward the training HF intensity distribution
+#     without performing full histogram matching.
+#     """
+
+#     vol = np.asarray(vol, dtype=np.float32)
+
+#     reference_quantiles = np.asarray(
+#         reference_quantiles,
+#         dtype=np.float32
+#     ).ravel()
+
+#     # -----------------------------------------
+#     # Valid voxels
+#     # -----------------------------------------
+#     mask = np.isfinite(vol) & (vol > 0)
+
+#     if not np.any(mask):
+#         return vol
+
+#     values = vol[mask]
+
+#     # -----------------------------------------
+#     # Source robust statistics
+#     # -----------------------------------------
+#     source_p10 = np.percentile(values, 10)
+#     source_p50 = np.percentile(values, 50)
+#     source_p90 = np.percentile(values, 90)
+
+#     # -----------------------------------------
+#     # Training robust statistics
+#     #
+#     # reference_quantiles has 1001 values
+#     # corresponding to 0...100%
+#     # -----------------------------------------
+#     reference_p10 = reference_quantiles[100]
+#     reference_p50 = reference_quantiles[500]
+#     reference_p90 = reference_quantiles[900]
+
+#     print(
+#         "[HARMONIZATION]"
+#     )
+
+#     print(
+#         f"Source  P10={source_p10:.2f}, "
+#         f"P50={source_p50:.2f}, "
+#         f"P90={source_p90:.2f}"
+#     )
+
+#     print(
+#         f"Training P10={reference_p10:.2f}, "
+#         f"P50={reference_p50:.2f}, "
+#         f"P90={reference_p90:.2f}"
+#     )
+
+#     # -----------------------------------------
+#     # Robust contrast scaling
+#     # -----------------------------------------
+#     source_range = source_p90 - source_p10
+#     reference_range = reference_p90 - reference_p10
+
+#     if source_range <= 1e-6:
+#         return vol
+
+#     scale = reference_range / source_range
+
+#     # Prevent extreme contrast changes
+#     scale = np.clip(scale, 0.5, 2.0)
+
+#     # -----------------------------------------
+#     # Center around median
+#     # -----------------------------------------
+#     output = vol.copy()
+
+#     output[mask] = (
+#         (values - source_p50) * scale
+#         + reference_p50
+#     )
+
+#     # -----------------------------------------
+#     # Preserve background
+#     # -----------------------------------------
+#     output[~mask] = vol[~mask]
+
+#     # -----------------------------------------
+#     # Prevent negative intensities
+#     # -----------------------------------------
+#     output[mask] = np.maximum(
+#         output[mask],
+#         0
+#     )
+
+#     return output.astype(np.float32)
+
+
+def harmonize_to_training(
+    vol,
+    reference_quantiles,
+    strength=0.30
+):
+    """
+    Light percentile-based harmonization.
+
+    strength=0.0  -> no harmonization
+    strength=0.3  -> light harmonization
+    strength=0.5  -> moderate
+    strength=1.0  -> full harmonization
+    """
+
+    vol = np.asarray(vol, dtype=np.float32)
+
+    reference_quantiles = np.asarray(
+        reference_quantiles,
+        dtype=np.float32
+    ).ravel()
+
+    mask = np.isfinite(vol) & (vol > 0)
+
+    if not np.any(mask):
+        return vol
+
+    source = vol[mask]
+
+    # Source percentiles
+    s1  = np.percentile(source, 1)
+    s10 = np.percentile(source, 10)
+    s50 = np.percentile(source, 50)
+    s90 = np.percentile(source, 90)
+    s99 = np.percentile(source, 99)
+
+    # Training reference percentiles
+    r1  = reference_quantiles[10]
+    r10 = reference_quantiles[100]
+    r50 = reference_quantiles[500]
+    r90 = reference_quantiles[900]
+    r99 = reference_quantiles[990]
+
+    source_points = np.array(
+        [s1, s10, s50, s90, s99],
+        dtype=np.float32
+    )
+
+    reference_points = np.array(
+        [r1, r10, r50, r90, r99],
+        dtype=np.float32
+    )
+
+    # Remove duplicate source values
+    source_points, indices = np.unique(
+        source_points,
+        return_index=True
+    )
+
+    reference_points = reference_points[indices]
+
+    # Full harmonization
+    mapped = np.interp(
+        source,
+        source_points,
+        reference_points
+    )
+
+    # -----------------------------------------
+    # LIGHT / BLENDED HARMONIZATION
+    # -----------------------------------------
+    strength = np.clip(strength, 0.0, 1.0)
+
+    blended = (
+        (1.0 - strength) * source
+        + strength * mapped
+    )
+
+    output = vol.copy()
+    output[mask] = blended
+    output[~mask] = 0
+
+    print(
+        f"[HARMONIZE] strength={strength:.2f}"
+    )
+
+    return output.astype(np.float32)
+
 class DomainBGenerator:
     def __init__(self, path, substring=None, target_spacing=(1,1,2),
                  target_h=140, target_w=140, target_d=35, crop_size=128,
-                 rotate=False, add_channel=False, test=False):
+                 rotate=False, add_channel=False, test=False,harmonize=False, reference_file=None):
         
         """
         Generator for Domain B volumes and context vectors.
@@ -1230,6 +1553,55 @@ class DomainBGenerator:
         self.rotate = rotate
         self.add_channel = add_channel
         self.test = test
+
+        self.harmonize = harmonize
+        self.reference_file = reference_file
+
+        self.reference_probabilities = None
+        self.reference_quantiles = None
+
+        if self.harmonize:
+
+            if self.reference_file is None:
+                raise ValueError(
+                    "harmonize=True but reference_file was not provided."
+                )
+
+            if not os.path.exists(self.reference_file):
+                raise FileNotFoundError(
+                    f"Reference file not found: {self.reference_file}"
+                )
+
+            ref = np.load(self.reference_file)
+
+            self.reference_probabilities = np.asarray(
+                ref["probabilities"],
+                dtype=np.float32
+            ).ravel()
+
+            self.reference_quantiles = np.asarray(
+                ref["reference_quantiles"],
+                dtype=np.float32
+            ).ravel()
+
+            if len(self.reference_probabilities) != len(
+                self.reference_quantiles
+            ):
+                raise ValueError(
+                    "Reference probabilities and quantiles "
+                    "have different lengths."
+                )
+
+            print(
+                f"[INFO] Loaded HF reference: "
+                f"{self.reference_quantiles.shape}"
+            )
+
+            print(
+                f"[INFO] Reference intensity range: "
+                f"{self.reference_quantiles.min():.3f} - "
+                f"{self.reference_quantiles.max():.3f}"
+            )
 
         # -----------------------------
         # Find valid NIfTI files
@@ -1277,6 +1649,11 @@ class DomainBGenerator:
         return len(self.files)
 
     def __getitem__(self, idx):
+        
+        print(
+            f"[DEBUG] harmonize={self.harmonize}, "
+            f"reference_file={self.reference_file}"
+        )
         """
         Load one volume (with preprocessing) and return (volume, context)
         """
@@ -1337,6 +1714,30 @@ class DomainBGenerator:
             target_w=self.target_w
         )
 
+        # -----------------------------------------
+        # HARMONIZATION
+        # -----------------------------------------
+        # -----------------------------------------
+        # HARMONIZATION
+        # -----------------------------------------
+        if self.harmonize:
+
+            print(
+                f"[HARMONIZE] Applying reference to "
+                f"{os.path.basename(fpath)}"
+            )
+
+            print(
+                f"[HARMONIZE] reference shape = "
+                f"{self.reference_quantiles.shape}"
+            )
+                    
+            vol = harmonize_to_training(
+                vol,
+                self.reference_quantiles,
+                strength=0.30
+            )
+
         # Normalize
         vol = normalize_volume(vol)
 
@@ -1377,6 +1778,165 @@ class DomainBGenerator:
                 except ValueError:
                     continue
 
+
+# reference for homromization
+import os
+import numpy as np
+import nibabel as nib
+from scipy.ndimage import zoom
+
+
+TRAIN_DIR = "niv_raw_data/IRF_3T_t1-t2/T2"
+
+TARGET_SPACING = (1, 1, 2)
+TARGET_H = 128
+TARGET_W = 128
+TARGET_D = 30
+
+
+def collect_training_files(folder):
+    files = []
+
+    for dirpath, dirnames, filenames in os.walk(folder):
+        dirnames.sort()
+        filenames.sort()
+
+        for fname in filenames:
+            if fname.endswith((".nii", ".nii.gz")):
+                files.append(os.path.join(dirpath, fname))
+
+    return sorted(files)
+
+
+def preprocess_for_reference(fpath):
+
+    nii = nib.load(fpath)
+
+    vol = nii.get_fdata().astype(np.float32)
+
+    # Same as your training preprocessing
+    vol = np.abs(vol)
+
+    print(
+        f"{os.path.basename(fpath)}: "
+        f"shape={vol.shape}, "
+        f"spacing={nii.header.get_zooms()[:3]}"
+    )
+
+    # Only resample if needed
+    current_spacing = nii.header.get_zooms()[:3]
+
+    if not np.allclose(current_spacing, (1, 1, 2), atol=1e-3):
+
+        zoom_factors = (
+            current_spacing[0] / 1.0,
+            current_spacing[1] / 1.0,
+            current_spacing[2] / 2.0
+        )
+
+        vol = zoom(
+            vol,
+            zoom_factors,
+            order=1
+        )
+
+        vol = np.ascontiguousarray(vol)
+
+    # We expect training domain to be 140 × 140 × 35
+    if vol.shape != (140, 140, 35):
+
+        print(
+            f"[SKIP] {os.path.basename(fpath)} "
+            f"final shape={vol.shape}"
+        )
+
+        return None
+
+    return vol
+
+
+def build_training_reference(folder):
+
+    files = collect_training_files(folder)
+
+    print(f"Found {len(files)} training HF volumes")
+
+    all_values = []
+
+    for i, fpath in enumerate(files):
+
+        print(
+            f"[{i+1}/{len(files)}] "
+            f"{os.path.basename(fpath)}"
+        )
+
+        vol = preprocess_for_reference(fpath)
+
+        if vol is None:
+            continue
+
+        # Ignore background
+        mask = vol > 0
+
+        values = vol[mask]
+
+        if values.size == 0:
+            continue
+
+        # Robustly remove extreme outliers
+        p1 = np.percentile(values, 1)
+        p99 = np.percentile(values, 99)
+
+        values = values[
+            (values >= p1) &
+            (values <= p99)
+        ]
+
+        all_values.append(values)
+
+    if len(all_values) == 0:
+        raise RuntimeError("No valid training volumes found.")
+
+    all_values = np.concatenate(all_values)
+
+    print("\n===== TRAINING REFERENCE =====")
+    print("Number of voxels:", len(all_values))
+    print("Min:", np.min(all_values))
+    print("Max:", np.max(all_values))
+    print("Mean:", np.mean(all_values))
+    print("Median:", np.median(all_values))
+
+    percentiles = [
+        1, 5, 10, 25,
+        50,
+        75, 90, 95, 99
+    ]
+
+    for p in percentiles:
+        print(
+            f"P{p:02d}: "
+            f"{np.percentile(all_values, p):.4f}"
+        )
+
+    return all_values
+
+
+training_reference = build_training_reference(
+    "niv_raw_data/IRF_3T_t1-t2/T2"
+    )
+
+probabilities, reference_quantiles = create_reference_quantiles(
+    training_reference
+)
+
+np.savez(
+    "training_HF_reference.npz",
+    probabilities=probabilities,
+    reference_quantiles=reference_quantiles
+)
+
+print("Saved: training_HF_reference.npz")
+
 # Path to Domain B NIfTI files
 path_B = "niv_raw_data/Nipah_IRF_data/Retro_data/test"
 substring_B = ""
@@ -1384,13 +1944,18 @@ substring_B = ""
 genB = DomainBGenerator(
     path=path_B,
     substring=substring_B,
+
     target_spacing=(1,1,2),
     target_h=128,
     target_w=128,
     target_d=30,
+
     rotate=True,
     add_channel=False,
-    test=False
+    test=False,
+
+    harmonize=False,
+    reference_file="training_HF_reference.npz"
 )
 
 # Example: get first volume and its context
@@ -1410,18 +1975,10 @@ for volB, ctxB, fnameB, new_affineB, new_headerB, crop_infoB in genB:
     visualize_slice_range(volB)
     break
 
-# Path for the second stage model (SRR or enhancement)
-#Domain adaptation model path
+# Domain adaptation model path
 model_path_da = "niv_results/outputs_src_cyclegan_context/cyclegan_lfmri20t2w_lfsimulated_context_700"
 # Resume from latest checkpoints if available
-#With T2w
-
-model_files = {
-    'g_A2B': os.path.join(model_path_da, 'g_AtoB_000400.keras'),
-    'g_B2A': os.path.join(model_path_da, 'g_BtoA_000400.keras'),
-    'd_A': os.path.join(model_path_da, 'd_A_000400.keras'),
-    'd_B': os.path.join(model_path_da, 'd_B_000400.keras')
-}
+# With T1w
 
 # Image enhancement model name
 model_name = 'residual_srr_unet_l2_ssim_edge_final'
@@ -1464,7 +2021,7 @@ if all(os.path.exists(f) for f in model_files.values()):
     d_model_B.compile(loss=DISC_LOSS, optimizer=Adam(learning_rate=DISC_LEARNING_RATE, beta_1=DISC_BETA_1), loss_weights=DISC_LOSS_WEIGHTS)
 
 for (volA, ctxA, fileA), (volB, ctxB, fileB, new_affineB, new_headerB, crop_infoB) in zip(genA, genB):
-    print(fileB)
+    print("File B:", fileB)
 
     print("Domain A volume shape:", volB.shape)
     print("Domain A context:", ctxB.shape)
