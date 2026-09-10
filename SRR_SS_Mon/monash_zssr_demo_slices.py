@@ -16,7 +16,7 @@
 import sys
 sys.path.insert(0, './')  # Adjust the path as necessary to import from src_niv
 sys.path.append('./LFsim')
-sys.path.append('./src')
+sys.path.append('./zssr')
 import os
 import nibabel as nib
 import numpy as np
@@ -25,7 +25,7 @@ from scipy.ndimage import zoom
 from typing import Dict, Tuple
 from SRR_SS_Mon.data_read import PairedMRI
 from ZSSR_master import configs, configs_2, ZSSR
-from src.utils import compute_aes, do_norm_im, preprocess_img_nhp, mosaic_all_slices
+from zssr.utils import compute_aes, do_norm_im, preprocess_img_nhp, mosaic_all_slices
 
 from nilearn import plotting
 from nibabel.viewers import OrthoSlicer3D
@@ -66,7 +66,7 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 
 viewing = False
 ds_to_process = 4
-target_resolution_fact = [1, 1, 2]
+target_resolution_fact = [1, 1, 1]
 snr_component = False
 
 max_iters = 6000
@@ -78,7 +78,7 @@ crop_sizes = [128, 256]
 noise_stds = [0.0, 0.2]
 
 # Load dataset
-training_path = "Data/ULC_img enhancement/Training data"
+training_path = "niv_raw_data/ULC_img_enhancement/Training_data"
 dataset = PairedMRI(training_path)
 
 # List subjects

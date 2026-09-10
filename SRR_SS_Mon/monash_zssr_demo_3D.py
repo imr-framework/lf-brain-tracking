@@ -16,7 +16,7 @@
 import sys
 sys.path.insert(0, './')  # Adjust the path as necessary to import from src_niv
 sys.path.append('./LFsim')
-sys.path.append('./src')
+sys.path.append('./zssr')
 import os
 import nibabel as nib
 import numpy as np
@@ -25,7 +25,7 @@ from scipy.ndimage import zoom
 from typing import Dict, Tuple
 from SRR_SS_Mon.data_read import PairedMRI
 from ZSSR_master import configs, configs_2, ZSSR
-from src.utils import compute_aes
+from zssr.utils import compute_aes
 
 from nilearn import plotting
 from nibabel.viewers import OrthoSlicer3D
@@ -39,8 +39,6 @@ from skimage.metrics import structural_similarity as ssim
 from pydicom.filereader import dcmread
 from tensorflow.keras import backend as K
 import scipy.io as sio
-
-
 
 # Clear the current TensorFlow/Keras session
 K.clear_session()
@@ -79,11 +77,10 @@ depths = [8]
 crop_sizes = [64]
 noise_stds = [0.0]
 
-# Load dataset
-training_path = "niv_raw_data/3 Monash_ULC_img enhancement/Training data"
+# Load_dataset
+training_path = "niv_raw_data/ULC_img_enhancement/Training_data"
 dataset = PairedMRI(training_path)
 kernel_path = '/Users/sairamgeethanath/Documents/Contributions/Tools/Projects/R21/lf-brain-tracking/src/ZSSR_master/kernel_example/BSD100_100_lr_rand_ker_c_X2_0.mat'
-
 
 kernel_files = ['%s_%d.mat' % (kernel_path[:-4], ind) for ind in range(len([1, 2]))]
 # List subjects
@@ -138,7 +135,6 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
     subject_LF_Monash_data = subject_LF_Monash_data / np.max(subject_LF_Monash_data) 
     subject_LF_Monash_data = (subject_LF_Monash_data * 255).astype(np.uint8)
 
-
     # Create all combinations
     param_combinations = list(itertools.product(widths, depths, crop_sizes, noise_stds))
     # print(param_combinations)
@@ -167,16 +163,13 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
         # Compute PSNR/SSIM/AES between im_lf_sim_zssr and subject_HF
         # (Assuming subject_HF is already loaded as a NIfTI image)
         im_lf_sim_zssr = net.run()
+
         # Ensure all images are in the same dynamic range 0 - 1
         im_lf_sim_zssr = im_lf_sim_zssr / np.max(im_lf_sim_zssr)
         
-           
-
         # Convert all images to unit8 255 for all computations
         im_lf_sim_zssr = (im_lf_sim_zssr * 255).astype(np.uint8)
-        
-        
-
+         
         # Compute PSNR
         psnr_value_monash = psnr(subject_LF_Monash_data, subject_HF_data)
         psnr_value_zssr = psnr(im_lf_sim_zssr, subject_HF_data)

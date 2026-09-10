@@ -1,6 +1,6 @@
 import nibabel as nib
 import numpy as np
-from src.utils import preprocess_img_nhp, mosaic_all_slices, mosaic_to_3D, get_num_cols_rows
+from zssr.utils import preprocess_img_nhp, mosaic_all_slices, mosaic_to_3D, get_num_cols_rows
 from nifti_write import make_nifti
 from ZSSR_master import configs, configs_2, ZSSR
 from ZSSR_2D_ms_nhp_im_process_collage import do_collage_ZSSR_nhp

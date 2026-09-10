@@ -6,7 +6,7 @@ import numpy as np
 from skimage.restoration import denoise_wavelet
 from skimage.filters import unsharp_mask
 import matplotlib.pyplot as plt
-from src.nifti_write import make_nifti
+from zssr.nifti_write import make_nifti
 from nibabel.viewers import OrthoSlicer3D
 def preprocess_img_nhp(data,  debug=False):
     # Load the NIfTI file

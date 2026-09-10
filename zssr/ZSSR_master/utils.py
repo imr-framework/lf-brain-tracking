@@ -5,7 +5,7 @@ sys.path.insert(0, '.')
 import numpy as np
 from math import pi, sin, cos
 from cv2 import warpPerspective, INTER_CUBIC
-from src.ZSSR_master.imresize import imresize
+from zssr.ZSSR_master.imresize import imresize
 from shutil import copy
 from time import strftime, localtime
 import numpy as np
