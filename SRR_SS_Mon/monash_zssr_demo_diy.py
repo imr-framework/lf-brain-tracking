@@ -110,6 +110,7 @@ for i, subject_id in enumerate(dataset.subjects[0:1]):  # take first 5 subjects
     img_data = subject_LF_ZSSR.get_fdata()
 
     if viewing:
+        
         print("Displaying LF ZSSR image data using OrthoSlicer3D")
         OrthoSlicer3D(img_data).show()
 
